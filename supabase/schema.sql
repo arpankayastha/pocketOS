@@ -204,3 +204,35 @@ select a.id, a.name, a.type, a.opening_balance,
 from public.accounts a
 left join public.transactions t on t.account_id = a.id
 group by a.id;
+
+-- Recurring commitments (credit card dues, SIPs, bills, salary) that power the
+-- forward-looking Plan tab: expected amount for next month, filled in with real
+-- transactions as they get logged.
+create table if not exists public.recurring_items (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  name text not null,
+  kind text not null check (kind in ('income','expense')),
+  category_id uuid references public.categories(id) on delete set null,
+  account_id uuid references public.accounts(id) on delete set null,
+  expected_amount numeric(14,2) not null check (expected_amount >= 0),
+  day_of_month smallint check (day_of_month between 1 and 31),
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table public.recurring_items enable row level security;
+drop policy if exists "own rows" on public.recurring_items;
+create policy "own rows" on public.recurring_items for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+-- Links a logged transaction back to the recurring item it fulfilled, so the
+-- Plan tab knows an item is "actual" for the month rather than still "expected".
+alter table public.transactions add column if not exists recurring_item_id uuid references public.recurring_items(id) on delete set null;
+
+create index if not exists recurring_items_household_id_idx on public.recurring_items (household_id);
+create index if not exists recurring_items_user_id_idx on public.recurring_items (user_id);
+create index if not exists recurring_items_category_id_idx on public.recurring_items (category_id);
+create index if not exists recurring_items_account_id_idx on public.recurring_items (account_id);
+create index if not exists transactions_recurring_item_id_idx on public.transactions (recurring_item_id);

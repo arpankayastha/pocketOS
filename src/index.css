@@ -125,6 +125,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .txn:hover { background: var(--card-2); }
 .txn:last-child { border-bottom: none; }
 .amt { font-weight: 600; }
+.amt.expected { opacity: .55; font-style: italic; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
 
 .empty-chart { height: 260px; display: grid; place-items: center; text-align: center; line-height: 1.6; }

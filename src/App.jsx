@@ -4,15 +4,15 @@ import { useFinanceData } from './lib/useFinanceData'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import Transactions from './components/Transactions'
-import Budgets from './components/Budgets'
+import Plan from './components/Plan'
 import Settings from './components/Settings'
 import TransactionForm from './components/TransactionForm'
-import { BrandMark, DashboardIcon, ListIcon, BudgetIcon, SettingsIcon, PlusIcon } from './lib/icons'
+import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon } from './lib/icons'
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: DashboardIcon },
   { id: 'transactions', label: 'Transactions', icon: ListIcon },
-  { id: 'budgets', label: 'Budgets', icon: BudgetIcon },
+  { id: 'plan', label: 'Plan', icon: PlanIcon },
   { id: 'settings', label: 'Accounts & Categories', icon: SettingsIcon },
 ]
 
@@ -83,7 +83,7 @@ function Shell({ session }) {
           <>
             {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
-            {tab === 'budgets' && <Budgets {...data} />}
+            {tab === 'plan' && <Plan {...data} />}
             {tab === 'settings' && <Settings {...data} />}
           </>
         )}

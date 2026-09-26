@@ -32,10 +32,10 @@ export function ListIcon() {
   )
 }
 
-export function BudgetIcon() {
+export function PlanIcon() {
   return (
     <svg {...base}>
-      <circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 9 9h-9z" fill="currentColor" stroke="none" />
+      <path d="M3 17l5-5 4 4 8-8" /><path d="M15 8h5v5" />
     </svg>
   )
 }
