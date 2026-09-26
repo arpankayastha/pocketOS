@@ -367,6 +367,38 @@ label .help { margin: 0; }
 .preview-scroll { flex: 1; overflow-y: auto; padding-bottom: var(--safe-b); }
 .preview-scroll .will-preview { border-radius: 0; min-height: 100%; }
 
+/* Review (PDF) tab */
+.review-hero { display: grid; gap: 10px; }
+.review-hero h2 { margin: 0; font-size: 19px; line-height: 1.4; }
+.review-hero .help { margin: 0; }
+.review-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.status-chip { padding: 3px 10px; border-radius: 99px; font-size: 12.5px; font-weight: 600; }
+.status-chip.error { background: color-mix(in srgb, var(--neg) 16%, transparent); color: var(--neg); }
+.status-chip.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.status-chip.ok { background: color-mix(in srgb, var(--pos) 16%, transparent); color: var(--pos); }
+.btn.block { width: 100%; }
+.btn.block svg { width: 18px; height: 18px; }
+.issue span:last-child { flex: 1; }
+details.section { padding: 0; }
+details.section > summary { display: flex; align-items: center; gap: 10px; padding: 16px 18px; cursor: pointer; list-style: none; font-weight: 700; font-size: 15px; min-height: 52px; }
+details.section > summary::-webkit-details-marker { display: none; }
+details.section .count { font-family: var(--font-mono); font-size: 12px; background: var(--card-2); border: 1px solid var(--line); border-radius: 99px; padding: 1px 9px; color: var(--muted); }
+details.section .chev { color: var(--muted); font-size: 20px; transition: transform .2s; }
+details.section[open] .chev { transform: rotate(90deg); }
+.section-body { padding: 0 18px 18px; }
+.version { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.version:last-of-type { border-bottom: none; }
+.version-actions { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+.clause-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.clause-row:last-of-type { border-bottom: none; }
+.clause-row .check { align-items: flex-start; }
+.clause-row .check input { margin-top: 3px; }
+.clause-sec { display: block; }
+.clause-row .pill { margin-left: 6px; }
+.sub-head { margin: 16px 0 4px; font-weight: 700; font-size: 14px; }
+.preview-title { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.preview-title .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* The will document: black on white paper, Gujarati serif. Used for preview and print. */
 .will-preview { background: #e9e9ea; border-radius: 12px; padding: 16px; overflow-x: auto; }
 .will-preview .will-doc { max-width: 800px; margin: 0 auto; padding: 48px 56px; box-shadow: 0 2px 16px rgb(0 0 0 / .35); }
