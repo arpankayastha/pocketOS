@@ -143,24 +143,20 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
   )
 }
 
+const ACCOUNT_TYPES = ['bank', 'cash', 'card', 'wallet', 'investment']
+
 function Accounts({ accounts, activeHouseholdId, refresh }) {
   const dialog = useDialog()
   const [form, setForm] = useState({ name: '', type: 'bank', opening_balance: '' })
+  const [editing, setEditing] = useState(null) // account being edited
   const [error, setError] = useState(null)
 
   async function add(e) {
     e.preventDefault()
-    const { error } = await supabase.from('accounts').insert({ ...form, household_id: activeHouseholdId, opening_balance: Number(form.opening_balance) || 0 })
+    const { error } = await supabase.from('accounts').insert({ ...form, name: form.name.trim(), household_id: activeHouseholdId, opening_balance: Number(form.opening_balance) || 0 })
     if (error) return setError(error.message)
     setForm({ name: '', type: 'bank', opening_balance: '' })
     setError(null)
-    refresh()
-  }
-
-  async function remove(a) {
-    if (!await dialog.confirm({ title: `Delete account "${a.name}"?`, message: 'Its transactions are kept, just no longer linked to an account.' })) return
-    const { error } = await supabase.from('accounts').delete().eq('id', a.id)
-    if (error) return setError(error.message)
     refresh()
   }
 
@@ -169,19 +165,93 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
       <h3>Accounts</h3>
       {accounts.map((a) => (
         <div className="line" key={a.id}>
-          <span>{a.name} <span className="muted small">{a.type} · opening {money(a.opening_balance)}</span></span>
-          <button className="btn icon" onClick={() => remove(a)}>✕</button>
+          <button type="button" className="line-btn" onClick={() => setEditing(a)}>
+            {a.name} <span className="muted small">{a.type} · opening {money(a.opening_balance)}</span>
+          </button>
+          <span>
+            <button className="btn icon" aria-label={`Edit ${a.name}`} onClick={() => setEditing(a)}><PencilIcon /></button>
+            <button className="btn icon" aria-label={`Delete ${a.name}`} onClick={() => deleteAccount(a, dialog).then((ok) => ok && refresh()).catch((err) => setError(err.message))}><TrashIcon /></button>
+          </span>
         </div>
       ))}
       <form className="inline-form" onSubmit={add}>
         <input required placeholder="Account name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-          {['bank', 'cash', 'card', 'wallet', 'investment'].map((t) => <option key={t}>{t}</option>)}
+          {ACCOUNT_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
         <input type="number" inputMode="decimal" step="0.01" placeholder="Opening balance" value={form.opening_balance} onChange={(e) => setForm({ ...form, opening_balance: e.target.value })} />
         <button className="btn primary">Add</button>
       </form>
       {error && <div className="alert error">{error}</div>}
+      {editing && <AccountEditor account={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />}
+    </div>
+  )
+}
+
+// Asks (in-app) and deletes; resolves true if deleted. Says how much is linked to it first.
+async function deleteAccount(account, dialog) {
+  const [t, r] = await Promise.all([
+    supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('account_id', account.id),
+    supabase.from('recurring_items').select('id', { count: 'exact', head: true }).eq('account_id', account.id),
+  ])
+  const linked = [t.count && `${t.count} transaction${t.count === 1 ? '' : 's'}`, r.count && `${r.count} plan item${r.count === 1 ? '' : 's'}`].filter(Boolean)
+  const message = linked.length
+    ? `${linked.join(' and ')} ${linked.length === 1 && (t.count || r.count) === 1 ? 'uses' : 'use'} it. ${linked.length === 1 && (t.count || r.count) === 1 ? "It's" : "They're"} kept, just no longer linked to an account.`
+    : 'Nothing is linked to it.'
+  if (!await dialog.confirm({ title: `Delete account "${account.name}"?`, message })) return false
+  const { error } = await supabase.from('accounts').delete().eq('id', account.id)
+  if (error) throw error
+  return true
+}
+
+function AccountEditor({ account, onClose, onSaved }) {
+  const dialog = useDialog()
+  const [form, setForm] = useState({ name: account.name, type: account.type, opening_balance: String(account.opening_balance ?? 0) })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const types = ACCOUNT_TYPES.includes(account.type) ? ACCOUNT_TYPES : [...ACCOUNT_TYPES, account.type]
+
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true)
+    const { error } = await supabase.from('accounts')
+      .update({ name: form.name.trim(), type: form.type, opening_balance: Number(form.opening_balance) || 0 }).eq('id', account.id)
+    setBusy(false)
+    if (error) return setError(error.message)
+    onSaved()
+  }
+
+  async function remove() {
+    try { if (await deleteAccount(account, dialog)) onSaved() } catch (err) { setError(err.message) }
+  }
+
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
+        <h3>Edit account</h3>
+        <label>Name
+          <input required autoFocus value={form.name} onChange={set('name')} />
+        </label>
+        <div className="row2">
+          <label>Type
+            <select value={form.type} onChange={set('type')}>
+              {types.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </label>
+          <label>Opening balance
+            <input type="number" inputMode="decimal" step="0.01" value={form.opening_balance} onChange={set('opening_balance')} />
+          </label>
+        </div>
+        <p className="muted small" style={{ margin: 0 }}>The balance before your first transaction in PocketOS. Changing it shifts this account's current balance and your net worth by the same amount.</p>
+        {error && <div className="alert error">{error}</div>}
+        <div className="actions">
+          <button type="button" className="btn icon" aria-label="Delete account" onClick={remove}><TrashIcon /></button>
+          <span className="spacer" />
+          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={busy || !form.name.trim()}>{busy ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
     </div>
   )
 }

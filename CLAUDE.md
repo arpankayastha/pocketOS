@@ -39,6 +39,7 @@ One login (the master account) manages several isolated **households** (workspac
 ## UI notes
 - **Never use `window.confirm` / `prompt` / `alert`.** Use the in-app dialogs: `const dialog = useDialog()` (`src/lib/dialog.js`, rendered by `DialogProvider` in `src/main.jsx`), then `await dialog.confirm({ title, message, confirmLabel, danger })`, `await dialog.prompt({ title, label, defaultValue })`, `await dialog.alert(message)`. Destructive confirms are red and focus Cancel.
 - Categories are edited (name + colour, or deleted) by tapping the chip in Accounts & Categories (`CategoryEditor` in `Settings.jsx`); kind can't change after creation.
+- Accounts are edited (name, type, opening balance) by tapping the row or its pencil (`AccountEditor` in `Settings.jsx`). Deleting one says how many transactions/plan items use it; those are kept but unlinked (`on delete set null`).
 - On phones, the floating + button and bottom nav hide while a text field is focused (CSS `:has` in `src/index.css`), and `.content` has extra bottom padding, so the + never covers a Save button.
 - Splash screen: static markup + inline CSS inside `#root` in `index.html` (paints before JS), and the matching `<Splash />` in `src/App.jsx` while the session loads. Keep the two in sync if the logo changes.
 
