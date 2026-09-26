@@ -283,3 +283,10 @@ drop policy if exists "own rows" on public.vault_items;
 create policy "own rows" on public.vault_items for all to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
+
+-- Between-household transfers: one transfer = an expense in the sender household plus an
+-- income in the receiver, created together and sharing transfer_id so editing/deleting
+-- one side updates the other. Both count in their household's normal totals.
+alter table public.transactions add column if not exists transfer_id uuid;
+create index if not exists transactions_transfer_id_idx on public.transactions (transfer_id) where transfer_id is not null;
+comment on column public.transactions.transfer_id is 'Links the two halves of a between-household transfer: an expense in the sender household and an income in the receiver, sharing this id.';

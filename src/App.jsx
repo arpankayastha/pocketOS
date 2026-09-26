@@ -9,6 +9,7 @@ import Transactions from './components/Transactions'
 import Plan from './components/Plan'
 import Settings from './components/Settings'
 import TransactionForm from './components/TransactionForm'
+import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
 import VaultItems from './components/VaultItems'
 import PasswordGenerator from './components/PasswordGenerator'
@@ -102,7 +103,7 @@ function Topbar({ session, module, setModule, children }) {
 function BudgetModule({ topbar }) {
   const [tab, setTab] = useState('dashboard')
   const [fabOpen, setFabOpen] = useState(false)
-  const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income'
+  const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
   const [dataVersion, setDataVersion] = useState(0)
   const data = useFinanceData()
 
@@ -154,6 +155,9 @@ function BudgetModule({ topbar }) {
       <div className="fab-wrap">
         {fabOpen && (
           <div className="fab-menu">
+            {data.households.length > 1 && (
+              <button className="fab-option transfer" onClick={() => { setFabOpen(false); setQuickAddKind('transfer') }}>⇄ Transfer</button>
+            )}
             <button className="fab-option income" onClick={() => { setFabOpen(false); setQuickAddKind('income') }}>Income</button>
             <button className="fab-option expense" onClick={() => { setFabOpen(false); setQuickAddKind('expense') }}>Expense</button>
           </div>
@@ -161,7 +165,12 @@ function BudgetModule({ topbar }) {
         <button className={`fab ${fabOpen ? 'open' : ''}`} aria-label="Add transaction" onClick={() => setFabOpen((v) => !v)}><PlusIcon /></button>
       </div>
 
-      {quickAddKind && !data.loading && (
+      {quickAddKind === 'transfer' && !data.loading && (
+        <TransferForm households={data.households} fromHouseholdId={data.activeHouseholdId}
+          onClose={() => setQuickAddKind(null)}
+          onSaved={() => { setQuickAddKind(null); setDataVersion((v) => v + 1); data.refresh() }} />
+      )}
+      {quickAddKind && quickAddKind !== 'transfer' && !data.loading && (
         <TransactionForm accounts={data.accounts} categories={data.categories} householdId={data.activeHouseholdId} presetKind={quickAddKind}
           onClose={() => setQuickAddKind(null)}
           onSaved={() => { setQuickAddKind(null); setDataVersion((v) => v + 1); data.refresh() }} />

@@ -4,22 +4,27 @@ import { fetchTransactions } from '../lib/useFinanceData'
 import { useMonthSwipe } from '../lib/useSwipe'
 import { currentMonth, monthEnd, monthLabel, monthStart, money, shiftMonth } from '../lib/format'
 import TransactionForm from './TransactionForm'
+import TransferForm from './TransferForm'
+import { deleteTransfer, transferCounterparts } from '../lib/transfers'
 import { SkeletonRows } from './Skeleton'
 import { PencilIcon, TrashIcon } from '../lib/icons'
 
-export default function Transactions({ accounts, categories, activeHouseholdId }) {
+export default function Transactions({ accounts, categories, activeHouseholdId, households }) {
   const [month, setMonth] = useState(currentMonth())
   const [filters, setFilters] = useState({ kind: '', categoryId: '', accountId: '', search: '' })
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [editing, setEditing] = useState(null) // null | row being edited
+  const [counterparts, setCounterparts] = useState({}) // transfer_id → other household id
 
   const load = useCallback(async () => {
     if (!activeHouseholdId) return
     setLoading(true)
     try {
-      setRows(await fetchTransactions({ householdId: activeHouseholdId, from: monthStart(month), to: monthEnd(month), ...filters }))
+      const data = await fetchTransactions({ householdId: activeHouseholdId, from: monthStart(month), to: monthEnd(month), ...filters })
+      setRows(data)
+      setCounterparts(await transferCounterparts(data.filter((r) => r.transfer_id).map((r) => r.transfer_id), activeHouseholdId))
       setError(null)
     } catch (e) { setError(e.message) }
     setLoading(false)
@@ -35,11 +40,19 @@ export default function Transactions({ accounts, categories, activeHouseholdId }
   }, { income: 0, expense: 0 }), [rows])
 
   async function remove(row) {
+    if (row.transfer_id) {
+      if (!confirm(`Delete this transfer of ${money(row.amount)}? It's removed from both households.`)) return
+      try { await deleteTransfer(row.transfer_id) } catch (err) { return alert(err.message) }
+      return load()
+    }
     if (!confirm(`Delete this ${row.kind} of ${money(row.amount)}?`)) return
     const { error } = await supabase.from('transactions').delete().eq('id', row.id)
     if (error) return alert(error.message)
     load()
   }
+
+  const householdName = (id) => households?.find((h) => h.id === id)?.name || 'another household'
+  const transferLabel = (r) => `⇄ ${r.kind === 'expense' ? 'to' : 'from'} ${householdName(counterparts[r.transfer_id])}`
 
   function exportCsv() {
     const head = ['Date', 'Type', 'Amount', 'Category', 'Account', 'Note']
@@ -91,8 +104,8 @@ export default function Transactions({ accounts, categories, activeHouseholdId }
           <div className="txn" key={r.id}>
             <span className="dot" style={{ background: r.category?.color || '#94a3b8' }} />
             <div className="grow">
-              <div>{r.note || r.category?.name || 'Uncategorised'}</div>
-              <div className="muted small">{r.occurred_on} · {r.category?.name || 'Uncategorised'}{r.account ? ` · ${r.account.name}` : ''}</div>
+              <div>{r.note || (r.transfer_id ? 'Home transfer' : r.category?.name || 'Uncategorised')}</div>
+              <div className="muted small">{r.occurred_on} · {r.transfer_id ? <span className="transfer-tag">{transferLabel(r)}</span> : (r.category?.name || 'Uncategorised')}{r.account ? ` · ${r.account.name}` : ''}</div>
             </div>
             <div className={`amt ${r.kind === 'income' ? 'pos' : 'neg'}`}>{r.kind === 'income' ? '+' : '−'}{money(r.amount)}</div>
             <button className="btn icon" title="Edit" onClick={() => setEditing(r)}><PencilIcon /></button>
@@ -101,7 +114,12 @@ export default function Transactions({ accounts, categories, activeHouseholdId }
         ))}
       </div>
 
-      {editing && (
+      {editing?.transfer_id && (
+        <TransferForm households={households} fromHouseholdId={activeHouseholdId} transferId={editing.transfer_id}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load() }} />
+      )}
+      {editing && !editing.transfer_id && (
         <TransactionForm accounts={accounts} categories={categories} householdId={activeHouseholdId}
           initial={editing}
           onClose={() => setEditing(null)}

@@ -196,11 +196,14 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .fab-option:hover { transform: translateX(-3px); }
 .fab-option.expense { background: linear-gradient(135deg, #fb923c, #f87171); animation-delay: .06s; }
 .fab-option.income { background: linear-gradient(135deg, #34d399, #22d3ee); animation-delay: .02s; }
+.fab-option.transfer { background: linear-gradient(135deg, #38bdf8, #818cf8); animation-delay: 0s; }
 @keyframes fab-pop { from { opacity: 0; transform: translateY(10px) scale(.9); } to { opacity: 1; transform: none; } }
 
 .kind-badge { display: inline-block; padding: 5px 14px; border-radius: 999px; font-weight: 700; font-size: 13px; width: fit-content; }
 .kind-badge.expense { background: color-mix(in srgb, var(--neg) 18%, transparent); color: var(--neg); }
 .kind-badge.income { background: color-mix(in srgb, var(--pos) 18%, transparent); color: var(--pos); }
+.kind-badge.transfer { background: color-mix(in srgb, #38bdf8 18%, transparent); color: #38bdf8; }
+.transfer-tag { color: #38bdf8; }
 
 /* Loading skeletons */
 .skel { border-radius: 8px; background: linear-gradient(90deg, var(--card-2) 25%, color-mix(in srgb, var(--card-2) 60%, var(--line)) 50%, var(--card-2) 75%);
