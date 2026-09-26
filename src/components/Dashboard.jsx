@@ -3,6 +3,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveCo
 import { supabase } from '../lib/supabase'
 import { currentMonth, monthEnd, monthKey, monthLabel, monthStart, money, moneyShort, shiftMonth } from '../lib/format'
 import { MonthPicker } from './Transactions'
+import { DashboardSkeleton } from './Skeleton'
 import { useMonthSwipe } from '../lib/useSwipe'
 
 // Forward-looking report: only last month, this month and next month. Next month is the
@@ -15,6 +16,7 @@ export default function Dashboard({ categories, activeHouseholdId }) {
   const [recurring, setRecurring] = useState([])
   const [balances, setBalances] = useState([])
   const [error, setError] = useState(null)
+  const [loaded, setLoaded] = useState(false) // first load done — until then show a skeleton, not ₹0.00
 
   const load = useCallback(async () => {
     if (!activeHouseholdId) return
@@ -34,6 +36,7 @@ export default function Dashboard({ categories, activeHouseholdId }) {
     setAll(t.data || [])
     setRecurring(ri.data || [])
     setBalances((ab.data || []).map((a) => ({ ...a, balance: Number(a.balance) })))
+    setLoaded(true)
   }, [activeHouseholdId, range.min, range.max])
 
   useEffect(() => { load() }, [load])
@@ -86,8 +89,9 @@ export default function Dashboard({ categories, activeHouseholdId }) {
   const hasTrend = stats.trend.some((t) => t.Income > 0 || t.Expense > 0)
   const swipe = useMonthSwipe(month, setMonth, range)
 
+  if (!loaded) return <DashboardSkeleton />
   return (
-    <section {...swipe}>
+    <section {...swipe} className="fade-in">
       <div className="toolbar">
         <MonthPicker month={month} setMonth={setMonth} {...range} />
         <span className="muted small">{month === thisMonth ? 'this month' : isPlan ? 'next month · planned' : 'last month'}</span>

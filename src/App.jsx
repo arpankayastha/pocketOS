@@ -14,6 +14,7 @@ import VaultItems from './components/VaultItems'
 import PasswordGenerator from './components/PasswordGenerator'
 import VaultSecurity, { ChangePassword } from './components/VaultSecurity'
 import AppLockScreen from './components/AppLockScreen'
+import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
 import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon } from './lib/icons'
 
 // PocketOS is a shell of independent modules; each one renders its own tabs under the shared topbar.
@@ -131,7 +132,7 @@ function BudgetModule({ topbar }) {
       </Topbar>
       <main className="content">
         {data.error && <div className="alert error">Database error: {data.error}. Did you run <code>supabase/schema.sql</code>?</div>}
-        {data.loading ? <div className="muted">Loading…</div> : (
+        {data.loading ? (tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />) : (
           <>
             {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}

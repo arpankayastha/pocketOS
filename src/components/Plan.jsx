@@ -4,6 +4,7 @@ import { currentMonth, money, monthEnd, monthStart, shiftMonth } from '../lib/fo
 import { MonthPicker } from './Transactions'
 import { useMonthSwipe } from '../lib/useSwipe'
 import { TrashIcon } from '../lib/icons'
+import { SkeletonRows } from './Skeleton'
 
 export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [month, setMonth] = useState(() => shiftMonth(currentMonth(), 1))
@@ -12,6 +13,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [logging, setLogging] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState(null)
+  const [loaded, setLoaded] = useState(false) // avoids flashing "no commitments yet" before the first load
 
   const load = useCallback(async () => {
     if (!activeHouseholdId) return
@@ -25,6 +27,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
     setError(null)
     setItems(ri.data || [])
     setActuals(Object.fromEntries((tx.data || []).map((t) => [t.recurring_item_id, t])))
+    setLoaded(true)
   }, [activeHouseholdId, month])
 
   useEffect(() => { load() }, [load])
@@ -55,9 +58,9 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
       {error && <div className="alert error">{error}</div>}
 
       <div className="tiles">
-        <Tile label="Expected income" value={money(totals.income)} tone="pos" />
-        <Tile label="Expected expense" value={money(totals.expense)} tone="neg" />
-        <Tile label="Expected net" value={money(totals.net)} />
+        <Tile label="Expected income" value={loaded ? money(totals.income) : null} tone="pos" />
+        <Tile label="Expected expense" value={loaded ? money(totals.expense) : null} tone="neg" />
+        <Tile label="Expected net" value={loaded ? money(totals.net) : null} />
       </div>
 
       <div className="card">
@@ -72,7 +75,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
       </div>
 
       <div className="card list">
-        {items.length === 0 ? (
+        {!loaded ? <SkeletonRows rows={4} /> : items.length === 0 ? (
           <div className="muted pad">No recurring commitments yet. Add your credit cards, SIPs, bills and salary to see next month's trend.</div>
         ) : items.map((it) => {
           const actual = actuals[it.id]
@@ -106,7 +109,7 @@ function Tile({ label, value, sub, tone }) {
   return (
     <div className="card tile">
       <div className="muted small">{label}</div>
-      <div className={`big-num ${tone || ''}`}>{value}</div>
+      {value === null ? <div className="skel" style={{ width: '75%', height: 22 }} /> : <div className={`big-num ${tone || ''}`}>{value}</div>}
       {sub && <div className="muted small">{sub}</div>}
     </div>
   )

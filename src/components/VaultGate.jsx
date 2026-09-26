@@ -3,6 +3,7 @@ import { MIN_MASTER_PASSWORD } from '../lib/useVault'
 import { describeWebAuthnError, platformAuthenticatorAvailable } from '../lib/webauthn'
 import { passwordBits } from '../lib/vaultTools'
 import { VaultIcon, FingerprintIcon } from '../lib/icons'
+import { GateSkeleton } from './Skeleton'
 
 // Shown before the vault is unlocked: first-time setup, or the lock screen.
 // `onRecoveryCode` receives the one-time recovery code after setup; the parent shows it,
@@ -120,7 +121,7 @@ function Unlock({ vault, onRecovered }) {
     } catch (err) { setError(err.message); setBusy(false) }
   }
 
-  if (vault.status === 'loading') return <div className="muted">Loading…</div>
+  if (vault.status === 'loading') return <GateSkeleton />
 
   return (
     <form className="card gate" onSubmit={submit}>

@@ -4,6 +4,7 @@ import { fetchTransactions } from '../lib/useFinanceData'
 import { useMonthSwipe } from '../lib/useSwipe'
 import { currentMonth, monthEnd, monthLabel, monthStart, money, shiftMonth } from '../lib/format'
 import TransactionForm from './TransactionForm'
+import { SkeletonRows } from './Skeleton'
 import { PencilIcon, TrashIcon } from '../lib/icons'
 
 export default function Transactions({ accounts, categories, activeHouseholdId }) {
@@ -84,7 +85,7 @@ export default function Transactions({ accounts, categories, activeHouseholdId }
 
       {error && <div className="alert error">{error}</div>}
       <div className="card list">
-        {loading ? <div className="muted pad">Loading…</div> : rows.length === 0 ? (
+        {loading ? <SkeletonRows rows={5} /> : rows.length === 0 ? (
           <div className="muted pad">No transactions in {monthLabel(month)}.</div>
         ) : rows.map((r) => (
           <div className="txn" key={r.id}>

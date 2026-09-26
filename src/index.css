@@ -202,6 +202,12 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .kind-badge.expense { background: color-mix(in srgb, var(--neg) 18%, transparent); color: var(--neg); }
 .kind-badge.income { background: color-mix(in srgb, var(--pos) 18%, transparent); color: var(--pos); }
 
+/* Loading skeletons */
+.skel { border-radius: 8px; background: linear-gradient(90deg, var(--card-2) 25%, color-mix(in srgb, var(--card-2) 60%, var(--line)) 50%, var(--card-2) 75%);
+  background-size: 200% 100%; animation: shimmer 1.3s ease-in-out infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.fade-in { animation: fade-in .25s ease-out; }
+
 /* Vault */
 textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); font: inherit; color: inherit; resize: vertical; }
 textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
