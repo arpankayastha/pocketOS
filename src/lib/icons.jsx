@@ -92,3 +92,57 @@ export function VaultIcon() {
     </svg>
   )
 }
+
+export function FingerprintIcon() {
+  return (
+    <svg {...base}>
+      <path d="M12 11v3a8 8 0 0 1-1.5 4.7" /><path d="M8.5 12a3.5 3.5 0 0 1 7 0v1.5a12 12 0 0 1-.7 4" />
+      <path d="M5.2 15.5A11 11 0 0 0 5.5 12a6.5 6.5 0 0 1 11.3-4.4" /><path d="M18.4 11a6 6 0 0 1 .1 1v1.5c0 2-.3 3.9-.9 5.6" />
+      <path d="M3.5 9a9.5 9.5 0 0 1 14-4.6" />
+    </svg>
+  )
+}
+
+export function KeyIcon() {
+  return (
+    <svg {...base}>
+      <circle cx="7.5" cy="15.5" r="4.5" /><path d="M10.7 12.3 20 3" /><path d="M16 7l3 3" /><path d="M14 9l2 2" />
+    </svg>
+  )
+}
+
+export function DiceIcon() {
+  return (
+    <svg {...base}>
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <circle cx="8" cy="8" r="1.3" fill="currentColor" stroke="none" /><circle cx="16" cy="8" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="16" r="1.3" fill="currentColor" stroke="none" /><circle cx="16" cy="16" r="1.3" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function ShieldIcon() {
+  return (
+    <svg {...base}>
+      <path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z" /><path d="m9 12 2 2 4-4" />
+    </svg>
+  )
+}
+
+export function CopyIcon() {
+  return (
+    <svg {...base}>
+      <rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+    </svg>
+  )
+}
+
+export function EyeIcon({ off }) {
+  return (
+    <svg {...base}>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+      {off && <path d="M3 3l18 18" />}
+    </svg>
+  )
+}

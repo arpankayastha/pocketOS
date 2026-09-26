@@ -236,3 +236,50 @@ create index if not exists recurring_items_user_id_idx on public.recurring_items
 create index if not exists recurring_items_category_id_idx on public.recurring_items (category_id);
 create index if not exists recurring_items_account_id_idx on public.recurring_items (account_id);
 create index if not exists transactions_recurring_item_id_idx on public.transactions (recurring_item_id);
+
+-- ============================================================================
+-- Vault module: zero-knowledge password manager.
+-- The server only ever sees ciphertext. Each user has one random 256-bit vault
+-- key, generated in the browser; it is stored here only *wrapped* (AES-GCM
+-- encrypted) by each "unlocker": the master password (PBKDF2), the recovery
+-- code (HKDF), or a device fingerprint (WebAuthn PRF output → HKDF).
+-- vault_items rows are AES-GCM encrypted with the vault key; every field
+-- (title, url, username, password, notes, TOTP) lives inside the ciphertext.
+-- Personal to the login: no household_id.
+-- ============================================================================
+create table if not exists public.vault_unlockers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  kind text not null check (kind in ('password','recovery','prf')),
+  label text,                 -- device name, for kind = 'prf'
+  credential_id text,         -- base64url WebAuthn credential id, for kind = 'prf'
+  salt text not null,         -- base64: PBKDF2/HKDF salt, or the PRF eval input for 'prf'
+  iterations integer,         -- PBKDF2 iterations, for kind = 'password'
+  iv text not null,           -- base64 AES-GCM IV used to wrap the vault key
+  wrapped_key text not null,  -- base64 AES-GCM ciphertext of the raw vault key
+  created_at timestamptz not null default now(),
+  check (kind <> 'prf' or credential_id is not null),
+  check (kind <> 'password' or iterations is not null)
+);
+create unique index if not exists vault_unlockers_one_password_recovery
+  on public.vault_unlockers (user_id, kind) where kind in ('password','recovery');
+alter table public.vault_unlockers enable row level security;
+drop policy if exists "own rows" on public.vault_unlockers;
+create policy "own rows" on public.vault_unlockers for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+create table if not exists public.vault_items (
+  id uuid primary key default gen_random_uuid(), -- generated client-side; also the AES-GCM associated data
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  iv text not null,
+  ciphertext text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists vault_items_user_id_idx on public.vault_items (user_id);
+alter table public.vault_items enable row level security;
+drop policy if exists "own rows" on public.vault_items;
+create policy "own rows" on public.vault_items for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));

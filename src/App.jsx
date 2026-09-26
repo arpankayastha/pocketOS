@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react'
 import { supabase, isConfigured } from './lib/supabase'
 import { useFinanceData } from './lib/useFinanceData'
+import { useVault } from './lib/useVault'
+import { useAppLock } from './lib/useAppLock'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import Transactions from './components/Transactions'
 import Plan from './components/Plan'
 import Settings from './components/Settings'
 import TransactionForm from './components/TransactionForm'
-import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, VaultIcon } from './lib/icons'
+import VaultGate, { RecoveryCode } from './components/VaultGate'
+import VaultItems from './components/VaultItems'
+import PasswordGenerator from './components/PasswordGenerator'
+import VaultSecurity, { ChangePassword } from './components/VaultSecurity'
+import AppLockScreen from './components/AppLockScreen'
+import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon } from './lib/icons'
 
 // PocketOS is a shell of independent modules; each one renders its own tabs under the shared topbar.
 const MODULES = [
@@ -21,6 +28,12 @@ const BUDGET_TABS = [
   { id: 'transactions', label: 'Transactions', icon: ListIcon },
   { id: 'plan', label: 'Plan', icon: PlanIcon },
   { id: 'settings', label: 'Accounts & Categories', icon: SettingsIcon },
+]
+
+const VAULT_TABS = [
+  { id: 'items', label: 'Passwords', icon: KeyIcon },
+  { id: 'generator', label: 'Generator', icon: DiceIcon },
+  { id: 'security', label: 'Security', icon: ShieldIcon },
 ]
 
 export default function App() {
@@ -54,9 +67,13 @@ function Shell({ session }) {
     return MODULES.some((m) => m.id === saved) ? saved : 'budget'
   })
   const setModule = (id) => { setModuleState(id); localStorage.setItem(ACTIVE_MODULE_KEY, id) }
+  // Vault state lives here, not in VaultModule, so switching modules doesn't lock the vault.
+  const vault = useVault(session)
+  const appLock = useAppLock(session)
   const topbar = { session, module, setModule }
 
-  return module === 'vault' ? <VaultModule topbar={topbar} /> : <BudgetModule topbar={topbar} />
+  if (appLock.locked) return <AppLockScreen appLock={appLock} vault={vault} />
+  return module === 'vault' ? <VaultModule topbar={topbar} vault={vault} appLock={appLock} /> : <BudgetModule topbar={topbar} />
 }
 
 // Shared across modules: brand, module switcher, account. `children` is the module's own topbar content.
@@ -147,17 +164,64 @@ function BudgetModule({ topbar }) {
   )
 }
 
-function VaultModule({ topbar }) {
+function VaultModule({ topbar, vault, appLock }) {
+  const [tab, setTab] = useState('items')
+  const [recoveryCode, setRecoveryCode] = useState(null) // { code, firstTime } shown once
+  const [mustResetPassword, setMustResetPassword] = useState(false) // after unlocking with the recovery code
+  const [openItem, setOpenItem] = useState(null)
+  const [editing, setEditing] = useState(null) // item being edited, {} for a new one
+  const unlocked = vault.status === 'unlocked'
+  // Close any open item when the vault locks, so nothing reappears after unlocking.
+  const [wasUnlocked, setWasUnlocked] = useState(unlocked)
+  if (wasUnlocked !== unlocked) {
+    setWasUnlocked(unlocked)
+    if (!unlocked) { setOpenItem(null); setEditing(null) }
+  }
+  const ready = unlocked && !recoveryCode && !mustResetPassword
+
+  let body
+  if (vault.error && vault.status === 'loading') body = <div className="alert error">Database error: {vault.error}</div>
+  else if (recoveryCode) body = <RecoveryCode code={recoveryCode.code} firstTime={recoveryCode.firstTime} onDone={() => setRecoveryCode(null)} />
+  else if (mustResetPassword && unlocked) body = (
+    <div className="gate-wrap">
+      <ChangePassword vault={vault} title="Set a new master password" hint="You unlocked with your recovery code. Choose a new master password so you can get back in next time." onDone={() => setMustResetPassword(false)} />
+    </div>
+  )
+  else if (!unlocked) body = <VaultGate vault={vault} onRecovered={() => setMustResetPassword(true)} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: true })} />
+  else if (tab === 'items') body = <VaultItems vault={vault} open={openItem} setOpen={setOpenItem} editing={editing} setEditing={setEditing} />
+  else if (tab === 'generator') body = <PasswordGenerator />
+  else body = <VaultSecurity vault={vault} appLock={appLock} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: false })} onOpenItem={(item) => { setTab('items'); setOpenItem(item) }} />
+
   return (
-    <div className="app">
-      <Topbar {...topbar}><div className="spacer" /></Topbar>
-      <main className="content">
-        <div className="card empty-module">
-          <VaultIcon />
-          <h2>Vault is coming next</h2>
-          <p className="muted">Passwords and credentials, encrypted on this device before they're saved, unlocked with your fingerprint.</p>
+    <div className="app" onPointerDown={vault.touch} onKeyDown={vault.touch}>
+      <Topbar {...topbar}>
+        {ready ? (
+          <nav className="tabs">
+            {VAULT_TABS.map((t) => (
+              <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+                <t.icon /> {t.label}
+              </button>
+            ))}
+          </nav>
+        ) : <div className="spacer" />}
+        {unlocked && <button className="btn ghost small" onClick={vault.lockNow}>Lock</button>}
+      </Topbar>
+      <main className="content">{body}</main>
+
+      {ready && (
+        <nav className="bottom-nav">
+          {VAULT_TABS.map((t) => (
+            <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
+              <t.icon /> {t.label}
+            </button>
+          ))}
+        </nav>
+      )}
+      {ready && tab === 'items' && (
+        <div className="fab-wrap">
+          <button className="fab" aria-label="Add password" onClick={() => setEditing({})}><PlusIcon /></button>
         </div>
-      </main>
+      )}
     </div>
   )
 }

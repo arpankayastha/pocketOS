@@ -1,0 +1,229 @@
+import { useEffect, useState } from 'react'
+import { DEVICE_CREDENTIAL_KEY, MIN_MASTER_PASSWORD } from '../lib/useVault'
+import { describeWebAuthnError, platformAuthenticatorAvailable } from '../lib/webauthn'
+import { itemsFromLastPassCsv, pwnedCount } from '../lib/vaultTools'
+import { TrashIcon, FingerprintIcon } from '../lib/icons'
+import { StrengthMeter } from './VaultGate'
+
+function deviceName() {
+  const ua = navigator.userAgent
+  if (/iPhone/.test(ua)) return 'iPhone'
+  if (/iPad/.test(ua)) return 'iPad'
+  if (/Android/.test(ua)) return 'Android phone'
+  if (/Mac/.test(ua)) return 'Mac'
+  if (/Windows/.test(ua)) return 'Windows PC'
+  return 'This device'
+}
+
+export default function VaultSecurity({ vault, appLock, onRecoveryCode, onOpenItem }) {
+  return (
+    <section className="grid2">
+      <Fingerprints vault={vault} />
+      <AppLockCard appLock={appLock} />
+      <ChangePassword vault={vault} />
+      <Recovery vault={vault} onRecoveryCode={onRecoveryCode} />
+      <Import vault={vault} />
+      <BreachCheck vault={vault} onOpenItem={onOpenItem} />
+    </section>
+  )
+}
+
+function Fingerprints({ vault }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const [available, setAvailable] = useState(null)
+  let thisDevice = null
+  try { thisDevice = localStorage.getItem(DEVICE_CREDENTIAL_KEY) } catch { /* ignore */ }
+
+  useEffect(() => { platformAuthenticatorAvailable().then(setAvailable) }, [])
+
+  async function add() {
+    const label = prompt('Name this device', deviceName())
+    if (!label) return
+    setBusy(true)
+    setError(null)
+    try { await vault.addFingerprint(label.trim()) } catch (err) { setError(describeWebAuthnError(err)) }
+    setBusy(false)
+  }
+
+  async function remove(u) {
+    if (!confirm(`Remove fingerprint unlock for "${u.label}"? That device will need the master password to open the vault.`)) return
+    try { await vault.removeUnlocker(u) } catch (err) { setError(err.message) }
+  }
+
+  const registeredHere = vault.fingerprintUnlockers.some((u) => u.credential_id === thisDevice)
+  return (
+    <div className="card">
+      <h3>Fingerprint unlock</h3>
+      <p className="muted small">Your fingerprint releases a device secret that decrypts the vault — it's not just a screen lock. Set it up once on each phone or laptop.</p>
+      {vault.fingerprintUnlockers.map((u) => (
+        <div className="line" key={u.id}>
+          <span>{u.label} {u.credential_id === thisDevice && <span className="pill">this device</span>} <span className="muted small">added {new Date(u.created_at).toLocaleDateString()}</span></span>
+          <button className="btn icon" aria-label={`Remove ${u.label}`} onClick={() => remove(u)}><TrashIcon /></button>
+        </div>
+      ))}
+      {vault.fingerprintUnlockers.length === 0 && <p className="muted small">No devices set up yet.</p>}
+      {available === false ? (
+        <p className="muted small">This browser has no fingerprint or face unlock available.</p>
+      ) : !registeredHere && (
+        <button className="btn primary" disabled={busy} onClick={add} style={{ marginTop: 10 }}><FingerprintIcon /> {busy ? 'Waiting for fingerprint…' : 'Use fingerprint on this device'}</button>
+      )}
+      {error && <div className="alert error">{error}</div>}
+    </div>
+  )
+}
+
+function AppLockCard({ appLock }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function toggle() {
+    setError(null)
+    if (appLock.enabled) return appLock.disable()
+    setBusy(true)
+    try { await appLock.enable() } catch (err) { setError(describeWebAuthnError(err)) }
+    setBusy(false)
+  }
+
+  return (
+    <div className="card">
+      <h3>App lock</h3>
+      <p className="muted small">Ask for your fingerprint whenever PocketOS opens or comes back after a minute in the background. Applies to the whole app on this device.</p>
+      <label className="check">
+        <input type="checkbox" checked={appLock.enabled} disabled={busy} onChange={toggle} />
+        {busy ? 'Waiting for fingerprint…' : 'Lock PocketOS with fingerprint'}
+      </label>
+      {error && <div className="alert error">{error}</div>}
+    </div>
+  )
+}
+
+export function ChangePassword({ vault, title = 'Master password', hint = "Changing it doesn't re-encrypt your items — only the key that unlocks them — so it's instant.", onDone }) {
+  const [pw, setPw] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [msg, setMsg] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    if (pw.length < MIN_MASTER_PASSWORD) return setMsg({ error: `Use at least ${MIN_MASTER_PASSWORD} characters.` })
+    if (pw !== confirm) return setMsg({ error: "The two passwords don't match." })
+    setBusy(true)
+    try { await vault.changePassword(pw); setPw(''); setConfirm(''); setMsg({ ok: 'Master password changed.' }); onDone?.() }
+    catch (err) { setMsg({ error: err.message }) }
+    setBusy(false)
+  }
+
+  return (
+    <form className="card stack" onSubmit={submit}>
+      <h3>{title}</h3>
+      <p className="muted small">{hint}</p>
+      <input type="password" autoComplete="new-password" placeholder="New master password" required value={pw} onChange={(e) => setPw(e.target.value)} />
+      <StrengthMeter password={pw} />
+      <input type="password" autoComplete="new-password" placeholder="Confirm new master password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+      {msg && <div className={`alert ${msg.error ? 'error' : 'ok'}`}>{msg.error || msg.ok}</div>}
+      <button className="btn" disabled={busy}>{busy ? 'Saving…' : 'Change master password'}</button>
+    </form>
+  )
+}
+
+function Recovery({ vault, onRecoveryCode }) {
+  const [error, setError] = useState(null)
+
+  async function regenerate() {
+    if (!confirm('Create a new recovery code? The old one will stop working.')) return
+    try { onRecoveryCode(await vault.regenerateRecovery()) } catch (err) { setError(err.message) }
+  }
+
+  return (
+    <div className="card">
+      <h3>Recovery code</h3>
+      <p className="muted small">Unlocks the vault if you forget your master password. {vault.hasRecovery ? 'You have one set up.' : 'You have none — create one now.'}</p>
+      <button className="btn" onClick={regenerate}>{vault.hasRecovery ? 'Create a new recovery code' : 'Create recovery code'}</button>
+      {error && <div className="alert error">{error}</div>}
+    </div>
+  )
+}
+
+function Import({ vault }) {
+  const [status, setStatus] = useState(null)
+
+  async function onFile(e) {
+    const file = e.target.files[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const list = itemsFromLastPassCsv(await file.text())
+      if (!list.length) return setStatus({ error: 'No items found in that file.' })
+      if (!confirm(`Import ${list.length} item${list.length === 1 ? '' : 's'} into your vault?`)) return
+      setStatus({ busy: `Encrypting and saving 0 / ${list.length}…` })
+      await vault.importItems(list, (n) => setStatus({ busy: `Encrypting and saving ${n} / ${list.length}…` }))
+      setStatus({ ok: `Imported ${list.length} items. Now delete the CSV file — it holds your passwords unencrypted.` })
+    } catch (err) { setStatus({ error: err.message }) }
+  }
+
+  return (
+    <div className="card">
+      <h3>Import from LastPass</h3>
+      <p className="muted small">In LastPass: Advanced options → Export → save the CSV. The file is read and encrypted here on your device; it's never uploaded as-is.</p>
+      <label className="btn file-btn">
+        Choose LastPass CSV…
+        <input type="file" accept=".csv,text/csv" onChange={onFile} disabled={!!status?.busy} />
+      </label>
+      {status?.busy && <p className="muted small">{status.busy}</p>}
+      {status?.error && <div className="alert error">{status.error}</div>}
+      {status?.ok && <div className="alert ok">{status.ok}</div>}
+    </div>
+  )
+}
+
+function BreachCheck({ vault, onOpenItem }) {
+  const [state, setState] = useState(null) // { done, total, hits: [{item, count}], error }
+
+  async function run() {
+    const withPw = vault.items.filter((i) => i.password)
+    const hits = []
+    setState({ done: 0, total: withPw.length, hits })
+    // One request per unique password; the same password reused across sites is checked once.
+    const cache = new Map()
+    try {
+      for (let n = 0; n < withPw.length; n++) {
+        const item = withPw[n]
+        if (!cache.has(item.password)) cache.set(item.password, await pwnedCount(item.password))
+        const count = cache.get(item.password)
+        if (count > 0) hits.push({ item, count })
+        setState({ done: n + 1, total: withPw.length, hits: [...hits] })
+      }
+    } catch (err) { setState((s) => ({ ...s, error: err.message })) }
+  }
+
+  const reused = (() => {
+    const seen = new Map()
+    for (const i of vault.items) if (i.password) seen.set(i.password, (seen.get(i.password) || 0) + 1)
+    return vault.items.filter((i) => i.password && seen.get(i.password) > 1).length
+  })()
+
+  const running = state && state.done < state.total && !state.error
+  return (
+    <div className="card">
+      <h3>Password health</h3>
+      <p className="muted small">Checks every password against known data breaches (Have I Been Pwned). Only the first 5 characters of each password's hash leave your device — never the password.</p>
+      {reused > 0 && <p className="small warn-text">{reused} items share a password with another item.</p>}
+      <button className="btn" disabled={running || !vault.items.length} onClick={run}>{running ? `Checking ${state.done} / ${state.total}…` : 'Check all passwords'}</button>
+      {state?.error && <div className="alert error">{state.error}</div>}
+      {state && !running && !state.error && (state.hits.length === 0
+        ? <div className="alert ok" style={{ marginTop: 10 }}>None of your {state.total} passwords appear in known breaches.</div>
+        : (
+          <div style={{ marginTop: 10 }}>
+            <div className="alert error">{state.hits.length} password{state.hits.length === 1 ? '' : 's'} found in breaches — change them.</div>
+            {state.hits.map(({ item, count }) => (
+              <div className="line" key={item.id}>
+                <button className="btn link" onClick={() => onOpenItem(item)}>{item.title}</button>
+                <span className="muted small">{count.toLocaleString()} breaches</span>
+              </div>
+            ))}
+          </div>
+        ))}
+    </div>
+  )
+}
