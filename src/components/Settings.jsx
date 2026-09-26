@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { money } from '../lib/format'
 import { TrashIcon } from '../lib/icons'
 
-export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold }) {
+export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email }) {
   return (
     <section className="grid2">
       <div style={{ gridColumn: '1 / -1' }}>
@@ -14,6 +14,13 @@ export default function Settings({ accounts, categories, refresh, households, ac
       </div>
       <Accounts accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
       <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
+      <div className="card" style={{ gridColumn: '1 / -1' }}>
+        <h3>Account</h3>
+        <div className="line">
+          <span className="muted small">Signed in as {email}</span>
+          <button className="btn small ghost" onClick={() => confirm('Sign out of PocketOS on this device?') && supabase.auth.signOut()}>Sign out</button>
+        </div>
+      </div>
     </section>
   )
 }

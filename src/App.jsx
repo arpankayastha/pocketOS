@@ -15,14 +15,12 @@ import VaultItems from './components/VaultItems'
 import PasswordGenerator from './components/PasswordGenerator'
 import VaultSecurity, { ChangePassword } from './components/VaultSecurity'
 import AppLockScreen from './components/AppLockScreen'
+import Topbar, { HouseholdMenu } from './components/Topbar'
+import { MODULES } from './lib/modules'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon } from './lib/icons'
+import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
 
-// PocketOS is a shell of independent modules; each one renders its own tabs under the shared topbar.
-const MODULES = [
-  { id: 'budget', label: 'Budget' },
-  { id: 'vault', label: 'Vault' },
-]
+// PocketOS is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
 const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
 
 const BUDGET_TABS = [
@@ -77,30 +75,13 @@ function Shell({ session }) {
   // Vault state lives here, not in VaultModule, so switching modules doesn't lock the vault.
   const vault = useVault(session)
   const appLock = useAppLock(session)
-  const topbar = { session, module, setModule }
+  const topbar = { module, setModule }
 
   if (appLock.locked) return <AppLockScreen appLock={appLock} vault={vault} />
-  return module === 'vault' ? <VaultModule topbar={topbar} vault={vault} appLock={appLock} /> : <BudgetModule topbar={topbar} />
+  return module === 'vault' ? <VaultModule topbar={topbar} vault={vault} appLock={appLock} /> : <BudgetModule topbar={topbar} email={session.user.email} />
 }
 
-// Shared across modules: brand, module switcher, account. `children` is the module's own topbar content.
-function Topbar({ session, module, setModule, children }) {
-  return (
-    <header className="topbar">
-      <div className="brand"><BrandMark size={24} /><span className="brand-text">PocketOS</span></div>
-      <select className="module-select" aria-label="Module" value={module} onChange={(e) => setModule(e.target.value)}>
-        {MODULES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-      </select>
-      {children}
-      <div className="user">
-        <span className="muted small">{session.user.email}</span>
-        <button className="btn ghost small" onClick={() => supabase.auth.signOut()}>Sign out</button>
-      </div>
-    </header>
-  )
-}
-
-function BudgetModule({ topbar }) {
+function BudgetModule({ topbar, email }) {
   const [tab, setTab] = useState('dashboard')
   const [fabOpen, setFabOpen] = useState(false)
   const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
@@ -109,20 +90,14 @@ function BudgetModule({ topbar }) {
 
   return (
     <div className="app">
-      <Topbar {...topbar}>
-        {data.households.length > 0 && (
-          <select className="household-select" value={data.activeHouseholdId || ''} onChange={(e) => {
-            if (e.target.value === '__new__') {
-              const name = prompt('New household name')
-              if (name && name.trim()) data.createHousehold(name.trim())
-            } else {
-              data.setActiveHouseholdId(e.target.value)
-            }
-          }}>
-            {data.households.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-            <option value="__new__">+ New household…</option>
-          </select>
-        )}
+      <Topbar {...topbar} right={data.households.length > 0 && (
+        <HouseholdMenu households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
+          onCreate={() => {
+            const name = prompt('New household name')
+            if (name && name.trim()) data.createHousehold(name.trim())
+          }}
+          onManage={() => setTab('settings')} />
+      )}>
         <nav className="tabs">
           {BUDGET_TABS.map((t) => (
             <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
@@ -131,14 +106,14 @@ function BudgetModule({ topbar }) {
           ))}
         </nav>
       </Topbar>
-      <main className="content">
+      <main className="content fade-in">
         {data.error && <div className="alert error">Database error: {data.error}. Did you run <code>supabase/schema.sql</code>?</div>}
         {data.loading ? (tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />) : (
           <>
             {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
-            {tab === 'settings' && <Settings {...data} />}
+            {tab === 'settings' && <Settings {...data} email={email} />}
           </>
         )}
       </main>
@@ -209,7 +184,9 @@ function VaultModule({ topbar, vault, appLock }) {
 
   return (
     <div className="app" onPointerDown={vault.touch} onKeyDown={vault.touch}>
-      <Topbar {...topbar}>
+      <Topbar {...topbar} right={unlocked && (
+        <button className="btn icon lock-btn" aria-label="Lock vault" title="Lock vault" onClick={vault.lockNow}><LockIcon /></button>
+      )}>
         {ready ? (
           <nav className="tabs">
             {VAULT_TABS.map((t) => (
@@ -219,9 +196,8 @@ function VaultModule({ topbar, vault, appLock }) {
             ))}
           </nav>
         ) : <div className="spacer" />}
-        {unlocked && <button className="btn ghost small" onClick={vault.lockNow}>Lock</button>}
       </Topbar>
-      <main className="content">{body}</main>
+      <main className="content fade-in">{body}</main>
 
       {ready && (
         <nav className="bottom-nav">

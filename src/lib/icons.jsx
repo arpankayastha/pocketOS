@@ -208,3 +208,19 @@ export function TerminalIcon() {
 export function LaptopIcon() {
   return <svg {...base}><rect x="4" y="4" width="16" height="11" rx="2" /><path d="M2 19h20l-2-4H4Z" /></svg>
 }
+
+export function WalletIcon() {
+  return <svg {...base}><path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M4 7l11-3v3" /><circle cx="16" cy="13.5" r="1.3" fill="currentColor" stroke="none" /></svg>
+}
+
+export function LockIcon() {
+  return <svg {...base}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+}
+
+export function ChevronDownIcon() {
+  return <svg {...base} width={16} height={16}><path d="m6 9 6 6 6-6" /></svg>
+}
+
+export function CheckIcon() {
+  return <svg {...base} width={16} height={16}><path d="m5 12 5 5L20 7" /></svg>
+}
