@@ -3,33 +3,33 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveCo
 import { supabase } from '../lib/supabase'
 import { currentMonth, monthEnd, monthKey, monthLabel, monthStart, money, moneyShort, shiftMonth } from '../lib/format'
 import { MonthPicker } from './Transactions'
-import TransactionForm from './TransactionForm'
 
-export default function Dashboard({ accounts, categories }) {
+export default function Dashboard({ categories, activeHouseholdId }) {
   const [month, setMonth] = useState(currentMonth())
   const [all, setAll] = useState([])
   const [budgets, setBudgets] = useState([])
   const [balances, setBalances] = useState([])
-  const [adding, setAdding] = useState(false)
   const [error, setError] = useState(null)
 
   const load = useCallback(async () => {
+    if (!activeHouseholdId) return
     const [t, b, ab] = await Promise.all([
       supabase.from('transactions')
         .select('id, kind, amount, occurred_on, note, category_id')
+        .eq('household_id', activeHouseholdId)
         .gte('occurred_on', monthStart(shiftMonth(month, -5)))
         .lte('occurred_on', monthEnd(month))
         .order('occurred_on', { ascending: false })
         .limit(10000),
-      supabase.from('budgets').select('*').eq('month', monthStart(month)),
-      supabase.from('account_balances').select('*').order('name'),
+      supabase.from('budgets').select('*').eq('household_id', activeHouseholdId).eq('month', monthStart(month)),
+      supabase.from('account_balances').select('*').eq('household_id', activeHouseholdId).order('name'),
     ])
     const err = t.error || b.error || ab.error
     setError(err ? err.message : null)
     setAll(t.data || [])
     setBudgets(b.data || [])
     setBalances((ab.data || []).map((a) => ({ ...a, balance: Number(a.balance) })))
-  }, [month])
+  }, [month, activeHouseholdId])
 
   useEffect(() => { load() }, [load])
 
@@ -68,8 +68,6 @@ export default function Dashboard({ accounts, categories }) {
     <section>
       <div className="toolbar">
         <MonthPicker month={month} setMonth={setMonth} />
-        <div className="spacer" />
-        <button className="btn primary" onClick={() => setAdding(true)}>+ Add transaction</button>
       </div>
       {error && <div className="alert error">{error}</div>}
 
@@ -137,10 +135,6 @@ export default function Dashboard({ accounts, categories }) {
         </div>
       </div>
 
-      {adding && (
-        <TransactionForm accounts={accounts} categories={categories}
-          onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load() }} />
-      )}
     </section>
   )
 }

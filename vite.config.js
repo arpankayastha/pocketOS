@@ -1,7 +1,32 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg'],
+      manifest: {
+        name: 'PocketOS',
+        short_name: 'PocketOS',
+        description: 'Personal finance tracker — income, expenses, budgets and net worth at a glance.',
+        theme_color: '#050608',
+        background_color: '#050608',
+        display: 'standalone',
+        start_url: '/',
+        icons: [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        // App shell only — Supabase data always goes over the network, never cached.
+        globPatterns: ['**/*.{js,css,html,svg,png}'],
+      },
+    }),
+  ],
 })

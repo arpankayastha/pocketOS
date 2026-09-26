@@ -1,23 +1,82 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { money } from '../lib/format'
+import { TrashIcon } from '../lib/icons'
 
-export default function Settings({ accounts, categories, refresh }) {
+export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold }) {
   return (
     <section className="grid2">
-      <Accounts accounts={accounts} refresh={refresh} />
-      <Categories categories={categories} refresh={refresh} />
+      <div style={{ gridColumn: '1 / -1' }}>
+        <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} />
+      </div>
+      <Accounts accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
+      <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
     </section>
   )
 }
 
-function Accounts({ accounts, refresh }) {
+function Households({ households, activeHouseholdId, setActiveHouseholdId, createHousehold, refresh }) {
+  const [name, setName] = useState('')
+  const [error, setError] = useState(null)
+
+  async function add(e) {
+    e.preventDefault()
+    try {
+      await createHousehold(name.trim())
+      setName('')
+      setError(null)
+    } catch (err) { setError(err.message) }
+  }
+
+  async function rename(h) {
+    const next = prompt('Rename household', h.name)
+    if (!next || next.trim() === h.name) return
+    const { error } = await supabase.from('households').update({ name: next.trim() }).eq('id', h.id)
+    if (error) return setError(error.message)
+    refresh()
+  }
+
+  async function remove(h) {
+    if (households.length < 2) return alert('You need at least one household.')
+    if (!confirm(`Delete household "${h.name}"? All its accounts, categories, transactions and budgets are deleted too.`)) return
+    const { error } = await supabase.from('households').delete().eq('id', h.id)
+    if (error) return setError(error.message)
+    if (h.id === activeHouseholdId) setActiveHouseholdId(households.find((x) => x.id !== h.id)?.id)
+    refresh()
+  }
+
+  return (
+    <div className="card">
+      <h3>Households</h3>
+      {households.map((h) => (
+        <div className="line" key={h.id}>
+          <span>
+            <button type="button" className="btn link" style={{ fontWeight: h.id === activeHouseholdId ? 700 : 400 }} onClick={() => setActiveHouseholdId(h.id)}>
+              {h.id === activeHouseholdId ? '● ' : '○ '}{h.name}
+            </button>
+          </span>
+          <span>
+            <button className="btn small ghost" onClick={() => rename(h)}>Rename</button>{' '}
+            <button className="btn icon" onClick={() => remove(h)}><TrashIcon /></button>
+          </span>
+        </div>
+      ))}
+      <form className="inline-form" onSubmit={add}>
+        <input required placeholder="New household name" value={name} onChange={(e) => setName(e.target.value)} />
+        <button className="btn primary">Add</button>
+      </form>
+      {error && <div className="alert error">{error}</div>}
+    </div>
+  )
+}
+
+function Accounts({ accounts, activeHouseholdId, refresh }) {
   const [form, setForm] = useState({ name: '', type: 'bank', opening_balance: '' })
   const [error, setError] = useState(null)
 
   async function add(e) {
     e.preventDefault()
-    const { error } = await supabase.from('accounts').insert({ ...form, opening_balance: Number(form.opening_balance) || 0 })
+    const { error } = await supabase.from('accounts').insert({ ...form, household_id: activeHouseholdId, opening_balance: Number(form.opening_balance) || 0 })
     if (error) return setError(error.message)
     setForm({ name: '', type: 'bank', opening_balance: '' })
     setError(null)
@@ -45,7 +104,7 @@ function Accounts({ accounts, refresh }) {
         <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
           {['bank', 'cash', 'card', 'wallet', 'investment'].map((t) => <option key={t}>{t}</option>)}
         </select>
-        <input type="number" step="0.01" placeholder="Opening balance" value={form.opening_balance} onChange={(e) => setForm({ ...form, opening_balance: e.target.value })} />
+        <input type="number" inputMode="decimal" step="0.01" placeholder="Opening balance" value={form.opening_balance} onChange={(e) => setForm({ ...form, opening_balance: e.target.value })} />
         <button className="btn primary">Add</button>
       </form>
       {error && <div className="alert error">{error}</div>}
@@ -53,13 +112,13 @@ function Accounts({ accounts, refresh }) {
   )
 }
 
-function Categories({ categories, refresh }) {
+function Categories({ categories, activeHouseholdId, refresh }) {
   const [form, setForm] = useState({ name: '', kind: 'expense', color: '#6366f1' })
   const [error, setError] = useState(null)
 
   async function add(e) {
     e.preventDefault()
-    const { error } = await supabase.from('categories').insert(form)
+    const { error } = await supabase.from('categories').insert({ ...form, household_id: activeHouseholdId })
     if (error) return setError(error.message)
     setForm({ ...form, name: '' })
     setError(null)

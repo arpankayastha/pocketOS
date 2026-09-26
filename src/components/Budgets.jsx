@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { currentMonth, monthEnd, monthLabel, monthStart, money, shiftMonth } from '../lib/format'
 import { MonthPicker } from './Transactions'
 
-export default function Budgets({ categories }) {
+export default function Budgets({ categories, activeHouseholdId }) {
   const [month, setMonth] = useState(currentMonth())
   const [budgets, setBudgets] = useState({}) // category_id -> amount
   const [spent, setSpent] = useState({})
@@ -13,9 +13,10 @@ export default function Budgets({ categories }) {
   const expenseCats = useMemo(() => categories.filter((c) => c.kind === 'expense'), [categories])
 
   const load = useCallback(async () => {
+    if (!activeHouseholdId) return
     const [b, t] = await Promise.all([
-      supabase.from('budgets').select('category_id, amount').eq('month', monthStart(month)),
-      supabase.from('transactions').select('category_id, amount').eq('kind', 'expense')
+      supabase.from('budgets').select('category_id, amount').eq('household_id', activeHouseholdId).eq('month', monthStart(month)),
+      supabase.from('transactions').select('category_id, amount').eq('household_id', activeHouseholdId).eq('kind', 'expense')
         .gte('occurred_on', monthStart(month)).lte('occurred_on', monthEnd(month)),
     ])
     if (b.error || t.error) return setError((b.error || t.error).message)
@@ -26,7 +27,7 @@ export default function Budgets({ categories }) {
     setBudgets(bm)
     setSpent(sm)
     setDrafts(Object.fromEntries(Object.entries(bm).map(([k, v]) => [k, String(v)])))
-  }, [month])
+  }, [month, activeHouseholdId])
 
   useEffect(() => { load() }, [load])
 
@@ -35,7 +36,9 @@ export default function Budgets({ categories }) {
     if (raw === undefined || Number(raw) === budgets[categoryId]) return
     const q = raw === '' || Number(raw) === 0
       ? supabase.from('budgets').delete().eq('category_id', categoryId).eq('month', monthStart(month))
-      : supabase.from('budgets').upsert({ category_id: categoryId, month: monthStart(month), amount: Number(raw) }, { onConflict: 'user_id,category_id,month' })
+      : supabase.from('budgets').upsert(
+          { category_id: categoryId, household_id: activeHouseholdId, month: monthStart(month), amount: Number(raw) },
+          { onConflict: 'household_id,category_id,month' })
     const { error } = await q
     if (error) return setError(error.message)
     load()
@@ -43,11 +46,11 @@ export default function Budgets({ categories }) {
 
   async function copyPrevious() {
     const prev = monthStart(shiftMonth(month, -1))
-    const { data, error } = await supabase.from('budgets').select('category_id, amount').eq('month', prev)
+    const { data, error } = await supabase.from('budgets').select('category_id, amount').eq('household_id', activeHouseholdId).eq('month', prev)
     if (error) return setError(error.message)
     if (!data.length) return alert(`No budgets set for ${monthLabel(shiftMonth(month, -1))}.`)
-    const rows = data.map((r) => ({ category_id: r.category_id, amount: r.amount, month: monthStart(month) }))
-    const res = await supabase.from('budgets').upsert(rows, { onConflict: 'user_id,category_id,month' })
+    const rows = data.map((r) => ({ category_id: r.category_id, household_id: activeHouseholdId, amount: r.amount, month: monthStart(month) }))
+    const res = await supabase.from('budgets').upsert(rows, { onConflict: 'household_id,category_id,month' })
     if (res.error) return setError(res.error.message)
     load()
   }
@@ -78,7 +81,7 @@ export default function Budgets({ categories }) {
               <div className="budget-head">
                 <span><span className="dot" style={{ background: c.color }} />{c.name}</span>
                 <span className="muted small">{money(s)} spent{b ? ` · ${money(Math.max(b - s, 0))} left` : ''}</span>
-                <input type="number" min="0" step="100" placeholder="Set budget" className="budget-input"
+                <input type="number" inputMode="decimal" min="0" step="100" placeholder="Set budget" className="budget-input"
                   value={drafts[c.id] ?? ''}
                   onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
                   onBlur={() => saveOne(c.id)}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { today } from '../lib/format'
 
-export default function TransactionForm({ accounts, categories, initial, onClose, onSaved }) {
+export default function TransactionForm({ accounts, categories, initial, presetKind, householdId, onClose, onSaved }) {
   const [form, setForm] = useState(() => initial ? {
     kind: initial.kind,
     amount: String(initial.amount),
@@ -11,7 +11,7 @@ export default function TransactionForm({ accounts, categories, initial, onClose
     occurred_on: initial.occurred_on,
     note: initial.note || '',
   } : {
-    kind: 'expense',
+    kind: presetKind || 'expense',
     amount: '',
     category_id: '',
     account_id: accounts[0]?.id || '',
@@ -38,7 +38,7 @@ export default function TransactionForm({ accounts, categories, initial, onClose
     }
     const { error } = initial
       ? await supabase.from('transactions').update(row).eq('id', initial.id)
-      : await supabase.from('transactions').insert(row)
+      : await supabase.from('transactions').insert({ ...row, household_id: householdId })
     setBusy(false)
     if (error) return setError(error.message)
     onSaved()
@@ -47,15 +47,19 @@ export default function TransactionForm({ accounts, categories, initial, onClose
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{initial ? 'Edit transaction' : 'Add transaction'}</h3>
-        <div className="seg">
-          {['expense', 'income'].map((k) => (
-            <button type="button" key={k} className={form.kind === k ? `on ${k}` : ''}
-              onClick={() => setForm((f) => ({ ...f, kind: k, category_id: '' }))}>
-              {k === 'expense' ? 'Expense' : 'Income'}
-            </button>
-          ))}
-        </div>
+        <h3>{initial ? 'Edit transaction' : form.kind === 'income' ? 'Add income' : 'Add expense'}</h3>
+        {initial ? (
+          <div className="seg">
+            {['expense', 'income'].map((k) => (
+              <button type="button" key={k} className={form.kind === k ? `on ${k}` : ''}
+                onClick={() => setForm((f) => ({ ...f, kind: k, category_id: '' }))}>
+                {k === 'expense' ? 'Expense' : 'Income'}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className={`kind-badge ${form.kind}`}>{form.kind === 'income' ? 'Income' : 'Expense'}</span>
+        )}
         <label>Amount
           <input type="number" inputMode="decimal" step="0.01" min="0.01" required autoFocus value={form.amount} onChange={set('amount')} />
         </label>

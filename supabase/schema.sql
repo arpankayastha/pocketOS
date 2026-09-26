@@ -109,3 +109,98 @@ create index if not exists accounts_user_id_idx on public.accounts (user_id);
 create index if not exists budgets_category_id_idx on public.budgets (category_id);
 create index if not exists transactions_account_id_idx on public.transactions (account_id);
 create index if not exists transactions_category_id_idx on public.transactions (category_id);
+
+-- Multi-household support: one master login manages several isolated households
+-- (e.g. "My home", "Parents"). Still single-owner per row (user_id = auth.uid());
+-- household_id is a scoping column, not a new security boundary — no RLS changes.
+create table if not exists public.households (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.households enable row level security;
+drop policy if exists "own rows" on public.households;
+create policy "own rows" on public.households for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+alter table public.accounts     add column if not exists household_id uuid references public.households(id) on delete cascade;
+alter table public.categories   add column if not exists household_id uuid references public.households(id) on delete cascade;
+alter table public.transactions add column if not exists household_id uuid references public.households(id) on delete cascade;
+alter table public.budgets      add column if not exists household_id uuid references public.households(id) on delete cascade;
+
+-- Backfill: give every existing user a default "Home" household and attach their existing rows to it
+do $$
+declare
+  uid uuid;
+  hh_id uuid;
+begin
+  for uid in
+    select distinct user_id from public.accounts
+    union select distinct user_id from public.categories
+    union select distinct user_id from public.transactions
+    union select distinct user_id from public.budgets
+  loop
+    insert into public.households (user_id, name) values (uid, 'Home') returning id into hh_id;
+    update public.accounts     set household_id = hh_id where user_id = uid and household_id is null;
+    update public.categories   set household_id = hh_id where user_id = uid and household_id is null;
+    update public.transactions set household_id = hh_id where user_id = uid and household_id is null;
+    update public.budgets      set household_id = hh_id where user_id = uid and household_id is null;
+  end loop;
+end $$;
+
+alter table public.accounts     alter column household_id set not null;
+alter table public.categories   alter column household_id set not null;
+alter table public.transactions alter column household_id set not null;
+alter table public.budgets      alter column household_id set not null;
+
+alter table public.categories drop constraint if exists categories_user_id_name_kind_key;
+alter table public.categories add constraint categories_household_id_name_kind_key unique (household_id, name, kind);
+
+alter table public.budgets drop constraint if exists budgets_user_id_category_id_month_key;
+alter table public.budgets add constraint budgets_household_id_category_id_month_key unique (household_id, category_id, month);
+
+create index if not exists categories_user_id_idx on public.categories (user_id);
+create index if not exists budgets_user_id_idx on public.budgets (user_id);
+create index if not exists households_user_id_idx on public.households (user_id);
+create index if not exists accounts_household_id_idx on public.accounts (household_id);
+create index if not exists categories_household_id_idx on public.categories (household_id);
+create index if not exists transactions_household_id_idx on public.transactions (household_id);
+create index if not exists budgets_household_id_idx on public.budgets (household_id);
+
+-- seed_new_user now creates a default household first and scopes seeded rows to it
+create or replace function public.seed_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare hh_id uuid;
+begin
+  insert into public.households (user_id, name) values (new.id, 'Home') returning id into hh_id;
+  insert into public.categories (user_id, household_id, name, kind, color) values
+    (new.id, hh_id, 'Salary',        'income',  '#16a34a'),
+    (new.id, hh_id, 'Freelance',     'income',  '#22c55e'),
+    (new.id, hh_id, 'Other income',  'income',  '#84cc16'),
+    (new.id, hh_id, 'Groceries',     'expense', '#f97316'),
+    (new.id, hh_id, 'Rent',          'expense', '#ef4444'),
+    (new.id, hh_id, 'Utilities',     'expense', '#eab308'),
+    (new.id, hh_id, 'Transport',     'expense', '#3b82f6'),
+    (new.id, hh_id, 'Dining out',    'expense', '#ec4899'),
+    (new.id, hh_id, 'Shopping',      'expense', '#a855f7'),
+    (new.id, hh_id, 'Health',        'expense', '#14b8a6'),
+    (new.id, hh_id, 'Entertainment', 'expense', '#6366f1'),
+    (new.id, hh_id, 'Other',         'expense', '#64748b');
+  insert into public.accounts (user_id, household_id, name, type) values (new.id, hh_id, 'Cash', 'cash');
+  return new;
+end $$;
+
+-- account_balances now carries household_id so clients can scope without a join.
+-- household_id must be a NEW TRAILING column: `create or replace view` requires the
+-- existing columns to keep their exact name/order and only allows appending after them.
+create or replace view public.account_balances with (security_invoker = true) as
+select a.id, a.name, a.type, a.opening_balance,
+       a.opening_balance
+         + coalesce(sum(case when t.kind = 'income'  then t.amount end), 0)
+         - coalesce(sum(case when t.kind = 'expense' then t.amount end), 0) as balance,
+       a.household_id
+from public.accounts a
+left join public.transactions t on t.account_id = a.id
+group by a.id;

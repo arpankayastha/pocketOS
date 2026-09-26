@@ -3,23 +3,25 @@ import { supabase } from '../lib/supabase'
 import { fetchTransactions } from '../lib/useFinanceData'
 import { currentMonth, monthEnd, monthLabel, monthStart, money, shiftMonth } from '../lib/format'
 import TransactionForm from './TransactionForm'
+import { PencilIcon, TrashIcon } from '../lib/icons'
 
-export default function Transactions({ accounts, categories }) {
+export default function Transactions({ accounts, categories, activeHouseholdId }) {
   const [month, setMonth] = useState(currentMonth())
   const [filters, setFilters] = useState({ kind: '', categoryId: '', accountId: '', search: '' })
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [editing, setEditing] = useState(null) // null | 'new' | row
+  const [editing, setEditing] = useState(null) // null | row being edited
 
   const load = useCallback(async () => {
+    if (!activeHouseholdId) return
     setLoading(true)
     try {
-      setRows(await fetchTransactions({ from: monthStart(month), to: monthEnd(month), ...filters }))
+      setRows(await fetchTransactions({ householdId: activeHouseholdId, from: monthStart(month), to: monthEnd(month), ...filters }))
       setError(null)
     } catch (e) { setError(e.message) }
     setLoading(false)
-  }, [month, filters])
+  }, [month, filters, activeHouseholdId])
 
   useEffect(() => {
     const t = setTimeout(load, filters.search ? 300 : 0)
@@ -55,7 +57,6 @@ export default function Transactions({ accounts, categories }) {
         <MonthPicker month={month} setMonth={setMonth} />
         <div className="spacer" />
         <button className="btn ghost" onClick={exportCsv} disabled={!rows.length}>Export CSV</button>
-        <button className="btn primary" onClick={() => setEditing('new')}>+ Add</button>
       </div>
 
       <div className="filters">
@@ -91,15 +92,15 @@ export default function Transactions({ accounts, categories }) {
               <div className="muted small">{r.occurred_on} · {r.category?.name || 'Uncategorised'}{r.account ? ` · ${r.account.name}` : ''}</div>
             </div>
             <div className={`amt ${r.kind === 'income' ? 'pos' : 'neg'}`}>{r.kind === 'income' ? '+' : '−'}{money(r.amount)}</div>
-            <button className="btn icon" title="Edit" onClick={() => setEditing(r)}>✎</button>
-            <button className="btn icon" title="Delete" onClick={() => remove(r)}>✕</button>
+            <button className="btn icon" title="Edit" onClick={() => setEditing(r)}><PencilIcon /></button>
+            <button className="btn icon" title="Delete" onClick={() => remove(r)}><TrashIcon /></button>
           </div>
         ))}
       </div>
 
       {editing && (
-        <TransactionForm accounts={accounts} categories={categories}
-          initial={editing === 'new' ? null : editing}
+        <TransactionForm accounts={accounts} categories={categories} householdId={activeHouseholdId}
+          initial={editing}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load() }} />
       )}
