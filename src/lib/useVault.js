@@ -199,6 +199,11 @@ export function useVault(session) {
     await loadItems()
   }, [loadItems])
 
+  // Generic encryption with the vault key, for other modules (e.g. Will) that store their own
+  // rows: `seal(id, data)` → { iv, ciphertext }, `unseal(row)` → data. `id` is bound as AAD.
+  const seal = useCallback((id, data) => encryptItem(cryptoKey.current, id, data), [])
+  const unseal = useCallback((row) => decryptItem(cryptoKey.current, row), [])
+
   // Verifies the master password without changing state (used as the app-lock fallback).
   const checkPassword = useCallback(async (password) => {
     const u = unlockers.find((x) => x.kind === 'password')
@@ -228,6 +233,6 @@ export function useVault(session) {
     status, error, lockedByUser, unlockers, fingerprintUnlockers, items, hasRecovery: unlockers.some((u) => u.kind === 'recovery'),
     setup, unlockWithPassword, unlockWithRecovery, unlockWithFingerprint, checkPassword,
     addFingerprint, removeUnlocker, changePassword, regenerateRecovery,
-    saveItem, deleteItem, importItems, lock, lockNow, touch,
+    saveItem, deleteItem, importItems, seal, unseal, lock, lockNow, touch,
   }
 }

@@ -224,3 +224,23 @@ export function ChevronDownIcon() {
 export function CheckIcon() {
   return <svg {...base} width={16} height={16}><path d="m5 12 5 5L20 7" /></svg>
 }
+
+// ---- Will module ----
+export function ScrollIcon() {
+  return <svg {...base}><path d="M6 3h11a2 2 0 0 1 2 2v12" /><path d="M6 3a2 2 0 0 0-2 2v2h4" /><path d="M8 7v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-2H12v2a2 2 0 0 1-2 2" /><path d="M11 8h5M11 12h5" /></svg>
+}
+export function UsersIcon() {
+  return <svg {...base}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.8 3.1 2.6 3.5 5.2" /></svg>
+}
+export function HomeIcon() {
+  return <svg {...base}><path d="M3 11 12 4l9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></svg>
+}
+export function PieIcon() {
+  return <svg {...base}><path d="M12 3a9 9 0 1 0 9 9h-9Z" /><path d="M15 3.5A9 9 0 0 1 20.5 9H15Z" /></svg>
+}
+export function FileIcon() {
+  return <svg {...base}><path d="M6 2h9l5 5v15H6Z" /><path d="M14 2v6h6M9 13h8M9 17h8" /></svg>
+}
+export function UserIcon() {
+  return <svg {...base}><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 4.2-6 8-6s7 2 8 6" /></svg>
+}

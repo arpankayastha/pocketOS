@@ -323,6 +323,67 @@ textarea.masked { -webkit-text-security: disc; }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 
+/* ---------- Will module ---------- */
+.list-head { padding: 12px 16px 6px; font-weight: 600; border-bottom: 1px solid var(--line); }
+.reorder { display: inline-flex; }
+.reorder .btn.icon { min-width: 32px; padding: 4px; }
+.warn-pill { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); margin-left: 6px; }
+.shares { display: grid; gap: 8px; }
+.share-row { display: grid; grid-template-columns: 1fr 110px auto; gap: 8px; align-items: center; }
+.pct { display: flex; align-items: center; gap: 6px; }
+.pct input { text-align: right; }
+.share-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.share-actions svg { width: 16px; height: 16px; }
+.share-total { margin-left: auto; font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.summary-person { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--card-2); }
+.summary-name { font-weight: 700; margin-bottom: 6px; }
+.summary-person ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.summary-person li { display: flex; gap: 8px; justify-content: space-between; }
+.summary-pct { font-family: var(--font-mono); font-weight: 600; color: var(--accent); flex-shrink: 0; }
+.wish-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; margin-bottom: 10px; }
+.witness-edit { padding-top: 6px; border-top: 1px solid var(--line); }
+.pdf-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pdf-actions svg { width: 18px; height: 18px; }
+.issue { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; border: none; background: none; padding: 8px 4px; border-radius: 8px; cursor: pointer; font-size: 14px; line-height: 1.45; }
+.issue:hover { background: var(--card-2); }
+.issue-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; }
+.issue.error .issue-dot { background: var(--neg); } .issue.warn .issue-dot { background: var(--warn); }
+.save-state { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+.save-state.error { color: var(--neg); }
+
+/* The will document: black on white paper, Gujarati serif. Used for preview and print. */
+.will-preview { background: #e9e9ea; border-radius: 12px; padding: 16px; overflow-x: auto; }
+.will-preview .will-doc { max-width: 800px; margin: 0 auto; padding: 48px 56px; box-shadow: 0 2px 16px rgb(0 0 0 / .35); }
+.will-doc { background: #fff; color: #111; font-family: 'Noto Serif Gujarati', serif; font-size: 12pt; line-height: 1.75; color-scheme: light; }
+.will-doc h1 { font-size: 26pt; text-align: center; margin: 0 0 4px; letter-spacing: .02em; }
+.will-doc h2 { font-size: 13pt; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 1.5px solid #111; break-after: avoid; }
+.will-doc h3 { font-size: 11.5pt; margin: 14px 0 6px; break-after: avoid; }
+.will-cover { text-align: center; margin-bottom: 26px; }
+.will-name { font-size: 16pt; font-weight: 700; margin-top: 14px; }
+.will-sub { color: #444; }
+.will-intro { text-align: justify; }
+.will-para { text-align: justify; margin: 0 0 10px; }
+.will-num { font-weight: 700; margin-right: 8px; }
+.will-doc table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 10.5pt; line-height: 1.5; break-inside: auto; }
+.will-doc th, .will-doc td { border: 1px solid #555; padding: 6px 8px; vertical-align: top; text-align: left; white-space: pre-line; }
+.will-doc th { background: #f1f1f1; font-weight: 600; }
+.will-doc tr { break-inside: avoid; }
+.will-sign { break-before: page; margin-top: 10px; }
+.sign-table td { height: 110px; }
+.sign-table td:first-child { width: 62%; }
+.sign-box { color: #888; text-align: center; vertical-align: bottom !important; }
+.will-stamp { margin-top: 18px; font-size: 9pt; color: #666; text-align: right; }
+
+#will-print { display: none; }
+@media print {
+  html:has(body.printing-will), body.printing-will { background: #fff !important; color-scheme: light; }
+  body.printing-will > #root { display: none !important; }
+  body.printing-will #will-print { display: block; }
+  body.printing-will .will-stamp { display: none; } /* the page footer carries it */
+  .will-doc { font-size: 11.5pt; }
+}
+
 @media (max-width: 800px) {
   .topbar { padding: 10px 16px; padding-top: calc(10px + var(--safe-t)); gap: 10px; flex-wrap: nowrap; }
   .topbar .tabs { display: none; }
@@ -358,6 +419,9 @@ textarea.masked { -webkit-text-security: disc; }
   .bottom-nav svg { width: 22px; height: 22px; }
   .fab-wrap { bottom: calc(78px + var(--safe-b)); }
   .toast { bottom: calc(84px + var(--safe-b)); }
+  .will-preview { padding: 8px; }
+  .will-preview .will-doc { padding: 22px 18px; font-size: 11pt; }
+  .share-row { grid-template-columns: 1fr 96px auto; }
   /* Type picker as a full-height sheet on phones, like LastPass's "Add item" screen. */
   .modal-bg:has(.sheet) { padding: 0; place-items: stretch; }
   .modal.sheet { max-width: none; max-height: none; height: 100dvh; border-radius: 0; border: none; padding-top: calc(18px + var(--safe-t)); padding-bottom: calc(18px + var(--safe-b)); }

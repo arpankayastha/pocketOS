@@ -312,3 +312,37 @@ as $$
 $$;
 revoke execute on function public.account_balances_on(date) from public, anon;
 grant execute on function public.account_balances_on(date) to authenticated;
+
+-- ============================================================================
+-- Will module: the whole will is one JSON document, AES-GCM encrypted in the browser with
+-- the Vault key (row id as associated data). The server only stores ciphertext.
+-- ============================================================================
+create table if not exists public.wills (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  iv text not null,
+  ciphertext text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists wills_user_id_idx on public.wills (user_id);
+alter table public.wills enable row level security;
+drop policy if exists "own rows" on public.wills;
+create policy "own rows" on public.wills for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- Saved versions (snapshots) of a will, for transparency: each is encrypted the same way.
+create table if not exists public.will_versions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  will_id uuid not null references public.wills(id) on delete cascade,
+  iv text not null,
+  ciphertext text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists will_versions_user_id_idx on public.will_versions (user_id);
+create index if not exists will_versions_will_id_idx on public.will_versions (will_id);
+alter table public.will_versions enable row level security;
+drop policy if exists "own rows" on public.will_versions;
+create policy "own rows" on public.will_versions for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));

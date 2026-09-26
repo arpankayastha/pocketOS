@@ -15,6 +15,7 @@ import VaultItems from './components/VaultItems'
 import PasswordGenerator from './components/PasswordGenerator'
 import VaultSecurity, { ChangePassword } from './components/VaultSecurity'
 import AppLockScreen from './components/AppLockScreen'
+import WillModule from './components/will/WillModule'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import { MODULES } from './lib/modules'
 import { useDialog } from './lib/dialog'
@@ -79,7 +80,9 @@ function Shell({ session }) {
   const topbar = { module, setModule }
 
   if (appLock.locked) return <AppLockScreen appLock={appLock} vault={vault} />
-  return module === 'vault' ? <VaultModule topbar={topbar} vault={vault} appLock={appLock} /> : <BudgetModule topbar={topbar} email={session.user.email} />
+  if (module === 'vault') return <VaultModule topbar={topbar} vault={vault} appLock={appLock} />
+  if (module === 'will') return <WillModule topbar={topbar} vault={vault} />
+  return <BudgetModule topbar={topbar} email={session.user.email} />
 }
 
 function BudgetModule({ topbar, email }) {
