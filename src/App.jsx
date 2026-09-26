@@ -17,6 +17,7 @@ import VaultSecurity, { ChangePassword } from './components/VaultSecurity'
 import AppLockScreen from './components/AppLockScreen'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import { MODULES } from './lib/modules'
+import { useDialog } from './lib/dialog'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
 import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
 
@@ -87,14 +88,15 @@ function BudgetModule({ topbar, email }) {
   const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
   const [dataVersion, setDataVersion] = useState(0)
   const data = useFinanceData()
+  const dialog = useDialog()
 
   return (
     <div className="app">
       <Topbar {...topbar} right={data.households.length > 0 && (
         <HouseholdMenu households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
-          onCreate={() => {
-            const name = prompt('New household name')
-            if (name && name.trim()) data.createHousehold(name.trim())
+          onCreate={async () => {
+            const name = await dialog.prompt({ title: 'New household', label: 'Name', placeholder: "e.g. Parents' Home", confirmLabel: 'Create' })
+            if (name) data.createHousehold(name)
           }}
           onManage={() => setTab('settings')} />
       )}>

@@ -6,6 +6,7 @@ import { currentMonth, monthEnd, monthLabel, monthStart, money, shiftMonth } fro
 import TransactionForm from './TransactionForm'
 import TransferForm from './TransferForm'
 import { deleteTransfer, transferCounterparts } from '../lib/transfers'
+import { useDialog } from '../lib/dialog'
 import { SkeletonRows } from './Skeleton'
 import { PencilIcon, TrashIcon } from '../lib/icons'
 
@@ -17,6 +18,7 @@ export default function Transactions({ accounts, categories, activeHouseholdId, 
   const [error, setError] = useState(null)
   const [editing, setEditing] = useState(null) // null | row being edited
   const [counterparts, setCounterparts] = useState({}) // transfer_id → other household id
+  const dialog = useDialog()
 
   const load = useCallback(async () => {
     if (!activeHouseholdId) return
@@ -41,13 +43,14 @@ export default function Transactions({ accounts, categories, activeHouseholdId, 
 
   async function remove(row) {
     if (row.transfer_id) {
-      if (!confirm(`Delete this transfer of ${money(row.amount)}? It's removed from both households.`)) return
-      try { await deleteTransfer(row.transfer_id) } catch (err) { return alert(err.message) }
+      if (!await dialog.confirm({ title: 'Delete transfer?', message: `This transfer of ${money(row.amount)} is removed from both households.` })) return
+      try { await deleteTransfer(row.transfer_id) } catch (err) { return dialog.alert(err.message) }
       return load()
     }
-    if (!confirm(`Delete this ${row.kind} of ${money(row.amount)}?`)) return
+    const what = row.note || row.category?.name || row.kind
+    if (!await dialog.confirm({ title: `Delete ${row.kind}?`, message: `"${what}" · ${money(row.amount)} on ${row.occurred_on}. This can't be undone.` })) return
     const { error } = await supabase.from('transactions').delete().eq('id', row.id)
-    if (error) return alert(error.message)
+    if (error) return dialog.alert(error.message)
     load()
   }
 

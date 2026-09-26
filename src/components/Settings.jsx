@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { money } from '../lib/format'
-import { TrashIcon } from '../lib/icons'
+import { TrashIcon, PencilIcon } from '../lib/icons'
+import { useDialog } from '../lib/dialog'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email }) {
+  const dialog = useDialog()
   return (
     <section className="grid2">
       <div style={{ gridColumn: '1 / -1' }}>
@@ -18,7 +20,7 @@ export default function Settings({ accounts, categories, refresh, households, ac
         <h3>Account</h3>
         <div className="line">
           <span className="muted small">Signed in as {email}</span>
-          <button className="btn small ghost" onClick={() => confirm('Sign out of PocketOS on this device?') && supabase.auth.signOut()}>Sign out</button>
+          <button className="btn small ghost" onClick={async () => (await dialog.confirm({ title: 'Sign out?', message: 'You can sign back in with Google or a passkey.', confirmLabel: 'Sign out', danger: false })) && supabase.auth.signOut()}>Sign out</button>
         </div>
       </div>
     </section>
@@ -26,6 +28,7 @@ export default function Settings({ accounts, categories, refresh, households, ac
 }
 
 function Passkeys() {
+  const dialog = useDialog()
   const [passkeys, setPasskeys] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -48,15 +51,15 @@ function Passkeys() {
   }
 
   async function rename(p) {
-    const next = prompt('Rename passkey', p.friendly_name || '')
-    if (!next || !next.trim()) return
-    const { error } = await supabase.auth.passkey.update({ passkeyId: p.id, friendlyName: next.trim() })
+    const next = await dialog.prompt({ title: 'Rename passkey', label: 'Name', defaultValue: p.friendly_name || '' })
+    if (!next) return
+    const { error } = await supabase.auth.passkey.update({ passkeyId: p.id, friendlyName: next })
     if (error) return setError(error.message)
     load()
   }
 
   async function remove(p) {
-    if (!confirm(`Remove passkey "${p.friendly_name || 'Passkey'}"? You'll need another way to sign in on that device.`)) return
+    if (!await dialog.confirm({ title: `Remove passkey "${p.friendly_name || 'Passkey'}"?`, message: "You'll need Google or another passkey to sign in on that device.", confirmLabel: 'Remove' })) return
     const { error } = await supabase.auth.passkey.delete({ passkeyId: p.id })
     if (error) return setError(error.message)
     load()
@@ -85,6 +88,7 @@ function Passkeys() {
 }
 
 function Households({ households, activeHouseholdId, setActiveHouseholdId, createHousehold, refresh }) {
+  const dialog = useDialog()
   const [name, setName] = useState('')
   const [error, setError] = useState(null)
 
@@ -98,16 +102,16 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
   }
 
   async function rename(h) {
-    const next = prompt('Rename household', h.name)
-    if (!next || next.trim() === h.name) return
-    const { error } = await supabase.from('households').update({ name: next.trim() }).eq('id', h.id)
+    const next = await dialog.prompt({ title: 'Rename household', label: 'Name', defaultValue: h.name })
+    if (!next || next === h.name) return
+    const { error } = await supabase.from('households').update({ name: next }).eq('id', h.id)
     if (error) return setError(error.message)
     refresh()
   }
 
   async function remove(h) {
-    if (households.length < 2) return alert('You need at least one household.')
-    if (!confirm(`Delete household "${h.name}"? All its accounts, categories, transactions and budgets are deleted too.`)) return
+    if (households.length < 2) return dialog.alert({ title: "Can't delete your only household", message: 'Create another household first.' })
+    if (!await dialog.confirm({ title: `Delete "${h.name}"?`, message: 'All its accounts, categories, transactions and plan items are deleted too. This can\'t be undone.' })) return
     const { error } = await supabase.from('households').delete().eq('id', h.id)
     if (error) return setError(error.message)
     if (h.id === activeHouseholdId) setActiveHouseholdId(households.find((x) => x.id !== h.id)?.id)
@@ -140,6 +144,7 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
 }
 
 function Accounts({ accounts, activeHouseholdId, refresh }) {
+  const dialog = useDialog()
   const [form, setForm] = useState({ name: '', type: 'bank', opening_balance: '' })
   const [error, setError] = useState(null)
 
@@ -153,7 +158,7 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
   }
 
   async function remove(a) {
-    if (!confirm(`Delete account "${a.name}"? Its transactions will be kept but unlinked.`)) return
+    if (!await dialog.confirm({ title: `Delete account "${a.name}"?`, message: 'Its transactions are kept, just no longer linked to an account.' })) return
     const { error } = await supabase.from('accounts').delete().eq('id', a.id)
     if (error) return setError(error.message)
     refresh()
@@ -183,36 +188,31 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
 
 function Categories({ categories, activeHouseholdId, refresh }) {
   const [form, setForm] = useState({ name: '', kind: 'expense', color: '#6366f1' })
+  const [editing, setEditing] = useState(null) // category being edited
   const [error, setError] = useState(null)
 
   async function add(e) {
     e.preventDefault()
-    const { error } = await supabase.from('categories').insert({ ...form, household_id: activeHouseholdId })
+    const { error } = await supabase.from('categories').insert({ ...form, name: form.name.trim(), household_id: activeHouseholdId })
     if (error) return setError(error.message)
     setForm({ ...form, name: '' })
     setError(null)
     refresh()
   }
 
-  async function remove(c) {
-    if (!confirm(`Delete category "${c.name}"? Transactions become uncategorised and its budgets are removed.`)) return
-    const { error } = await supabase.from('categories').delete().eq('id', c.id)
-    if (error) return setError(error.message)
-    refresh()
-  }
-
   return (
     <div className="card">
       <h3>Categories</h3>
+      <p className="muted small" style={{ marginTop: -6 }}>Tap a category to rename it, change its colour or delete it.</p>
       {['expense', 'income'].map((k) => (
         <div key={k}>
           <div className="muted small caps">{k}</div>
           <div className="chips">
             {categories.filter((c) => c.kind === k).map((c) => (
-              <span className="chip" key={c.id}>
+              <button type="button" className="chip chip-btn" key={c.id} onClick={() => setEditing(c)}>
                 <span className="dot" style={{ background: c.color }} />{c.name}
-                <button type="button" onClick={() => remove(c)} title="Delete">×</button>
-              </span>
+                <PencilIcon />
+              </button>
             ))}
           </div>
         </div>
@@ -226,6 +226,67 @@ function Categories({ categories, activeHouseholdId, refresh }) {
         <button className="btn primary">Add</button>
       </form>
       {error && <div className="alert error">{error}</div>}
+      {editing && <CategoryEditor category={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />}
+    </div>
+  )
+}
+
+const SWATCHES = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#16a34a', '#14b8a6', '#0ea5e9', '#3b82f6', '#6366f1', '#a855f7', '#ec4899', '#64748b']
+
+function CategoryEditor({ category, onClose, onSaved }) {
+  const dialog = useDialog()
+  const [name, setName] = useState(category.name.trim())
+  const [color, setColor] = useState(category.color)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true)
+    const { error } = await supabase.from('categories').update({ name: name.trim(), color }).eq('id', category.id)
+    setBusy(false)
+    if (error) return setError(error.message)
+    onSaved()
+  }
+
+  async function remove() {
+    const { count } = await supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('category_id', category.id)
+    const used = count ? `${count} transaction${count === 1 ? '' : 's'} will become uncategorised.` : 'No transactions use it.'
+    if (!await dialog.confirm({ title: `Delete "${category.name.trim()}"?`, message: `${used} Plan items using it become uncategorised too.` })) return
+    const { error } = await supabase.from('categories').delete().eq('id', category.id)
+    if (error) return setError(error.message)
+    onSaved()
+  }
+
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
+        <h3>Edit category</h3>
+        <span className={`kind-badge ${category.kind}`}>{category.kind === 'income' ? 'Income' : 'Expense'}</span>
+        <label>Name
+          <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <div className="form-field">
+          <span className="muted small">Colour</span>
+          <div className="swatches">
+            {SWATCHES.map((c) => (
+              <button type="button" key={c} className={`swatch ${c.toLowerCase() === color.toLowerCase() ? 'on' : ''}`} style={{ background: c }}
+                aria-label={`Colour ${c}`} aria-pressed={c.toLowerCase() === color.toLowerCase()} onClick={() => setColor(c)} />
+            ))}
+            <label className="swatch custom" title="Custom colour" style={{ background: SWATCHES.includes(color) ? undefined : color }}>
+              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Custom colour" />
+            </label>
+          </div>
+        </div>
+        <div className="chip preview"><span className="dot" style={{ background: color }} />{name || 'Category'}</div>
+        {error && <div className="alert error">{error}</div>}
+        <div className="actions">
+          <button type="button" className="btn icon" aria-label="Delete category" onClick={remove}><TrashIcon /></button>
+          <span className="spacer" />
+          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={busy || !name.trim()}>{busy ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
     </div>
   )
 }

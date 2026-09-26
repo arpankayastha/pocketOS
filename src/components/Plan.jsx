@@ -5,6 +5,7 @@ import { MonthPicker } from './Transactions'
 import { useMonthSwipe } from '../lib/useSwipe'
 import { TrashIcon } from '../lib/icons'
 import { SkeletonRows } from './Skeleton'
+import { useDialog } from '../lib/dialog'
 
 export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [month, setMonth] = useState(() => shiftMonth(currentMonth(), 1))
@@ -13,6 +14,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [logging, setLogging] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState(null)
+  const dialog = useDialog()
   const [loaded, setLoaded] = useState(false) // avoids flashing "no commitments yet" before the first load
 
   const load = useCallback(async () => {
@@ -42,7 +44,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
   }, [items, actuals])
 
   async function removeItem(it) {
-    if (!confirm(`Remove "${it.name}" from your recurring commitments? Already-logged transactions are kept.`)) return
+    if (!await dialog.confirm({ title: `Remove "${it.name}"?`, message: 'It leaves your recurring commitments. Transactions already logged against it are kept.', confirmLabel: 'Remove' })) return
     const { error } = await supabase.from('recurring_items').delete().eq('id', it.id)
     if (error) return setError(error.message)
     load()

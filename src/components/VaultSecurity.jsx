@@ -5,6 +5,7 @@ import { itemsFromLastPassCsv, pwnedCount } from '../lib/vaultTools'
 import { itemTitle, typedFromLastPassNote } from '../lib/vaultTypes'
 import { TrashIcon, FingerprintIcon } from '../lib/icons'
 import { StrengthMeter } from './VaultGate'
+import { useDialog } from '../lib/dialog'
 
 function deviceName() {
   const ua = navigator.userAgent
@@ -33,13 +34,14 @@ function Fingerprints({ vault }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [available, setAvailable] = useState(null)
+  const dialog = useDialog()
   let thisDevice = null
   try { thisDevice = localStorage.getItem(DEVICE_CREDENTIAL_KEY) } catch { /* ignore */ }
 
   useEffect(() => { platformAuthenticatorAvailable().then(setAvailable) }, [])
 
   async function add() {
-    const label = prompt('Name this device', deviceName())
+    const label = await dialog.prompt({ title: 'Use fingerprint on this device', label: 'Device name', defaultValue: deviceName(), confirmLabel: 'Continue' })
     if (!label) return
     setBusy(true)
     setError(null)
@@ -48,7 +50,7 @@ function Fingerprints({ vault }) {
   }
 
   async function remove(u) {
-    if (!confirm(`Remove fingerprint unlock for "${u.label}"? That device will need the master password to open the vault.`)) return
+    if (!await dialog.confirm({ title: `Remove "${u.label}"?`, message: 'That device will need the master password to open the vault.', confirmLabel: 'Remove' })) return
     try { await vault.removeUnlocker(u) } catch (err) { setError(err.message) }
   }
 
@@ -130,9 +132,10 @@ export function ChangePassword({ vault, title = 'Master password', hint = "Chang
 
 function Recovery({ vault, onRecoveryCode }) {
   const [error, setError] = useState(null)
+  const dialog = useDialog()
 
   async function regenerate() {
-    if (!confirm('Create a new recovery code? The old one will stop working.')) return
+    if (!await dialog.confirm({ title: 'Create a new recovery code?', message: 'Your current recovery code will stop working.', confirmLabel: 'Create new code', danger: false })) return
     try { onRecoveryCode(await vault.regenerateRecovery()) } catch (err) { setError(err.message) }
   }
 
@@ -148,6 +151,7 @@ function Recovery({ vault, onRecoveryCode }) {
 
 function Import({ vault }) {
   const [status, setStatus] = useState(null)
+  const dialog = useDialog()
 
   async function onFile(e) {
     const file = e.target.files[0]
@@ -156,7 +160,7 @@ function Import({ vault }) {
     try {
       const list = itemsFromLastPassCsv(await file.text(), typedFromLastPassNote)
       if (!list.length) return setStatus({ error: 'No items found in that file.' })
-      if (!confirm(`Import ${list.length} item${list.length === 1 ? '' : 's'} into your vault?`)) return
+      if (!await dialog.confirm({ title: `Import ${list.length} item${list.length === 1 ? '' : 's'}?`, message: 'They are encrypted on this device and added to your vault.', confirmLabel: 'Import', danger: false })) return
       setStatus({ busy: `Encrypting and saving 0 / ${list.length}…` })
       await vault.importItems(list, (n) => setStatus({ busy: `Encrypting and saving ${n} / ${list.length}…` }))
       setStatus({ ok: `Imported ${list.length} items. Now delete the CSV file — it holds your passwords unencrypted.` })

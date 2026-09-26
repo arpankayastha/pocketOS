@@ -3,6 +3,7 @@ import { copySecret, generatePassword, parseTotp, pwnedCount, totpCode } from '.
 import { VAULT_TYPES, typeOf, itemTitle, itemSubtitle, searchText, formatMonth } from '../lib/vaultTypes'
 import { CopyIcon, EyeIcon, DiceIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { StrengthMeter } from './VaultGate'
+import { useDialog } from '../lib/dialog'
 
 const META = ['id', 'created_at', 'updated_at', 'corrupt']
 const quickCopyField = (item) => typeOf(item).fields.find((f) => f.copy && f.kind === 'secret' && item[f.key])
@@ -13,6 +14,7 @@ export default function VaultItems({ vault, open, setOpen, editing, setEditing }
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [toast, setToast] = useState(null)
+  const dialog = useDialog()
 
   const counts = useMemo(() => {
     const c = {}
@@ -76,7 +78,7 @@ export default function VaultItems({ vault, open, setOpen, editing, setEditing }
       {open && !editing && (
         <ItemView item={open} copy={copy} onClose={() => setOpen(null)} onEdit={() => setEditing(open)}
           onDelete={async () => {
-            if (!confirm(`Delete "${itemTitle(open)}"? This can't be undone.`)) return
+            if (!await dialog.confirm({ title: `Delete "${itemTitle(open)}"?`, message: `This ${typeOf(open).label.toLowerCase()} is removed from your vault for good.` })) return
             await vault.deleteItem(open.id)
             setOpen(null)
           }} />

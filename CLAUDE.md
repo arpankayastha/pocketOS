@@ -37,6 +37,8 @@ One login (the master account) manages several isolated **households** (workspac
 - `recurring_items` (name, kind, category, optional account, `expected_amount`, `day_of_month`) power the **Plan** tab (`src/components/Plan.jsx`, replaces the old Budgets tab): a forward-looking view of expected income vs. expected outflow for a chosen month (defaults to next month). `transactions.recurring_item_id` links a logged transaction back to the commitment it fulfilled — the Plan tab shows the actual amount once linked, otherwise falls back to `expected_amount`. Logging an actual also rolls `expected_amount` forward to the new value, since these amounts (credit card dues, etc.) drift month to month.
 
 ## UI notes
+- **Never use `window.confirm` / `prompt` / `alert`.** Use the in-app dialogs: `const dialog = useDialog()` (`src/lib/dialog.js`, rendered by `DialogProvider` in `src/main.jsx`), then `await dialog.confirm({ title, message, confirmLabel, danger })`, `await dialog.prompt({ title, label, defaultValue })`, `await dialog.alert(message)`. Destructive confirms are red and focus Cancel.
+- Categories are edited (name + colour, or deleted) by tapping the chip in Accounts & Categories (`CategoryEditor` in `Settings.jsx`); kind can't change after creation.
 - On phones, the floating + button and bottom nav hide while a text field is focused (CSS `:has` in `src/index.css`), and `.content` has extra bottom padding, so the + never covers a Save button.
 - Splash screen: static markup + inline CSS inside `#root` in `index.html` (paints before JS), and the matching `<Splash />` in `src/App.jsx` while the session loads. Keep the two in sync if the logo changes.
 
