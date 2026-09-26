@@ -12,7 +12,7 @@ export default defineConfig({
       manifest: {
         name: 'PocketOS',
         short_name: 'PocketOS',
-        description: 'Personal finance tracker — income, expenses, budgets and net worth at a glance.',
+        description: 'Your pocket operating system — Budget (plan next month ahead) and Vault (passwords, coming soon).',
         theme_color: '#050608',
         background_color: '#050608',
         display: 'standalone',

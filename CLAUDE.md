@@ -1,6 +1,11 @@
 # PocketOS
 
-Personal finance tracker, used mainly as an installed PWA. React 19 + Vite, `@supabase/supabase-js`, Recharts. Plain CSS in `src/index.css` — dark-only, IBM Plex Sans/Mono for a "dev tool" feel (no light theme). No router: tabs live in `src/App.jsx`.
+A personal "pocket operating system", used mainly as an installed PWA. React 19 + Vite, `@supabase/supabase-js`, Recharts. Plain CSS in `src/index.css` — dark-only, IBM Plex Sans/Mono for a "dev tool" feel (no light theme). No router: modules and their tabs live in `src/App.jsx`.
+
+## Modules
+PocketOS is a shell of independent modules, picked via the module switcher in the topbar (persisted to `localStorage` as `pocketos.activeModule`). The shared `Topbar` in `src/App.jsx` holds brand, switcher and account; each module component (`BudgetModule`, `VaultModule`) renders its own tabs/content inside it. Module names are single words, **no "Pocket" prefix**.
+- **Budget** — the finance features (Dashboard, Transactions, Plan, Accounts & Categories). The user's focus is forward-looking: planning next month, not analysing the past.
+- **Vault** — passwords & credentials (LastPass-like). Placeholder only so far. Must be zero-knowledge: encrypt client-side before anything reaches Supabase, and unlock (app + module) with fingerprint via WebAuthn.
 
 ## Auth
 Google OAuth (`supabase.auth.signInWithOAuth({ provider: 'google' })`) plus passkeys (`supabase.auth.signInWithPasskey()` / `registerPasskey()`, opted into via `experimental: { passkey: true }` in `src/lib/supabase.js`) — no email/password, no OTP. `src/components/Auth.jsx` offers both; passkeys can only be *registered* once already signed in (Settings → Passkeys), so Google remains the only way to create an account. Google provider redirect URI is `https://rpihmjnvcqnxfketcjit.supabase.co/auth/v1/callback` (Supabase dashboard, Authentication → Providers). Passkeys are bound to a single Relying Party ID/origin (Authentication → Passkeys) — currently the production domain, so passkey sign-in doesn't work from localhost.
@@ -38,4 +43,4 @@ One login (the master account) manages several isolated **households** (workspac
 - Google sign-in is enabled in the Supabase dashboard (Authentication → Providers) with a Google Cloud OAuth client already wired up.
 
 ## Status / next steps
-Ship v1 is done end-to-end (Google OAuth + passkeys, multi-household, dark PWA UI, deployed). The user is populating their own `recurring_items` (credit cards, SIPs, salary) in the Plan tab now; expect follow-up refinement once they've used it with real data. Other improvement ideas: recurring *transactions* (auto-generating actual entries, distinct from the Plan tab's manual "Log" step), transfers between accounts, offline data caching (the PWA app-shell is already installable), code-splitting Recharts (bundle is ~550 kB), AI receipt/statement import and credit-card/EMI tracking (seen in competing apps).
+Next up: build the Vault module. Ship v1 is done end-to-end (Google OAuth + passkeys, multi-household, dark PWA UI, deployed). The user is populating their own `recurring_items` (credit cards, SIPs, salary) in the Plan tab now; expect follow-up refinement once they've used it with real data. Other improvement ideas: recurring *transactions* (auto-generating actual entries, distinct from the Plan tab's manual "Log" step), transfers between accounts, offline data caching (the PWA app-shell is already installable), code-splitting Recharts (bundle is ~550 kB), AI receipt/statement import and credit-card/EMI tracking (seen in competing apps).
