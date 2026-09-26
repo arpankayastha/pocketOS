@@ -224,7 +224,7 @@ function VaultModule({ topbar, vault, appLock }) {
       )}
       {ready && tab === 'items' && (
         <div className="fab-wrap">
-          <button className="fab" aria-label="Add password" onClick={() => setEditing({})}><PlusIcon /></button>
+          <button className="fab" aria-label="Add item" onClick={() => setEditing({})}><PlusIcon /></button>
         </div>
       )}
     </div>

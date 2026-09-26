@@ -229,6 +229,23 @@ input[type=range] { padding: 0; border: none; background: none; accent-color: va
 .recovery-code { display: block; text-align: center; font-size: 16px; font-weight: 600; letter-spacing: .04em; line-height: 1.8; padding: 14px; word-spacing: 4px; user-select: all; }
 
 .vault-row { cursor: pointer; }
+.site-badge.type { background: var(--accent-2); color: var(--accent); }
+.site-badge.type svg { width: 20px; height: 20px; }
+.form-field { display: grid; gap: 6px; }
+.view-head { display: flex; align-items: center; gap: 12px; }
+.view-head h3 { margin: 0; }
+textarea.masked { -webkit-text-security: disc; }
+.type-chips { display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 12px; padding-bottom: 4px; scrollbar-width: none; }
+.type-chips button { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 99px; padding: 6px 12px; font-size: 13px; cursor: pointer; min-height: 36px; }
+.type-chips button svg { width: 16px; height: 16px; }
+.type-chips button span { font-family: var(--font-mono); font-size: 11px; opacity: .8; }
+.type-chips button.on { background: var(--accent-2); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 600; }
+.type-list { display: grid; }
+.type-group { display: grid; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.type-group:last-child { border-bottom: none; }
+.type-option { display: flex; align-items: center; gap: 16px; border: none; background: none; text-align: left; padding: 12px 6px; min-height: 48px; border-radius: 10px; cursor: pointer; font-size: 15px; }
+.type-option:hover { background: var(--card-2); }
+.type-option svg { width: 22px; height: 22px; color: var(--accent); flex-shrink: 0; }
 .site-badge { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; font-weight: 700; color: #fff; background: var(--accent-grad); }
 .field { display: grid; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .field-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
@@ -283,6 +300,9 @@ input[type=range] { padding: 0; border: none; background: none; accent-color: va
   .bottom-nav svg { width: 22px; height: 22px; }
   .fab-wrap { bottom: calc(78px + var(--safe-b)); }
   .toast { bottom: calc(84px + var(--safe-b)); }
+  /* Type picker as a full-height sheet on phones, like LastPass's "Add item" screen. */
+  .modal-bg:has(.sheet) { padding: 0; place-items: stretch; }
+  .modal.sheet { max-width: none; max-height: none; height: 100dvh; border-radius: 0; border: none; padding-top: calc(18px + var(--safe-t)); padding-bottom: calc(18px + var(--safe-b)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

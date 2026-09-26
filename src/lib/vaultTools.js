@@ -113,15 +113,22 @@ export function parseCsv(text) {
 }
 
 // LastPass export columns: url,username,password,totp,extra,name,grouping,fav
-export function itemsFromLastPassCsv(text) {
+// Secure notes (url "http://sn") are passed to `parseNote(extra)` if given, which returns
+// the typed fields (see typedFromLastPassNote in vaultTypes); otherwise they become plain notes.
+export function itemsFromLastPassCsv(text, parseNote) {
   const [header, ...rows] = parseCsv(text.replace(/^﻿/, ''))
   if (!header) return []
   const col = Object.fromEntries(header.map((h, i) => [h.trim().toLowerCase(), i]))
   if (col.password === undefined || col.url === undefined) throw new Error("This doesn't look like a LastPass CSV export (no url/password columns).")
   const get = (r, k) => (col[k] === undefined ? '' : (r[col[k]] || '').trim())
   return rows.map((r) => {
-    const url = get(r, 'url') === 'http://sn' ? '' : get(r, 'url') // LastPass uses http://sn for secure notes
+    if (get(r, 'url') === 'http://sn') {
+      const typed = parseNote ? parseNote(get(r, 'extra')) : { type: 'note', notes: get(r, 'extra') }
+      return { title: get(r, 'name') || 'Untitled', folder: get(r, 'grouping'), ...typed }
+    }
+    const url = get(r, 'url')
     return {
+      type: 'password',
       title: get(r, 'name') || hostOf(url) || 'Untitled',
       url,
       username: get(r, 'username'),

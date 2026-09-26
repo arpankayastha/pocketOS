@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DEVICE_CREDENTIAL_KEY, MIN_MASTER_PASSWORD } from '../lib/useVault'
 import { describeWebAuthnError, platformAuthenticatorAvailable } from '../lib/webauthn'
 import { itemsFromLastPassCsv, pwnedCount } from '../lib/vaultTools'
+import { itemTitle, typedFromLastPassNote } from '../lib/vaultTypes'
 import { TrashIcon, FingerprintIcon } from '../lib/icons'
 import { StrengthMeter } from './VaultGate'
 
@@ -153,7 +154,7 @@ function Import({ vault }) {
     e.target.value = ''
     if (!file) return
     try {
-      const list = itemsFromLastPassCsv(await file.text())
+      const list = itemsFromLastPassCsv(await file.text(), typedFromLastPassNote)
       if (!list.length) return setStatus({ error: 'No items found in that file.' })
       if (!confirm(`Import ${list.length} item${list.length === 1 ? '' : 's'} into your vault?`)) return
       setStatus({ busy: `Encrypting and saving 0 / ${list.length}…` })
@@ -165,7 +166,7 @@ function Import({ vault }) {
   return (
     <div className="card">
       <h3>Import from LastPass</h3>
-      <p className="muted small">In LastPass: Advanced options → Export → save the CSV. The file is read and encrypted here on your device; it's never uploaded as-is.</p>
+      <p className="muted small">In LastPass: Advanced options → Export → save the CSV. Passwords and secure notes (cards, bank accounts, IDs…) come in as their matching types. The file is read and encrypted here on your device; it's never uploaded as-is.</p>
       <label className="btn file-btn">
         Choose LastPass CSV…
         <input type="file" accept=".csv,text/csv" onChange={onFile} disabled={!!status?.busy} />
@@ -218,7 +219,7 @@ function BreachCheck({ vault, onOpenItem }) {
             <div className="alert error">{state.hits.length} password{state.hits.length === 1 ? '' : 's'} found in breaches — change them.</div>
             {state.hits.map(({ item, count }) => (
               <div className="line" key={item.id}>
-                <button className="btn link" onClick={() => onOpenItem(item)}>{item.title}</button>
+                <button className="btn link" onClick={() => onOpenItem(item)}>{itemTitle(item)}</button>
                 <span className="muted small">{count.toLocaleString()} breaches</span>
               </div>
             ))}

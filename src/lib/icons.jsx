@@ -155,3 +155,56 @@ export function EyeIcon({ off }) {
     </svg>
   )
 }
+
+// ---- Vault item types ----
+export function NoteIcon() {
+  return <svg {...base}><path d="M5 3h10l4 4v14H5Z" /><path d="M15 3v4h4M8 11h8M8 15h8M8 19h5" /></svg>
+}
+export function ContactIcon() {
+  return <svg {...base}><rect x="4" y="3" width="16" height="18" rx="2" /><circle cx="12" cy="10" r="3" /><path d="M7 18c1-2.5 3-3.5 5-3.5s4 1 5 3.5" /></svg>
+}
+export function CardIcon() {
+  return <svg {...base}><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" /></svg>
+}
+export function BankIcon() {
+  return <svg {...base}><path d="M3 10 12 4l9 6" /><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18" /></svg>
+}
+export function CarIcon() {
+  return <svg {...base}><path d="M5 17V12l2-5h10l2 5v5" /><path d="M3 12h18v5H3Z" /><circle cx="7.5" cy="17.5" r="1.5" /><circle cx="16.5" cy="17.5" r="1.5" /></svg>
+}
+export function PassportIcon() {
+  return <svg {...base}><rect x="5" y="2" width="14" height="20" rx="2" /><circle cx="12" cy="10" r="3.5" /><path d="M8.5 10h7M12 6.5c-1.5 2-1.5 5 0 7M12 6.5c1.5 2 1.5 5 0 7M9 18h6" /></svg>
+}
+export function IdCardIcon() {
+  return <svg {...base}><rect x="2" y="5" width="20" height="14" rx="2" /><circle cx="8" cy="11" r="2" /><path d="M5 16c.6-1.5 1.7-2 3-2s2.4.5 3 2M14 10h5M14 14h4" /></svg>
+}
+export function HeartIcon() {
+  return <svg {...base}><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" /><path d="M7 12h3l1-2 2 4 1-2h3" /></svg>
+}
+export function UmbrellaIcon() {
+  return <svg {...base}><path d="M3 12a9 9 0 0 1 18 0Z" /><path d="M12 12v6a2 2 0 0 0 4 0M12 3v0" /></svg>
+}
+export function MemberIcon() {
+  return <svg {...base}><rect x="2" y="5" width="20" height="14" rx="2" /><circle cx="8" cy="11" r="2" /><path d="M5 16c.6-1.5 1.7-2 3-2s2.4.5 3 2M14 9h5M14 12h5M14 15h3" /></svg>
+}
+export function WifiIcon() {
+  return <svg {...base}><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0" /><circle cx="12" cy="19" r="1" fill="currentColor" /></svg>
+}
+export function MailIcon() {
+  return <svg {...base}><rect x="2" y="5" width="20" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+}
+export function ChatIcon() {
+  return <svg {...base}><path d="M4 4h16v12H9l-5 4Z" /><path d="M8 9h8M8 12h5" /></svg>
+}
+export function DatabaseIcon() {
+  return <svg {...base}><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></svg>
+}
+export function ServerIcon() {
+  return <svg {...base}><rect x="3" y="3" width="18" height="8" rx="2" /><rect x="3" y="13" width="18" height="8" rx="2" /><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6" /></svg>
+}
+export function TerminalIcon() {
+  return <svg {...base}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m6 9 4 3-4 3M12 15h6" /></svg>
+}
+export function LaptopIcon() {
+  return <svg {...base}><rect x="4" y="4" width="16" height="11" rx="2" /><path d="M2 19h20l-2-4H4Z" /></svg>
+}

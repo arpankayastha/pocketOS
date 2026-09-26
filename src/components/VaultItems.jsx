@@ -1,21 +1,32 @@
-import { useEffect, useMemo, useState } from 'react'
-import { copySecret, generatePassword, hostOf, parseTotp, pwnedCount, totpCode } from '../lib/vaultTools'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { copySecret, generatePassword, parseTotp, pwnedCount, totpCode } from '../lib/vaultTools'
+import { VAULT_TYPES, typeOf, itemTitle, itemSubtitle, searchText, formatMonth } from '../lib/vaultTypes'
 import { CopyIcon, EyeIcon, DiceIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { StrengthMeter } from './VaultGate'
 
-const FIELDS = ['title', 'url', 'username', 'password', 'totp', 'notes', 'folder']
+const META = ['id', 'created_at', 'updated_at', 'corrupt']
+const quickCopyField = (item) => typeOf(item).fields.find((f) => f.copy && f.kind === 'secret' && item[f.key])
 
-// `open` (item being viewed) and `editing` (item being edited, {} for a new one) live in
+// `open` (item being viewed) and `editing` (item being edited; {} = pick a type first) live in
 // VaultModule so the add button and the Security tab can open them; it clears them on lock.
 export default function VaultItems({ vault, open, setOpen, editing, setEditing }) {
   const [query, setQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [toast, setToast] = useState(null)
+
+  const counts = useMemo(() => {
+    const c = {}
+    for (const i of vault.items) c[typeOf(i).id] = (c[typeOf(i).id] || 0) + 1
+    return c
+  }, [vault.items])
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return vault.items
-    return vault.items.filter((i) => [i.title, i.url, i.username, i.folder].some((f) => (f || '').toLowerCase().includes(q)))
-  }, [vault.items, query])
+    return vault.items
+      .filter((i) => typeFilter === 'all' || typeOf(i).id === typeFilter)
+      .filter((i) => !q || searchText(i).includes(q))
+      .sort((a, b) => itemTitle(a).localeCompare(itemTitle(b), undefined, { sensitivity: 'base' }))
+  }, [vault.items, query, typeFilter])
 
   async function copy(text, what) {
     try {
@@ -25,43 +36,60 @@ export default function VaultItems({ vault, open, setOpen, editing, setEditing }
     setTimeout(() => setToast(null), 2500)
   }
 
+  const usedTypes = VAULT_TYPES.filter((t) => counts[t.id])
+
   return (
     <section>
       <div className="toolbar">
         <input type="search" placeholder={`Search ${vault.items.length} item${vault.items.length === 1 ? '' : 's'}…`} value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
+      {usedTypes.length > 1 && (
+        <div className="type-chips no-swipe">
+          <button className={typeFilter === 'all' ? 'on' : ''} onClick={() => setTypeFilter('all')}>All <span>{vault.items.length}</span></button>
+          {usedTypes.map((t) => (
+            <button key={t.id} className={typeFilter === t.id ? 'on' : ''} onClick={() => setTypeFilter(t.id)}><t.icon /> {t.label} <span>{counts[t.id]}</span></button>
+          ))}
+        </div>
+      )}
       <div className="card list">
-        {shown.map((i) => (
-          <div className="txn vault-row" key={i.id} role="button" tabIndex={0} onClick={() => setOpen(i)} onKeyDown={(e) => e.key === 'Enter' && setOpen(i)}>
-            <span className="site-badge" aria-hidden="true">{(i.title || hostOf(i.url) || '?').slice(0, 1).toUpperCase()}</span>
-            <span className="grow">
-              <div className="ellipsis">{i.title || hostOf(i.url) || 'Untitled'}</div>
-              <div className="muted small ellipsis">{i.username || hostOf(i.url)}{i.folder && <> · {i.folder}</>}</div>
-            </span>
-            {i.password && (
-              <button className="btn icon" title="Copy password" aria-label="Copy password" onClick={(e) => { e.stopPropagation(); copy(i.password, 'Password') }}><CopyIcon /></button>
-            )}
-          </div>
-        ))}
+        {shown.map((i) => {
+          const t = typeOf(i)
+          const qc = quickCopyField(i)
+          return (
+            <div className="txn vault-row" key={i.id} role="button" tabIndex={0} onClick={() => setOpen(i)} onKeyDown={(e) => e.key === 'Enter' && setOpen(i)}>
+              <TypeBadge item={i} />
+              <span className="grow">
+                <div className="ellipsis">{itemTitle(i)}</div>
+                <div className="muted small ellipsis">{itemSubtitle(i) || t.label}{i.folder && <> · {i.folder}</>}</div>
+              </span>
+              {qc && (
+                <button className="btn icon" title={`Copy ${qc.label.toLowerCase()}`} aria-label={`Copy ${qc.label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); copy(i[qc.key], qc.label) }}><CopyIcon /></button>
+              )}
+            </div>
+          )
+        })}
         {shown.length === 0 && (
-          <p className="muted pad">{vault.items.length ? 'No items match your search.' : 'Your vault is empty. Tap + to add your first password, or import from LastPass in Security.'}</p>
+          <p className="muted pad">{vault.items.length ? 'No items match.' : 'Your vault is empty. Tap + to add a password, card, bank account, ID and more — or import from LastPass in Security.'}</p>
         )}
       </div>
 
       {open && !editing && (
         <ItemView item={open} copy={copy} onClose={() => setOpen(null)} onEdit={() => setEditing(open)}
           onDelete={async () => {
-            if (!confirm(`Delete "${open.title || 'this item'}"? This can't be undone.`)) return
+            if (!confirm(`Delete "${itemTitle(open)}"? This can't be undone.`)) return
             await vault.deleteItem(open.id)
             setOpen(null)
           }} />
       )}
-      {editing && (
-        <ItemForm initial={editing} onClose={() => setEditing(null)}
+      {editing && !editing.id && !editing.type && (
+        <TypePicker onClose={() => setEditing(null)} onPick={(type) => setEditing({ type })} />
+      )}
+      {editing && (editing.id || editing.type) && (
+        <ItemForm initial={editing} onClose={() => setEditing(null)} onBack={editing.id ? null : () => setEditing({})}
           onSave={async (data) => {
             await vault.saveItem(data, editing.id)
             setEditing(null)
-            setOpen(editing.id ? { ...editing, ...data } : null)
+            setOpen(editing.id ? { id: editing.id, ...data } : null)
           }} />
       )}
       {toast && <div className="toast" role="status">{toast}</div>}
@@ -69,15 +97,48 @@ export default function VaultItems({ vault, open, setOpen, editing, setEditing }
   )
 }
 
-function Field({ label, value, secret, onCopy, mono, children }) {
+function TypeBadge({ item }) {
+  const t = typeOf(item)
+  if (t.id === 'password') return <span className="site-badge" aria-hidden="true">{itemTitle(item).slice(0, 1).toUpperCase()}</span>
+  return <span className="site-badge type" aria-hidden="true"><t.icon /></span>
+}
+
+function TypePicker({ onClose, onPick }) {
+  const groups = [...new Set(VAULT_TYPES.map((t) => t.group))]
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <div className="card modal sheet" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="view-head">
+          <button type="button" className="btn icon" aria-label="Back" onClick={onClose}>←</button>
+          <h3>Add item</h3>
+        </div>
+        <div className="type-list">
+          {groups.map((g) => (
+            <div className="type-group" key={g}>
+              {VAULT_TYPES.filter((t) => t.group === g).map((t) => (
+                <button key={t.id} className="type-option" onClick={() => onPick(t.id)}>
+                  <t.icon /><span>{t.label}{t.pickerHint && <span className="muted small"> · {t.pickerHint}</span>}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="actions"><button type="button" className="btn ghost" onClick={onClose}>Cancel</button></div>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, value, secret, multiline, onCopy, children }) {
   const [shown, setShown] = useState(!secret)
   if (!value && !children) return null
+  const text = shown ? value : '•'.repeat(12)
   return (
     <div className="field">
       <div className="muted small">{label}</div>
       <div className="field-row">
-        <span className={`grow field-value ${mono || secret ? 'mono' : ''}`}>{children || (shown ? value : '•'.repeat(12))}</span>
-        {secret && <button type="button" className="btn icon" aria-label={shown ? 'Hide' : 'Show'} onClick={() => setShown(!shown)}><EyeIcon off={shown} /></button>}
+        <span className={`grow field-value ${secret ? 'mono' : ''} ${multiline && shown ? 'notes' : ''}`}>{children || text}</span>
+        {secret && <button type="button" className="btn icon" aria-label={shown ? `Hide ${label}` : `Show ${label}`} onClick={() => setShown(!shown)}><EyeIcon off={shown} /></button>}
         {onCopy && <button type="button" className="btn icon" aria-label={`Copy ${label.toLowerCase()}`} onClick={onCopy}><CopyIcon /></button>}
       </div>
     </div>
@@ -85,25 +146,41 @@ function Field({ label, value, secret, onCopy, mono, children }) {
 }
 
 function ItemView({ item, copy, onClose, onEdit, onDelete }) {
-  const [breach, setBreach] = useState(null) // null | 'checking' | number | Error text
-  const href = item.url && (/^[a-z]+:\/\//i.test(item.url) ? item.url : `https://${item.url}`)
+  const t = typeOf(item)
+  const [breach, setBreach] = useState(null) // null | 'checking' | number | error text
 
   async function check() {
     setBreach('checking')
     try { setBreach(await pwnedCount(item.password)) } catch (err) { setBreach(err.message) }
   }
 
+  const notes = item.notes && <Field label={t.notesLabel || 'Notes'} value={item.notes}><span className="notes">{item.notes}</span></Field>
+
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <div className="card modal" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{item.title || 'Untitled'}</h3>
+        <div className="view-head">
+          <TypeBadge item={item} />
+          <div className="grow"><h3>{itemTitle(item)}</h3><div className="muted small">{t.label}</div></div>
+        </div>
         {item.corrupt ? <div className="alert error">This item couldn't be decrypted. It may have been damaged.</div> : (
           <>
-            {item.url && <Field label="Website" value={item.url}><a href={href} target="_blank" rel="noopener noreferrer">{item.url}</a></Field>}
-            <Field label="Username" value={item.username} onCopy={() => copy(item.username, 'Username')} />
-            <Field label="Password" value={item.password} secret onCopy={() => copy(item.password, 'Password')} />
-            {item.totp && <TotpField totp={item.totp} copy={copy} />}
-            {item.notes && <Field label="Notes" value={item.notes}><span className="notes">{item.notes}</span></Field>}
+            {t.notesFirst && notes}
+            {t.fields.map((fl) => {
+              const v = item[fl.key]
+              if (!v) return null
+              const onCopy = fl.copy ? () => copy(v, fl.label) : null
+              if (fl.kind === 'totp') return <TotpField key={fl.key} totp={v} copy={copy} />
+              if (fl.kind === 'url') {
+                const href = /^[a-z]+:\/\//i.test(v) ? v : `https://${v}`
+                return <Field key={fl.key} label={fl.label} value={v}><a href={href} target="_blank" rel="noopener noreferrer">{v}</a></Field>
+              }
+              return (
+                <Field key={fl.key} label={fl.label} onCopy={onCopy} secret={fl.kind === 'secret' || fl.kind === 'secretarea'}
+                  multiline={fl.kind === 'textarea' || fl.kind === 'secretarea'} value={fl.kind === 'month' ? formatMonth(v) : v} />
+              )
+            })}
+            {!t.notesFirst && notes}
             {item.folder && <Field label="Folder" value={item.folder} />}
             {item.password && (
               <div className="small">
@@ -152,9 +229,12 @@ function TotpField({ totp, copy }) {
   )
 }
 
-function ItemForm({ initial, onClose, onSave }) {
-  const [form, setForm] = useState(() => Object.fromEntries(FIELDS.map((k) => [k, initial[k] || ''])))
-  const [showPw, setShowPw] = useState(!initial.id)
+const DATE_RE = { date: /^\d{4}-\d{2}-\d{2}$/, month: /^\d{4}-\d{2}$/ }
+
+function ItemForm({ initial, onClose, onBack, onSave }) {
+  const t = typeOf(initial)
+  // Keep every key the item already has (e.g. extra fields from an import); META is dropped on save.
+  const [form, setForm] = useState(() => ({ title: '', folder: '', notes: '', ...initial, type: t.id }))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -166,41 +246,43 @@ function ItemForm({ initial, onClose, onSave }) {
     }
     setBusy(true)
     setError(null)
-    // Password and notes are kept exactly as typed; everything else is trimmed.
-    const data = { ...form, title: form.title.trim(), url: form.url.trim(), username: form.username.trim(), totp: form.totp.trim(), folder: form.folder.trim() }
-    if (!data.title) data.title = hostOf(data.url) || 'Untitled'
+    const keepAsTyped = new Set(['notes', ...t.fields.filter((fl) => ['secret', 'secretarea', 'textarea'].includes(fl.kind)).map((fl) => fl.key)])
+    const data = {}
+    for (const [k, v] of Object.entries(form)) {
+      if (META.includes(k) || v === '' || v == null) continue
+      data[k] = typeof v === 'string' && !keepAsTyped.has(k) ? v.trim() : v
+    }
+    for (const fl of t.fields) {
+      if (fl.kind === 'url' && data[fl.key] && !/^[a-z][a-z0-9+.-]*:\/\//i.test(data[fl.key])) data[fl.key] = `https://${data[fl.key]}`
+    }
+    if (!data.title) data.title = itemTitle(data)
     try { await onSave(data) } catch (err) { setError(err.message); setBusy(false) }
   }
+
+  const notes = (
+    <label key="notes">{t.notesLabel || 'Notes'}
+      <textarea rows={t.notesFirst ? 8 : 3} autoFocus={t.notesFirst && !initial.id} value={form.notes || ''} onChange={set('notes')} />
+    </label>
+  )
 
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <form className="card modal" onSubmit={submit} onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{initial.id ? 'Edit item' : 'Add item'}</h3>
+        <div className="view-head">
+          <span className="site-badge type" aria-hidden="true"><t.icon /></span>
+          <h3 className="grow">{initial.id ? `Edit ${t.label.toLowerCase()}` : `Add ${t.label.toLowerCase()}`}</h3>
+          {onBack && <button type="button" className="btn small ghost" onClick={onBack}>Change type</button>}
+        </div>
+        {t.hint && <p className="muted small" style={{ margin: 0 }}>{t.hint}</p>}
         <label>Name
-          <input autoFocus={!initial.id} placeholder="e.g. HDFC NetBanking" value={form.title} onChange={set('title')} />
+          <input autoFocus={!initial.id && !t.notesFirst} placeholder={t.titleFrom ? 'Leave blank to name it automatically' : `e.g. ${t.label}`} value={form.title || ''} onChange={set('title')} />
         </label>
-        <label>Website
-          <input type="url" inputMode="url" placeholder="https://…" value={form.url} onChange={set('url')} onBlur={() => form.url && !/^[a-z]+:\/\//i.test(form.url) && setForm((f) => ({ ...f, url: `https://${f.url}` }))} />
-        </label>
-        <label>Username or email
-          <input autoComplete="off" autoCapitalize="none" spellCheck={false} value={form.username} onChange={set('username')} />
-        </label>
-        <label>Password
-          <div className="field-row">
-            <input className="mono grow" type={showPw ? 'text' : 'password'} autoComplete="new-password" spellCheck={false} value={form.password} onChange={set('password')} />
-            <button type="button" className="btn icon" aria-label={showPw ? 'Hide password' : 'Show password'} onClick={() => setShowPw(!showPw)}><EyeIcon off={showPw} /></button>
-            <button type="button" className="btn icon" aria-label="Generate password" title="Generate password" onClick={() => { setForm((f) => ({ ...f, password: generatePassword() })); setShowPw(true) }}><DiceIcon /></button>
-          </div>
-        </label>
-        <StrengthMeter password={form.password} />
-        <label>2FA secret <span className="muted small">(optional — base32 key or otpauth:// link)</span>
-          <input className="mono" autoComplete="off" autoCapitalize="none" spellCheck={false} value={form.totp} onChange={set('totp')} />
-        </label>
+        {t.notesFirst && notes}
+        {t.fields.map((fl) => <FieldInput key={fl.key} field={fl} value={form[fl.key] || ''} onChange={set(fl.key)}
+          onGenerate={fl.key === 'password' ? () => setForm((f) => ({ ...f, password: generatePassword() })) : null} />)}
+        {!t.notesFirst && notes}
         <label>Folder
-          <input placeholder="e.g. Banking" value={form.folder} onChange={set('folder')} />
-        </label>
-        <label>Notes
-          <textarea rows={3} value={form.notes} onChange={set('notes')} />
+          <input placeholder="e.g. Banking" value={form.folder || ''} onChange={set('folder')} />
         </label>
         {error && <div className="alert error">{error}</div>}
         <div className="actions">
@@ -209,5 +291,43 @@ function ItemForm({ initial, onClose, onSave }) {
         </div>
       </form>
     </div>
+  )
+}
+
+function FieldInput({ field, value, onChange, onGenerate }) {
+  const [shown, setShown] = useState(!value) // new secrets visible while typing; existing ones hidden
+  const id = useId()
+  const common = { id, value, onChange, autoComplete: 'off', spellCheck: false }
+  let input
+  if (field.kind === 'select') {
+    const options = value && !field.options.includes(value) ? [...field.options, value] : field.options
+    input = <select {...common}><option value="">—</option>{options.map((o) => <option key={o}>{o}</option>)}</select>
+  } else if (field.kind === 'textarea' || field.kind === 'secretarea') {
+    input = <textarea rows={4} className={`mono ${field.kind === 'secretarea' && !shown ? 'masked' : ''}`} {...common} />
+  } else {
+    // Imported dates in other formats (e.g. "March,2027") fall back to plain text so nothing is lost.
+    const dateKind = DATE_RE[field.kind] && (!value || DATE_RE[field.kind].test(value)) ? field.kind : null
+    const type = field.kind === 'secret' ? (shown ? 'text' : 'password')
+      : dateKind || ({ email: 'email', tel: 'tel', number: 'number' })[field.kind] || 'text'
+    // URLs use a text input so "bank.com" (no https://) doesn't block the form; https:// is added on save.
+    input = <input className={field.kind === 'secret' || field.kind === 'totp' ? 'mono grow' : 'grow'} type={type}
+      inputMode={field.inputMode || (field.kind === 'url' ? 'url' : undefined)} placeholder={field.kind === 'url' ? 'e.g. bank.com' : undefined}
+      autoCapitalize="none" {...(field.kind === 'totp' ? { placeholder: 'base32 key or otpauth:// link (optional)' } : {})} {...common}
+      autoComplete={field.key === 'password' ? 'new-password' : 'off'} />
+  }
+  const hideable = field.kind === 'secret' || field.kind === 'secretarea'
+  return (
+    <>
+      {/* Buttons sit outside the <label> so they don't become part of the field's accessible name. */}
+      <div className="form-field">
+        <label htmlFor={id}>{field.label}</label>
+        <div className="field-row">
+          {input}
+          {hideable && <button type="button" className="btn icon" aria-label={shown ? `Hide ${field.label}` : `Show ${field.label}`} onClick={() => setShown(!shown)}><EyeIcon off={shown} /></button>}
+          {onGenerate && <button type="button" className="btn icon" aria-label="Generate password" title="Generate password" onClick={() => { onGenerate(); setShown(true) }}><DiceIcon /></button>}
+        </div>
+      </div>
+      {field.key === 'password' && <StrengthMeter password={value} />}
+    </>
   )
 }
