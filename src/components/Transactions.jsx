@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchTransactions } from '../lib/useFinanceData'
+import { useMonthSwipe } from '../lib/useSwipe'
 import { currentMonth, monthEnd, monthLabel, monthStart, money, shiftMonth } from '../lib/format'
 import TransactionForm from './TransactionForm'
 import { PencilIcon, TrashIcon } from '../lib/icons'
@@ -50,9 +51,10 @@ export default function Transactions({ accounts, categories, activeHouseholdId }
   }
 
   const setF = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }))
+  const swipe = useMonthSwipe(month, setMonth)
 
   return (
-    <section>
+    <section {...swipe}>
       <div className="toolbar">
         <MonthPicker month={month} setMonth={setMonth} />
         <div className="spacer" />
@@ -108,12 +110,14 @@ export default function Transactions({ accounts, categories, activeHouseholdId }
   )
 }
 
-export function MonthPicker({ month, setMonth }) {
+// Optional `min`/`max` ('YYYY-MM') bound the range. Pair with `useMonthSwipe` (lib/useSwipe) for swiping.
+export function MonthPicker({ month, setMonth, min, max }) {
   return (
     <div className="month">
-      <button className="btn icon" onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
-      <strong>{monthLabel(month)}</strong>
-      <button className="btn icon" onClick={() => setMonth(shiftMonth(month, 1))}>›</button>
+      <button className="btn icon" aria-label="Previous month" disabled={!!min && month <= min} onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
+      <strong key={month} className="month-label">{monthLabel(month)}</strong>
+      <button className="btn icon" aria-label="Next month" disabled={!!max && month >= max} onClick={() => setMonth(shiftMonth(month, 1))}>›</button>
     </div>
   )
 }
+

@@ -4,7 +4,7 @@ A personal "pocket operating system", used mainly as an installed PWA. React 19 
 
 ## Modules
 PocketOS is a shell of independent modules, picked via the module switcher in the topbar (persisted to `localStorage` as `pocketos.activeModule`). The shared `Topbar` in `src/App.jsx` holds brand, switcher and account; each module component (`BudgetModule`, `VaultModule`) renders its own tabs/content inside it. Module names are single words, **no "Pocket" prefix**.
-- **Budget** — the finance features (Dashboard, Transactions, Plan, Accounts & Categories). The user's focus is forward-looking: planning next month, not analysing the past.
+- **Budget** — the finance features (Dashboard, Transactions, Plan, Accounts & Categories). The user's focus is forward-looking: planning next month, not analysing the past. The Dashboard is deliberately limited to last / this / next month; next month is the plan (unlogged `recurring_items` at `expected_amount` + any actuals already logged). Swipe left/right changes month on Dashboard, Transactions and Plan (`useMonthSwipe` in `src/lib/useSwipe.js`).
 - **Vault** — passwords & credentials (LastPass-like), tabs Passwords / Generator / Security. See "Vault" below.
 
 ## Vault (zero-knowledge)
@@ -33,6 +33,10 @@ One login (the master account) manages several isolated **households** (workspac
 - Amounts are always positive; `kind` ('income' | 'expense') decides the sign.
 - `budgets` (per-category caps) still exists in the schema but is **unused by the UI** — the Budgets tab was replaced by Plan (see below). Don't build on it without checking with the user first.
 - `recurring_items` (name, kind, category, optional account, `expected_amount`, `day_of_month`) power the **Plan** tab (`src/components/Plan.jsx`, replaces the old Budgets tab): a forward-looking view of expected income vs. expected outflow for a chosen month (defaults to next month). `transactions.recurring_item_id` links a logged transaction back to the commitment it fulfilled — the Plan tab shows the actual amount once linked, otherwise falls back to `expected_amount`. Logging an actual also rolls `expected_amount` forward to the new value, since these amounts (credit card dues, etc.) drift month to month.
+
+## UI notes
+- On phones, the floating + button and bottom nav hide while a text field is focused (CSS `:has` in `src/index.css`), and `.content` has extra bottom padding, so the + never covers a Save button.
+- Splash screen: static markup + inline CSS inside `#root` in `index.html` (paints before JS), and the matching `<Splash />` in `src/App.jsx` while the session loads. Keep the two in sync if the logo changes.
 
 ## Conventions
 - Data access happens directly in components via `supabase.from(...)`. Shared loaders are in `src/lib/useFinanceData.js`.

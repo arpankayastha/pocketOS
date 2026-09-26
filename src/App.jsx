@@ -56,9 +56,14 @@ export default function App() {
       </div>
     )
   }
-  if (session === undefined) return <div className="center muted">Loading…</div>
+  if (session === undefined) return <Splash />
   if (!session) return <Auth />
   return <Shell session={session} />
+}
+
+// Same look as the pre-JS splash in index.html (classes styled there), shown while the session loads.
+function Splash() {
+  return <div className="splash" aria-label="Loading PocketOS"><BrandMark size={76} /><span>PocketOS</span></div>
 }
 
 function Shell({ session }) {

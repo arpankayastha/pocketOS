@@ -3,54 +3,73 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveCo
 import { supabase } from '../lib/supabase'
 import { currentMonth, monthEnd, monthKey, monthLabel, monthStart, money, moneyShort, shiftMonth } from '../lib/format'
 import { MonthPicker } from './Transactions'
+import { useMonthSwipe } from '../lib/useSwipe'
 
+// Forward-looking report: only last month, this month and next month. Next month is the
+// plan (recurring commitments at their expected amounts, or the actual once logged).
 export default function Dashboard({ categories, activeHouseholdId }) {
-  const [month, setMonth] = useState(currentMonth())
+  const thisMonth = currentMonth()
+  const range = { min: shiftMonth(thisMonth, -1), max: shiftMonth(thisMonth, 1) }
+  const [month, setMonth] = useState(thisMonth)
   const [all, setAll] = useState([])
-  const [budgets, setBudgets] = useState([])
+  const [recurring, setRecurring] = useState([])
   const [balances, setBalances] = useState([])
   const [error, setError] = useState(null)
 
   const load = useCallback(async () => {
     if (!activeHouseholdId) return
-    const [t, b, ab] = await Promise.all([
+    const [t, ri, ab] = await Promise.all([
       supabase.from('transactions')
-        .select('id, kind, amount, occurred_on, note, category_id')
+        .select('id, kind, amount, occurred_on, note, category_id, recurring_item_id')
         .eq('household_id', activeHouseholdId)
-        .gte('occurred_on', monthStart(shiftMonth(month, -5)))
-        .lte('occurred_on', monthEnd(month))
+        .gte('occurred_on', monthStart(range.min))
+        .lte('occurred_on', monthEnd(range.max))
         .order('occurred_on', { ascending: false })
         .limit(10000),
-      supabase.from('budgets').select('*').eq('household_id', activeHouseholdId).eq('month', monthStart(month)),
+      supabase.from('recurring_items').select('*').eq('household_id', activeHouseholdId).eq('active', true),
       supabase.from('account_balances').select('*').eq('household_id', activeHouseholdId).order('name'),
     ])
-    const err = t.error || b.error || ab.error
+    const err = t.error || ri.error || ab.error
     setError(err ? err.message : null)
     setAll(t.data || [])
-    setBudgets(b.data || [])
+    setRecurring(ri.data || [])
     setBalances((ab.data || []).map((a) => ({ ...a, balance: Number(a.balance) })))
-  }, [month, activeHouseholdId])
+  }, [activeHouseholdId, range.min, range.max])
 
   useEffect(() => { load() }, [load])
 
   const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
 
-  const stats = useMemo(() => {
-    const inMonth = all.filter((t) => monthKey(t.occurred_on) === month)
-    const income = sum(inMonth.filter((t) => t.kind === 'income'))
-    const expense = sum(inMonth.filter((t) => t.kind === 'expense'))
+  // Rows for a month: actual transactions, and for next month also each recurring
+  // commitment not yet logged, at its expected amount (flagged `planned`).
+  const rowsFor = useCallback((ym) => {
+    const txs = all.filter((t) => monthKey(t.occurred_on) === ym)
+    if (ym !== range.max) return txs
+    const logged = new Set(txs.map((t) => t.recurring_item_id).filter(Boolean))
+    const planned = recurring.filter((r) => !logged.has(r.id)).map((r) => ({
+      id: `plan-${r.id}`, kind: r.kind, amount: r.expected_amount, category_id: r.category_id, note: r.name, day: r.day_of_month, planned: true,
+    }))
+    return [...txs, ...planned]
+  }, [all, recurring, range.max])
 
+  const stats = useMemo(() => {
+    const rows = rowsFor(month)
+    const income = sum(rows.filter((t) => t.kind === 'income'))
+    const expense = sum(rows.filter((t) => t.kind === 'expense'))
     const netWorth = balances.reduce((s, a) => s + a.balance, 0)
 
-    // Last 6 months trend
-    const trend = Array.from({ length: 6 }, (_, i) => shiftMonth(month, i - 5)).map((ym) => {
-      const txs = all.filter((t) => monthKey(t.occurred_on) === ym)
-      return { month: monthLabel(ym), Income: sum(txs.filter((t) => t.kind === 'income')), Expense: sum(txs.filter((t) => t.kind === 'expense')) }
+    const trend = [range.min, thisMonth, range.max].map((ym) => {
+      const r = rowsFor(ym)
+      return {
+        month: ym === range.max ? `${shortMonth(ym)} (plan)` : shortMonth(ym),
+        plan: ym === range.max,
+        Income: sum(r.filter((t) => t.kind === 'income')),
+        Expense: sum(r.filter((t) => t.kind === 'expense')),
+      }
     })
 
-    // Expense by category
     const byCat = {}
-    inMonth.filter((t) => t.kind === 'expense').forEach((t) => {
+    rows.filter((t) => t.kind === 'expense').forEach((t) => {
       const k = t.category_id || 'none'
       byCat[k] = (byCat[k] || 0) + Number(t.amount)
     })
@@ -58,54 +77,60 @@ export default function Dashboard({ categories, activeHouseholdId }) {
       .map(([id, value]) => ({ name: catById[id]?.name || 'Uncategorised', color: catById[id]?.color || '#94a3b8', value }))
       .sort((a, b) => b.value - a.value)
 
-    const budgetTotal = budgets.reduce((s, b) => s + Number(b.amount), 0)
-    return { income, expense, netWorth, trend, breakdown, recent: inMonth.slice(0, 6), budgetTotal }
-  }, [all, balances, month, catById, budgets])
+    const upcoming = rows.filter((t) => t.planned).sort((a, b) => (a.day || 99) - (b.day || 99))
+    return { income, expense, netWorth, trend, breakdown, recent: rows.filter((t) => !t.planned).slice(0, 6), upcoming }
+  }, [rowsFor, balances, month, catById, thisMonth, range.min, range.max])
 
+  const isPlan = month === range.max
   const savingsRate = stats.income > 0 ? Math.round(((stats.income - stats.expense) / stats.income) * 100) : null
   const hasTrend = stats.trend.some((t) => t.Income > 0 || t.Expense > 0)
+  const swipe = useMonthSwipe(month, setMonth, range)
 
   return (
-    <section>
+    <section {...swipe}>
       <div className="toolbar">
-        <MonthPicker month={month} setMonth={setMonth} />
+        <MonthPicker month={month} setMonth={setMonth} {...range} />
+        <span className="muted small">{month === thisMonth ? 'this month' : isPlan ? 'next month · planned' : 'last month'}</span>
       </div>
       {error && <div className="alert error">{error}</div>}
 
       <div className="tiles">
-        <Tile label="Income" value={money(stats.income)} tone="pos" />
-        <Tile label="Expenses" value={money(stats.expense)} tone="neg"
-          sub={stats.budgetTotal ? `${Math.round((stats.expense / stats.budgetTotal) * 100)}% of ${money(stats.budgetTotal)} budget` : null} />
-        <Tile label="Net savings" value={money(stats.income - stats.expense)} sub={savingsRate !== null ? `${savingsRate}% savings rate` : null} />
+        <Tile label={isPlan ? 'Expected income' : 'Income'} value={money(stats.income)} tone="pos" />
+        <Tile label={isPlan ? 'Expected expenses' : 'Expenses'} value={money(stats.expense)} tone="neg" />
+        <Tile label={isPlan ? 'Expected savings' : 'Net savings'} value={money(stats.income - stats.expense)} sub={savingsRate !== null ? `${savingsRate}% savings rate` : null} />
         <Tile label="Net worth" value={money(stats.netWorth)} sub={`today, across ${balances.length} account${balances.length === 1 ? '' : 's'}`} />
       </div>
 
       <div className="grid2">
         <div className="card">
-          <h3>Last 6 months</h3>
+          <h3>Last · this · next month</h3>
           {hasTrend ? (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={stats.trend} margin={{ left: 8, right: 8 }}>
+              <BarChart data={stats.trend} margin={{ left: 8, right: 8 }} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line)" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="month" interval={0} tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={moneyShort} tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} width={64} />
-                <Tooltip formatter={(v) => money(v)} contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }} />
+                <Tooltip formatter={(v) => money(v)} cursor={{ fill: 'var(--card-2)' }} contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }} />
                 <Legend />
-                <Bar dataKey="Income" fill="var(--pos)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Expense" fill="var(--neg)" radius={[4, 4, 0, 0]} />
+                {['Income', 'Expense'].map((key) => (
+                  <Bar key={key} dataKey={key} fill={key === 'Income' ? 'var(--pos)' : 'var(--neg)'} radius={[4, 4, 0, 0]} maxBarSize={48}>
+                    {/* The planned month is drawn faded; its axis label also says "(plan)". */}
+                    {stats.trend.map((d) => <Cell key={d.month} fillOpacity={d.plan ? 0.45 : 1} />)}
+                  </Bar>
+                ))}
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="empty-chart muted">
-              No income or expenses in the last 6 months yet.<br />
-              <span className="small">Add a transaction to see your trend here.</span>
+              Nothing logged or planned yet.<br />
+              <span className="small">Add a transaction, or your commitments in Plan.</span>
             </div>
           )}
         </div>
 
         <div className="card">
-          <h3>Where the money went</h3>
-          {stats.breakdown.length === 0 ? <div className="empty-chart muted" style={{ height: 220 }}>No expenses this month.</div> : (
+          <h3>{isPlan ? 'Where the money will go' : 'Where the money went'}</h3>
+          {stats.breakdown.length === 0 ? <div className="empty-chart muted" style={{ height: 220 }}>{isPlan ? 'No planned expenses yet.' : 'No expenses this month.'}</div> : (
             <div className="pie-wrap">
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
@@ -133,13 +158,27 @@ export default function Dashboard({ categories, activeHouseholdId }) {
           ))}
         </div>
         <div className="card">
-          <h3>Recent</h3>
-          {stats.recent.length === 0 ? <div className="muted">Nothing yet this month.</div> : stats.recent.map((t) => (
-            <div className="line" key={t.id}>
-              <span>{t.note || catById[t.category_id]?.name || 'Uncategorised'} <span className="muted small">{t.occurred_on}</span></span>
-              <b className={t.kind === 'income' ? 'pos' : 'neg'}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</b>
-            </div>
-          ))}
+          {isPlan ? (
+            <>
+              <h3>Coming up</h3>
+              {stats.upcoming.length === 0 ? <div className="muted">Nothing planned. Add commitments in the Plan tab.</div> : stats.upcoming.map((t) => (
+                <div className="line" key={t.id}>
+                  <span>{t.note} <span className="muted small">{t.day ? `due ${t.day}` : 'no due date'}</span></span>
+                  <b className={`${t.kind === 'income' ? 'pos' : 'neg'} expected`}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</b>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <h3>Recent</h3>
+              {stats.recent.length === 0 ? <div className="muted">Nothing yet this month.</div> : stats.recent.map((t) => (
+                <div className="line" key={t.id}>
+                  <span>{t.note || catById[t.category_id]?.name || 'Uncategorised'} <span className="muted small">{t.occurred_on}</span></span>
+                  <b className={t.kind === 'income' ? 'pos' : 'neg'}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</b>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -157,4 +196,5 @@ function Tile({ label, value, sub, tone }) {
   )
 }
 
+const shortMonth = (ym) => monthLabel(ym).split(' ')[0]
 const sum = (arr) => arr.reduce((s, t) => s + Number(t.amount), 0)

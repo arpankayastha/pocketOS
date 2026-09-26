@@ -14,9 +14,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>PocketOS</title>
+    <style>
+      /* Splash: painted before any JS loads; React replaces #root's content on first render.
+         Kept in sync with <Splash /> in src/App.jsx so the hand-off is seamless. */
+      html, body { margin: 0; background: #050608; }
+      .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px; background: #050608;
+        font: 800 22px 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: -.01em; color: #e6e8ee; }
+      .splash svg { width: 76px; height: 76px; border-radius: 20px; box-shadow: 0 8px 40px rgb(192 132 252 / .35); animation: splash-pulse 1.6s ease-in-out infinite; }
+      .splash span { background: linear-gradient(135deg, #818cf8, #c084fc 55%, #f472b6); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      @keyframes splash-pulse { 50% { transform: scale(.94); opacity: .85; } }
+      @media (prefers-reduced-motion: reduce) { .splash svg { animation: none; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="splash" aria-label="Loading PocketOS"><svg viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="splashGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#818cf8"/><stop offset="55%" stop-color="#c084fc"/><stop offset="100%" stop-color="#f472b6"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#splashGrad)"/><text x="256" y="350" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="280" fill="#fff">P</text></svg><span>PocketOS</span></div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

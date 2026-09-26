@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { currentMonth, money, monthEnd, monthStart, shiftMonth } from '../lib/format'
 import { MonthPicker } from './Transactions'
+import { useMonthSwipe } from '../lib/useSwipe'
 import { TrashIcon } from '../lib/icons'
 
 export default function Plan({ categories, accounts, activeHouseholdId }) {
@@ -44,8 +45,10 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
     load()
   }
 
+  const swipe = useMonthSwipe(month, setMonth)
+
   return (
-    <section>
+    <section {...swipe}>
       <div className="toolbar">
         <MonthPicker month={month} setMonth={setMonth} />
       </div>
