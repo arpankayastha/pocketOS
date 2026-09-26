@@ -28,8 +28,11 @@ One login (the master account) manages several isolated **households** (workspac
 - `npm run build`: production build
 - `npm run lint`: oxlint. The set-state-in-effect warnings on data-fetching effects are known and acceptable.
 
+## Deployment
+- **GitHub:** pushed to https://github.com/arpankayastha/pocketOS (`main`). Local git/`gh` must be authenticated as `arpankayastha` — a different account (`arpanGrip-alchemy`) has no write access there.
+- **Vercel:** project `pocket-os` under `arpankayasthas-projects`, imported from the GitHub repo (auto-deploys on every push to `main`; PRs/other branches get preview deployments). Production: https://pocket-os-eight.vercel.app. The four `VITE_*` env vars are set in the Vercel project's Environment Variables.
+- **Supabase Auth → URL Configuration:** Site URL and the Redirect URLs allow-list (`localhost:5173`, the production URL, and a `pocket-os-*-arpankayasthas-projects.vercel.app` wildcard for previews) are already configured — required for `signInWithOAuth`'s `redirectTo` to work on each of those origins.
+- Google sign-in is enabled in the Supabase dashboard (Authentication → Providers) with a Google Cloud OAuth client already wired up.
+
 ## Status / next steps
-1. **Blocked:** push to https://github.com/arpankayastha/pocketOS — the local `gh`/git auth is a different GitHub account than the repo owner and gets a 403. Needs the user to add that account as a collaborator, or re-auth locally as `arpankayastha`.
-2. Enable the Google provider in the Supabase dashboard (see `## Auth` above) — until then sign-in shows "provider is not enabled".
-3. Deploy (Vercel/Netlify) with the `VITE_*` env vars, add the production URL in Supabase Auth → URL Configuration, and re-point the Google OAuth redirect URI + Supabase Auth redirect allow-list at the production domain.
-4. Improvement ideas: recurring transactions, transfers between accounts, offline data caching (the PWA app-shell is already installable), code-splitting Recharts (bundle is ~550 kB), AI receipt/statement import and credit-card/EMI tracking (seen in competing apps).
+Ship v1 is done end-to-end (Google OAuth, multi-household, dark PWA UI, deployed). Improvement ideas: recurring transactions, transfers between accounts, offline data caching (the PWA app-shell is already installable), code-splitting Recharts (bundle is ~550 kB), AI receipt/statement import and credit-card/EMI tracking (seen in competing apps).

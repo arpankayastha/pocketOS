@@ -25,13 +25,14 @@ One private place to see where money comes from, where it goes, and whether the 
 - `rls_auto_enable()` is Supabase-provided. Do not modify it.
 
 ## Roadmap (in priority order)
-1. **Unblock shipping:** fix the GitHub push (auth mismatch — see `CLAUDE.md` Status), enable the Google OAuth provider in Supabase, then verify sign-in → seed data → add/edit/delete a transaction → budget progress end to end.
-2. **Transfers between accounts:** a `transfer` kind (or a paired-row design) that moves money without counting as income or expense. Update `account_balances`, the dashboard and CSV export.
-3. **Recurring transactions:** rent, salary, SIPs and subscriptions, with frequency and next due date. Generate the transactions with a Supabase cron job (pg_cron) or on app load, and show upcoming items on the dashboard.
-4. **Import:** CSV import from bank statements (HDFC/ICICI/SBI formats), with column mapping, duplicate detection and auto-categorisation rules. AI receipt/screenshot capture (share-to-app) is a further-out stretch goal, seen in competing apps.
-5. **Credit cards & EMIs:** limits, due-date reminders — another gap noted in competing apps.
-6. **Insights:** month-over-month change per category, top merchants from notes, and a simple "safe to spend" figure for the rest of the month.
-7. **Performance:** code-split Recharts (the bundle is ~550 kB), lazy-load tabs, and consider caching read-only reference data (accounts/categories) in the service worker.
+Ship v1 is done: pushed to GitHub, Google OAuth enabled, deployed to Vercel (see `CLAUDE.md` `## Deployment`), verified sign-in → seed data → add/edit/delete a transaction → budget progress end to end.
+
+1. **Transfers between accounts:** a `transfer` kind (or a paired-row design) that moves money without counting as income or expense. Update `account_balances`, the dashboard and CSV export.
+2. **Recurring transactions:** rent, salary, SIPs and subscriptions, with frequency and next due date. Generate the transactions with a Supabase cron job (pg_cron) or on app load, and show upcoming items on the dashboard.
+3. **Import:** CSV import from bank statements (HDFC/ICICI/SBI formats), with column mapping, duplicate detection and auto-categorisation rules. AI receipt/screenshot capture (share-to-app) is a further-out stretch goal, seen in competing apps.
+4. **Credit cards & EMIs:** limits, due-date reminders — another gap noted in competing apps.
+5. **Insights:** month-over-month change per category, top merchants from notes, and a simple "safe to spend" figure for the rest of the month.
+6. **Performance:** code-split Recharts (the bundle is ~550 kB), lazy-load tabs, and consider caching read-only reference data (accounts/categories) in the service worker.
 
 ## Engineering rules
 - **Schema changes:** append the SQL to `supabase/schema.sql` (idempotent: `if not exists`, `create or replace`), apply it as a named migration via the Supabase MCP, then run both the security and performance advisors and fix new findings.
