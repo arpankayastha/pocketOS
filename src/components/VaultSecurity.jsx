@@ -166,7 +166,7 @@ function Import({ vault }) {
   return (
     <div className="card">
       <h3>Import from LastPass</h3>
-      <p className="muted small">In LastPass: Advanced options → Export → save the CSV. Passwords and secure notes (cards, bank accounts, IDs…) come in as their matching types. The file is read and encrypted here on your device; it's never uploaded as-is.</p>
+      <p className="muted small">LastPass's phone app can't export. On a computer, sign in at lastpass.com (or open the browser extension), find Export under Advanced Options or Account, choose LastPass CSV, then open PocketOS on that computer and pick the file here. Passwords and secure notes (cards, bank accounts, IDs…) come in as their matching types. The file is read and encrypted here on your device; it's never uploaded as-is.</p>
       <label className="btn file-btn">
         Choose LastPass CSV…
         <input type="file" accept=".csv,text/csv" onChange={onFile} disabled={!!status?.busy} />
