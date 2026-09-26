@@ -61,8 +61,22 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .alert.ok { background: color-mix(in srgb, var(--pos) 12%, transparent); color: var(--pos); }
 
 /* Auth */
-.auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: calc(16px + var(--safe-t)) 16px calc(16px + var(--safe-b)); }
-.auth { width: 100%; max-width: 380px; display: grid; gap: 14px; box-shadow: var(--shadow-lg); }
+.auth-wrap {
+  position: relative; min-height: 100vh; display: grid; place-items: center; overflow: hidden;
+  padding: calc(16px + var(--safe-t)) 16px calc(16px + var(--safe-b));
+  background:
+    radial-gradient(50vw 50vh at 12% 15%, color-mix(in srgb, #818cf8 20%, transparent), transparent 60%),
+    radial-gradient(55vw 55vh at 88% 85%, color-mix(in srgb, #f472b6 16%, transparent), transparent 60%),
+    var(--bg);
+}
+.auth-glow {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 14%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(60vw 60vh at 50% 40%, #000 0%, transparent 75%);
+}
+.auth { position: relative; width: 100%; max-width: 400px; display: grid; gap: 14px; box-shadow: var(--shadow-lg); padding: 28px 24px; }
+.auth-tagline { margin: -6px 0 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .brand {
   font-weight: 800; display: flex; align-items: center; gap: 8px; letter-spacing: -.01em;
   background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -109,6 +123,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .amt { font-weight: 600; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
 
+.empty-chart { height: 260px; display: grid; place-items: center; text-align: center; line-height: 1.6; }
 .pie-wrap { display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
 .legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 13px; }
 .legend li { display: flex; align-items: center; }
@@ -178,8 +193,11 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 }
 
 @media (max-width: 800px) {
-  .topbar { padding: 10px 16px; padding-top: calc(10px + var(--safe-t)); }
+  .topbar { padding: 10px 16px; padding-top: calc(10px + var(--safe-t)); gap: 10px; flex-wrap: nowrap; }
   .topbar .tabs { display: none; }
+  .brand-text { display: none; }
+  .household-select { max-width: 128px; flex: 1; }
+  .user { flex-shrink: 0; }
   .content { padding-bottom: calc(88px + var(--safe-b)); }
   .tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
   .grid2, .pie-wrap { grid-template-columns: 1fr; }

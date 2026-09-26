@@ -21,8 +21,10 @@ export default function Auth() {
 
   return (
     <div className="auth-wrap">
+      <div className="auth-glow" aria-hidden="true" />
       <div className="card auth">
         <div className="brand big"><BrandMark size={28} />PocketOS</div>
+        <p className="auth-tagline">Everything you run your life with, in one pocket. Starting with your money.</p>
         <h2>Sign in</h2>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
         <button type="button" className="btn google" disabled={busy} onClick={signInWithGoogle}>

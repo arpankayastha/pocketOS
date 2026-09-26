@@ -51,7 +51,7 @@ function Shell({ session }) {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand"><BrandMark size={24} />PocketOS</div>
+        <div className="brand"><BrandMark size={24} /><span className="brand-text">PocketOS</span></div>
         {data.households.length > 0 && (
           <select className="household-select" value={data.activeHouseholdId || ''} onChange={(e) => {
             if (e.target.value === '__new__') {

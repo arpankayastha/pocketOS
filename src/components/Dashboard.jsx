@@ -63,6 +63,7 @@ export default function Dashboard({ categories, activeHouseholdId }) {
   }, [all, balances, month, catById, budgets])
 
   const savingsRate = stats.income > 0 ? Math.round(((stats.income - stats.expense) / stats.income) * 100) : null
+  const hasTrend = stats.trend.some((t) => t.Income > 0 || t.Expense > 0)
 
   return (
     <section>
@@ -82,22 +83,29 @@ export default function Dashboard({ categories, activeHouseholdId }) {
       <div className="grid2">
         <div className="card">
           <h3>Last 6 months</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={stats.trend} margin={{ left: 8, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line)" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={moneyShort} tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} width={64} />
-              <Tooltip formatter={(v) => money(v)} contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }} />
-              <Legend />
-              <Bar dataKey="Income" fill="var(--pos)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Expense" fill="var(--neg)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {hasTrend ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={stats.trend} margin={{ left: 8, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line)" />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={moneyShort} tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} width={64} />
+                <Tooltip formatter={(v) => money(v)} contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }} />
+                <Legend />
+                <Bar dataKey="Income" fill="var(--pos)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Expense" fill="var(--neg)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="empty-chart muted">
+              No income or expenses in the last 6 months yet.<br />
+              <span className="small">Add a transaction to see your trend here.</span>
+            </div>
+          )}
         </div>
 
         <div className="card">
           <h3>Where the money went</h3>
-          {stats.breakdown.length === 0 ? <div className="muted pad">No expenses this month.</div> : (
+          {stats.breakdown.length === 0 ? <div className="empty-chart muted" style={{ height: 220 }}>No expenses this month.</div> : (
             <div className="pie-wrap">
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
