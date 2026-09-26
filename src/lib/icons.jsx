@@ -73,3 +73,13 @@ export function TrashIcon() {
     </svg>
   )
 }
+
+export function PasskeyIcon() {
+  return (
+    <svg {...base}>
+      <circle cx="9" cy="7" r="4" />
+      <path d="M9 11c-3 0-6 1.5-6 4v2h7" />
+      <path d="M15 15l2 2 4-4" />
+    </svg>
+  )
+}

@@ -1,22 +1,30 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { BrandMark } from '../lib/icons'
+import { BrandMark, PasskeyIcon } from '../lib/icons'
 
 export default function Auth() {
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState(null) // null | 'google' | 'passkey'
   const [msg, setMsg] = useState(null)
 
   async function signInWithGoogle() {
-    setBusy(true)
+    setBusy('google')
     setMsg(null)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
     })
     if (error) {
-      setBusy(false)
+      setBusy(null)
       setMsg({ type: 'error', text: error.message })
     }
+  }
+
+  async function signInWithPasskey() {
+    setBusy('passkey')
+    setMsg(null)
+    const { error } = await supabase.auth.signInWithPasskey()
+    setBusy(null)
+    if (error) setMsg({ type: 'error', text: 'No passkey found for this site on this device — use Google to sign in, then add a passkey from Settings.' })
   }
 
   return (
@@ -25,12 +33,17 @@ export default function Auth() {
       <div className="card auth">
         <div className="brand big"><BrandMark size={28} />PocketOS</div>
         <p className="auth-tagline">Everything you run your life with, in one pocket. Starting with your money.</p>
-        <h2>Sign in</h2>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
-        <button type="button" className="btn google" disabled={busy} onClick={signInWithGoogle}>
+        <button type="button" className="btn google" disabled={!!busy} onClick={signInWithGoogle}>
           <GoogleIcon />
-          {busy ? 'Redirecting…' : 'Continue with Google'}
+          {busy === 'google' ? 'Redirecting…' : 'Continue with Google'}
         </button>
+        <div className="auth-divider"><span>or</span></div>
+        <button type="button" className="btn passkey" disabled={!!busy} onClick={signInWithPasskey}>
+          <PasskeyIcon />
+          {busy === 'passkey' ? 'Checking for a passkey…' : 'Sign in with a passkey'}
+        </button>
+        <p className="auth-hint">New here? Use Google first, then add a passkey from Settings for faster sign-in next time.</p>
       </div>
     </div>
   )

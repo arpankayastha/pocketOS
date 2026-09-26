@@ -5,4 +5,6 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const isConfigured = Boolean(url && key)
 
-export const supabase = isConfigured ? createClient(url, key) : null
+export const supabase = isConfigured
+  ? createClient(url, key, { auth: { experimental: { passkey: true } } })
+  : null

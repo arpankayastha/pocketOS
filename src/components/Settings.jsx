@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { money } from '../lib/format'
 import { TrashIcon } from '../lib/icons'
@@ -9,9 +9,71 @@ export default function Settings({ accounts, categories, refresh, households, ac
       <div style={{ gridColumn: '1 / -1' }}>
         <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} />
       </div>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <Passkeys />
+      </div>
       <Accounts accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
       <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
     </section>
+  )
+}
+
+function Passkeys() {
+  const [passkeys, setPasskeys] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.auth.passkey.list()
+    if (error) return setError(error.message)
+    setPasskeys(data || [])
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function add() {
+    setBusy(true)
+    setError(null)
+    const { error } = await supabase.auth.registerPasskey()
+    setBusy(false)
+    if (error) return setError(error.message)
+    load()
+  }
+
+  async function rename(p) {
+    const next = prompt('Rename passkey', p.friendly_name || '')
+    if (!next || !next.trim()) return
+    const { error } = await supabase.auth.passkey.update({ passkeyId: p.id, friendlyName: next.trim() })
+    if (error) return setError(error.message)
+    load()
+  }
+
+  async function remove(p) {
+    if (!confirm(`Remove passkey "${p.friendly_name || 'Passkey'}"? You'll need another way to sign in on that device.`)) return
+    const { error } = await supabase.auth.passkey.delete({ passkeyId: p.id })
+    if (error) return setError(error.message)
+    load()
+  }
+
+  return (
+    <div className="card">
+      <h3>Passkeys</h3>
+      <p className="muted small">Sign in faster next time with Face ID, Touch ID, or your device PIN — no password needed.</p>
+      {passkeys.map((p) => (
+        <div className="line" key={p.id}>
+          <span>{p.friendly_name || 'Passkey'} <span className="muted small">added {new Date(p.created_at).toLocaleDateString()}</span></span>
+          <span>
+            <button className="btn small ghost" onClick={() => rename(p)}>Rename</button>{' '}
+            <button className="btn icon" onClick={() => remove(p)}><TrashIcon /></button>
+          </span>
+        </div>
+      ))}
+      {passkeys.length === 0 && <p className="muted small">No passkeys added yet.</p>}
+      <button className="btn primary" disabled={busy} onClick={add} style={{ marginTop: 10 }}>
+        {busy ? 'Adding…' : '+ Add a passkey for this device'}
+      </button>
+      {error && <div className="alert error">{error}</div>}
+    </div>
   )
 }
 

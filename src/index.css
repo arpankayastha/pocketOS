@@ -54,6 +54,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .btn.icon:hover { color: var(--text); background: var(--card-2); }
 .btn.google { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; color: #1f1f1f; border-color: var(--line); font-weight: 600; padding: 11px 14px; box-shadow: var(--shadow-sm); }
 .btn.google:hover:not(:disabled) { background: #f7f7f7; }
+.btn.passkey { display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--card-2); color: var(--text); font-weight: 600; padding: 11px 14px; }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
 .alert { padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
@@ -77,6 +78,9 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 }
 .auth { position: relative; width: 100%; max-width: 400px; display: grid; gap: 14px; box-shadow: var(--shadow-lg); padding: 28px 24px; }
 .auth-tagline { margin: -6px 0 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: -2px 0; color: var(--muted); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.auth-hint { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
 .brand {
   font-weight: 800; display: flex; align-items: center; gap: 8px; letter-spacing: -.01em;
   background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
