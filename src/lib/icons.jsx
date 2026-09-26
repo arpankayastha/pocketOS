@@ -1,13 +1,22 @@
+import { useId } from 'react'
+
+// PocketOS logo: cards tucked into a stitched pocket (money + passwords in one place).
+// Keep in sync with public/favicon.svg, public/icons/*.svg and the splash in index.html.
 export function BrandMark({ size = 24 }) {
+  const id = useId()
+  const grad = `url(#${CSS.escape(id)})`
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" className="brand-mark">
       <defs>
-        <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#818cf8" /><stop offset="55%" stopColor="#c084fc" /><stop offset="100%" stopColor="#f472b6" />
+        <linearGradient id={id} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="512">
+          <stop offset="0" stopColor="#818cf8" /><stop offset=".55" stopColor="#c084fc" /><stop offset="1" stopColor="#f472b6" />
         </linearGradient>
       </defs>
-      <rect width="512" height="512" rx="112" fill="url(#brandGrad)" />
-      <text x="256" y="350" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="280" fill="#fff">P</text>
+      <rect width="512" height="512" rx="112" fill={grad} />
+      <rect x="170" y="112" width="150" height="200" rx="18" fill="#0d0f14" opacity=".55" transform="rotate(-12 245 212)" />
+      <rect x="206" y="126" width="150" height="200" rx="18" fill="#0d0f14" opacity=".8" transform="rotate(8 281 226)" />
+      <path d="M124 236H388V336A68 68 0 0 1 320 404H192A68 68 0 0 1 124 336Z" fill="#fff" />
+      <path d="M154 266H358" stroke={grad} strokeWidth="10" strokeLinecap="round" strokeDasharray="1 22" />
     </svg>
   )
 }
