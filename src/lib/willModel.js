@@ -21,31 +21,31 @@ export const RELATION_EN = {
 const f = (key, label, extra = {}) => ({ key, label, ...extra })
 export const ASSET_TYPES = [
   { id: 'property', gu: 'સ્થાવર મિલકત (મકાન / ફ્લેટ / જમીન)', en: 'House, flat or land', fields: [
-    f('description', 'Description (e.g. ફ્લેટ નં. A1-107)'), f('address', 'Address', { multiline: true }), f('surveyNo', 'Survey / Khata / City survey no.'),
+    f('description', 'મિલકતનું વર્ણન · Description', { placeholder: 'દા.ત. રહેણાંક ફ્લેટ નં. …' }), f('address', 'સરનામું · Address', { multiline: true }), f('surveyNo', 'સર્વે / ખાતા / સિટી સર્વે નંબર · Survey no.', { hint: 'દસ્તાવેજ કે 7/12 ઉતારામાં લખેલો નંબર. ખબર ન હોય તો ખાલી રાખો.' }),
   ] },
   { id: 'bank', gu: 'બેંક ખાતું', en: 'Bank account', fields: [
-    f('bank', 'Bank'), f('branch', 'Branch'), f('ifsc', 'IFSC'), f('accountNo', 'Account number', { mono: true }),
+    f('bank', 'બેંકનું નામ · Bank'), f('branch', 'શાખા · Branch'), f('ifsc', 'IFSC કોડ', { hint: 'પાસબુક કે ચેકબુક પર લખેલો હોય છે.' }), f('accountNo', 'ખાતા નંબર · Account no.', { mono: true }),
   ] },
   { id: 'fd', gu: 'ફિક્સ્ડ ડિપોઝિટ', en: 'Fixed deposit', fields: [
-    f('bank', 'Bank'), f('branch', 'Branch'), f('fdNo', 'FD number', { mono: true }), f('amount', 'Amount (₹)', { inputMode: 'decimal' }), f('maturity', 'Maturity date', { type: 'date' }),
+    f('bank', 'બેંકનું નામ · Bank'), f('branch', 'શાખા · Branch'), f('fdNo', 'FD નંબર / રસીદ નંબર', { mono: true }), f('amount', 'રકમ (₹) · Amount', { inputMode: 'decimal' }), f('maturity', 'પાકતી તારીખ · Maturity', { type: 'date' }),
   ] },
   { id: 'savings', gu: 'સરકારી / પોસ્ટ બચત યોજના (KVP, NSC, PPF, SSY)', en: 'KVP, NSC, PPF, post office', fields: [
-    f('scheme', 'Scheme (e.g. કિસાન વિકાસ પત્ર)'), f('office', 'Post office / bank'), f('certNo', 'Certificate / account no.', { mono: true }), f('amount', 'Amount (₹)', { inputMode: 'decimal' }), f('maturity', 'Maturity date', { type: 'date' }),
+    f('scheme', 'યોજના · Scheme', { placeholder: 'દા.ત. કિસાન વિકાસ પત્ર' }), f('office', 'પોસ્ટ ઑફિસ / બેંક'), f('certNo', 'પ્રમાણપત્ર / ખાતા નંબર', { mono: true }), f('amount', 'રકમ (₹) · Amount', { inputMode: 'decimal' }), f('maturity', 'પાકતી તારીખ · Maturity', { type: 'date' }),
   ] },
   { id: 'insurance', gu: 'વીમા પૉલિસી', en: 'Insurance (LIC etc.)', fields: [
-    f('company', 'Company (e.g. LIC)'), f('plan', 'Plan'), f('policyNo', 'Policy number', { mono: true }), f('amount', 'Sum assured (₹)', { inputMode: 'decimal' }),
+    f('company', 'કંપની · Company', { placeholder: 'દા.ત. LIC' }), f('plan', 'પ્લાન · Plan'), f('policyNo', 'પૉલિસી નંબર', { mono: true }), f('amount', 'વીમા રકમ (₹) · Sum assured', { inputMode: 'decimal' }),
   ] },
   { id: 'investment', gu: 'રોકાણ (મ્યુચ્યુઅલ ફંડ / શેર)', en: 'Mutual funds, shares', fields: [
-    f('description', 'Description'), f('institution', 'AMC / broker'), f('folio', 'Folio / demat ID', { mono: true }),
+    f('description', 'વર્ણન · Description'), f('institution', 'ફંડ કંપની / બ્રોકર'), f('folio', 'ફોલિયો / ડીમેટ નંબર', { mono: true }),
   ] },
   { id: 'jewellery', gu: 'દાગીના', en: 'Jewellery', fields: [
-    f('item', 'Item (e.g. સોનાની ૨ બંગડી)'), f('metal', 'Metal', { options: ['સોનું', 'ચાંદી', 'હીરા', 'અન્ય'] }), f('weight', 'Weight (grams)', { inputMode: 'decimal' }),
+    f('item', 'દાગીનો · Item', { placeholder: 'દા.ત. ૨ બંગડી' }), f('metal', 'ધાતુ · Metal', { options: ['સોનું', 'ચાંદી', 'હીરા', 'અન્ય'] }), f('weight', 'વજન (ગ્રામ) · Weight', { inputMode: 'decimal', hint: 'આશરે વજન. ખબર ન હોય તો ખાલી રાખો.' }),
   ] },
   { id: 'vehicle', gu: 'વાહન', en: 'Vehicle', fields: [
-    f('model', 'Model'), f('regNo', 'Registration number', { mono: true }),
+    f('model', 'વાહન / મૉડલ · Model'), f('regNo', 'રજિસ્ટ્રેશન નંબર', { mono: true }),
   ] },
   { id: 'other', gu: 'અન્ય મિલકત', en: 'Other', fields: [
-    f('description', 'Description', { multiline: true }),
+    f('description', 'વર્ણન · Description', { multiline: true }),
   ] },
 ]
 export const ASSET_TYPE = Object.fromEntries(ASSET_TYPES.map((t) => [t.id, t]))
@@ -59,8 +59,9 @@ export function emptyWill() {
     },
     people: [],      // { id, name, relation, note, dob, address, idNumber, guardianId, alternate }
     executors: [],   // person ids, in priority order
-    assets: [],      // { id, type, holding: 'single'|'joint', jointWith, nominee, shares: [{ personId, percent }], note, ...type fields }
+    assets: [],      // { id, type, holding: 'single'|'joint', jointWith, nominee, shares: [{ personId, percent }], note (ખાસ સૂચના), ...type fields }
     residuary: [],   // [{ personId, percent }]
+    residuaryNote: '', // special instruction printed under the residuary table
     wishes: [],      // [{ id, text }] — moral wishes, not bequests
     funeral: 'હિંદુ',
     witnesses: [{ name: '', address: '' }, { name: '', address: '' }],

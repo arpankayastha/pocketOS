@@ -8,7 +8,7 @@ export default function WillDocument({ doc, stamp }) {
   // Number the clauses continuously across sections (wishes use letters instead).
   let count = 0
   const sections = buildWill(doc).map((sec) => ({
-    ...sec, items: sec.items.map((it) => (it.kind === 'para' && !it.key.startsWith('wish-') ? { ...it, num: ++count } : it)),
+    ...sec, items: sec.items.map((it) => (it.kind === 'para' && !it.plain && !it.key.startsWith('wish-') ? { ...it, num: ++count } : it)),
   }))
   return (
     <article className="will-doc" lang="gu">

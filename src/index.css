@@ -352,6 +352,21 @@ textarea.masked { -webkit-text-security: disc; }
 .save-state { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
 .save-state.error { color: var(--neg); }
 
+/* Plain-language help under fields/sections, and the highlighted special-instruction box */
+.help { display: block; font-size: 12.5px; line-height: 1.5; color: color-mix(in srgb, var(--text) 62%, transparent); margin: 2px 0 8px; font-weight: 400; }
+label .help { margin: 0; }
+.note-box { border: 1px dashed color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 6%, transparent); border-radius: 12px; padding: 10px 12px; }
+.import-card { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.log { display: grid; gap: 12px; max-height: 420px; overflow-y: auto; }
+.log-entry { border-left: 2px solid var(--accent); padding-left: 12px; }
+.log-when { font-family: var(--font-mono); font-size: 12px; color: var(--accent); margin-bottom: 4px; }
+.log-entry ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 13.5px; line-height: 1.5; }
+.preview-screen { position: fixed; inset: 0; z-index: 40; background: var(--bg); display: flex; flex-direction: column; animation: fade-in .15s ease-out; }
+.preview-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; padding-top: calc(10px + var(--safe-t)); border-bottom: 1px solid var(--line); background: var(--card); }
+.preview-bar svg { width: 18px; height: 18px; }
+.preview-scroll { flex: 1; overflow-y: auto; padding-bottom: var(--safe-b); }
+.preview-scroll .will-preview { border-radius: 0; min-height: 100%; }
+
 /* The will document: black on white paper, Gujarati serif. Used for preview and print. */
 .will-preview { background: #e9e9ea; border-radius: 12px; padding: 16px; overflow-x: auto; }
 .will-preview .will-doc { max-width: 800px; margin: 0 auto; padding: 48px 56px; box-shadow: 0 2px 16px rgb(0 0 0 / .35); }

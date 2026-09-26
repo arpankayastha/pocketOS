@@ -346,3 +346,21 @@ alter table public.will_versions enable row level security;
 drop policy if exists "own rows" on public.will_versions;
 create policy "own rows" on public.will_versions for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- Change log for the will: one row per editing session (edits within 30 minutes are merged),
+-- encrypted with the Vault key like the will itself. Payload: { start, end, changes: [text] }.
+create table if not exists public.will_log (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  will_id uuid not null references public.wills(id) on delete cascade,
+  iv text not null,
+  ciphertext text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists will_log_user_id_idx on public.will_log (user_id);
+create index if not exists will_log_will_id_idx on public.will_log (will_id);
+alter table public.will_log enable row level security;
+drop policy if exists "own rows" on public.will_log;
+create policy "own rows" on public.will_log for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));

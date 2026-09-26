@@ -2,14 +2,20 @@ import { sumPercent } from '../../lib/willModel'
 import { TrashIcon, PlusIcon } from '../../lib/icons'
 
 // Text input bound to a value; `lang="gu"` hints Gujarati keyboards/spellcheck.
+// `label` is Gujarati first (e.g. "નામ · Name"); `hint` explains the field in plain Gujarati.
 export function GuInput({ label, value, onChange, multiline, hint, ...rest }) {
   const props = { value: value ?? '', onChange: (e) => onChange(e.target.value), lang: 'gu', ...rest }
   return (
     <label>{label}
       {multiline ? <textarea rows={3} {...props} /> : <input {...props} />}
-      {hint && <span className="muted small">{hint}</span>}
+      {hint && <span className="help">{hint}</span>}
     </label>
   )
+}
+
+// A short plain-language explanation under a heading, so the family knows what a section means.
+export function Help({ children }) {
+  return <p className="help">{children}</p>
 }
 
 // Who gets an asset (or the residuary): rows of person + percent, with a running total.
@@ -39,12 +45,12 @@ export function SharesEditor({ people, shares, onChange }) {
       ))}
       <div className="share-actions">
         {free.length > 0 && (
-          <button type="button" className="btn small ghost" onClick={() => onChange([...shares, { personId: free[0].id, percent: shares.length ? 0 : 100 }])}><PlusIcon /> Add person</button>
+          <button type="button" className="btn small ghost" onClick={() => onChange([...shares, { personId: free[0].id, percent: shares.length ? 0 : 100 }])}><PlusIcon /> વ્યક્તિ ઉમેરો · Add person</button>
         )}
-        {shares.length > 1 && <button type="button" className="btn small ghost" onClick={splitEqually}>Split equally</button>}
-        {shares.length > 0 && <span className={`share-total ${Math.abs(total - 100) > 0.01 ? 'neg' : 'pos'}`}>Total {total}%</span>}
+        {shares.length > 1 && <button type="button" className="btn small ghost" onClick={splitEqually}>સરખા ભાગે · Split equally</button>}
+        {shares.length > 0 && <span className={`share-total ${Math.abs(total - 100) > 0.01 ? 'neg' : 'pos'}`}>કુલ {total}%</span>}
       </div>
-      {!people.length && <p className="muted small">Add family members first (Family tab).</p>}
+      {!people.length && <p className="help">પહેલાં "કુટુંબ" ટેબમાં કુટુંબના સભ્યો ઉમેરો. · Add family members first.</p>}
     </div>
   )
 }
