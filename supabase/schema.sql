@@ -290,3 +290,25 @@ create policy "own rows" on public.vault_items for all to authenticated
 alter table public.transactions add column if not exists transfer_id uuid;
 create index if not exists transactions_transfer_id_idx on public.transactions (transfer_id) where transfer_id is not null;
 comment on column public.transactions.transfer_id is 'Links the two halves of a between-household transfer: an expense in the sender household and an income in the receiver, sharing this id.';
+
+-- Account colours (shown as dots in lists) + balances as of a date.
+-- The account_balances view counts every transaction, including future-dated ones
+-- (e.g. next month's salary logged from the Plan tab); the Dashboard's "today"
+-- balances use account_balances_on(<client's local date>) instead.
+alter table public.accounts add column if not exists color text;
+
+create or replace function public.account_balances_on(on_date date)
+returns table (id uuid, name text, type text, color text, opening_balance numeric, balance numeric, household_id uuid)
+language sql stable security invoker set search_path = ''
+as $$
+  select a.id, a.name, a.type, a.color, a.opening_balance,
+         a.opening_balance
+           + coalesce(sum(case when t.kind = 'income'  then t.amount end), 0)
+           - coalesce(sum(case when t.kind = 'expense' then t.amount end), 0),
+         a.household_id
+  from public.accounts a
+  left join public.transactions t on t.account_id = a.id and t.occurred_on <= on_date
+  group by a.id
+$$;
+revoke execute on function public.account_balances_on(date) from public, anon;
+grant execute on function public.account_balances_on(date) to authenticated;

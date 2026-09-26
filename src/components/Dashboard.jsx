@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase } from '../lib/supabase'
-import { currentMonth, monthEnd, monthKey, monthLabel, monthStart, money, moneyShort, shiftMonth } from '../lib/format'
+import { today, currentMonth, monthEnd, monthKey, monthLabel, monthStart, money, moneyShort, shiftMonth } from '../lib/format'
 import { MonthPicker } from './Transactions'
 import { DashboardSkeleton } from './Skeleton'
 import { useMonthSwipe } from '../lib/useSwipe'
@@ -29,7 +29,8 @@ export default function Dashboard({ categories, activeHouseholdId }) {
         .order('occurred_on', { ascending: false })
         .limit(10000),
       supabase.from('recurring_items').select('*').eq('household_id', activeHouseholdId).eq('active', true),
-      supabase.from('account_balances').select('*').eq('household_id', activeHouseholdId).order('name'),
+      // Balances as of today: future-dated entries (e.g. next month's logged salary) don't count yet.
+      supabase.rpc('account_balances_on', { on_date: today() }).eq('household_id', activeHouseholdId).order('name'),
     ])
     const err = t.error || ri.error || ab.error
     setError(err ? err.message : null)
@@ -77,7 +78,7 @@ export default function Dashboard({ categories, activeHouseholdId }) {
       byCat[k] = (byCat[k] || 0) + Number(t.amount)
     })
     const breakdown = Object.entries(byCat)
-      .map(([id, value]) => ({ name: catById[id]?.name || 'Uncategorised', color: catById[id]?.color || '#94a3b8', value }))
+      .map(([id, value]) => ({ id, name: catById[id]?.name.trim() || 'Uncategorised', color: catById[id]?.color || '#94a3b8', value }))
       .sort((a, b) => b.value - a.value)
 
     const upcoming = rows.filter((t) => t.planned).sort((a, b) => (a.day || 99) - (b.day || 99))
@@ -139,14 +140,14 @@ export default function Dashboard({ categories, activeHouseholdId }) {
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie data={stats.breakdown} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2}>
-                    {stats.breakdown.map((d) => <Cell key={d.name} fill={d.color} />)}
+                    {stats.breakdown.map((d) => <Cell key={d.id} fill={d.color} stroke="var(--card)" strokeWidth={2} />)}
                   </Pie>
                   <Tooltip formatter={(v) => money(v)} contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }} />
                 </PieChart>
               </ResponsiveContainer>
               <ul className="legend">
                 {stats.breakdown.slice(0, 6).map((d) => (
-                  <li key={d.name}><span className="dot" style={{ background: d.color }} />{d.name}<b>{money(d.value)}</b></li>
+                  <li key={d.id}><span className="dot" style={{ background: d.color }} />{d.name}<b>{money(d.value)}</b></li>
                 ))}
               </ul>
             </div>
@@ -158,7 +159,7 @@ export default function Dashboard({ categories, activeHouseholdId }) {
         <div className="card">
           <h3>Account balances <span className="muted small">(today)</span></h3>
           {balances.map((a) => (
-            <div className="line" key={a.id}><span>{a.name} <span className="muted small">{a.type}</span></span><b className={a.balance < 0 ? 'neg' : ''}>{money(a.balance)}</b></div>
+            <div className="line" key={a.id}><span><span className="dot" style={{ background: a.color || '#94a3b8' }} />{a.name} <span className="muted small">{a.type}</span></span><b className={a.balance < 0 ? 'neg' : ''}>{money(a.balance)}</b></div>
           ))}
         </div>
         <div className="card">

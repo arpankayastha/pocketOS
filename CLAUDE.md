@@ -28,7 +28,7 @@ One login (the master account) manages several isolated **households** (workspac
 - URL and publishable key are in `.env` (gitignored). See `.env.example`.
 - The schema in `supabase/schema.sql` has already been applied to the remote project, including the multi-household migration at the end of that file.
 - Tables: `households`, `accounts`, `categories`, `transactions`, `budgets`, `recurring_items`, `vault_unlockers`, `vault_items`. Each has `user_id default auth.uid()` and one RLS policy, "own rows" (`user_id = auth.uid()`); the finance tables (all but `households` and the two `vault_*` tables) also have a required `household_id`. The Vault is personal to the login, not per household.
-- View `account_balances` (security_invoker) computes current balance per account; carries `household_id` as a trailing column (Postgres `create or replace view` only allows appending columns, not reordering).
+- View `account_balances` (security_invoker) computes current balance per account; carries `household_id` as a trailing column (Postgres `create or replace view` only allows appending columns, not reordering). It counts **all** transactions, including future-dated ones; the Dashboard instead calls `rpc('account_balances_on', { on_date: today() })` (security invoker function) so "today" balances ignore entries dated later (e.g. next month's salary logged from Plan).
 - Trigger `on_auth_user_created` → `seed_new_user()` creates a "Home" household plus 12 categories and a Cash account for new users. EXECUTE is revoked from anon/authenticated.
 - `rls_auto_enable()` is a Supabase-provided function, not ours. Leave it alone.
 - Amounts are always positive; `kind` ('income' | 'expense') decides the sign.
@@ -38,6 +38,7 @@ One login (the master account) manages several isolated **households** (workspac
 
 ## UI notes
 - **Never use `window.confirm` / `prompt` / `alert`.** Use the in-app dialogs: `const dialog = useDialog()` (`src/lib/dialog.js`, rendered by `DialogProvider` in `src/main.jsx`), then `await dialog.confirm({ title, message, confirmLabel, danger })`, `await dialog.prompt({ title, label, defaultValue })`, `await dialog.alert(message)`. Destructive confirms are red and focus Cancel.
+- Colours for categories and accounts come from `src/lib/colors.js` (8-hue palette validated for the dark UI); new ones get the next unused colour (`nextColor`). Accounts have a `color` column (dots in lists). Key chart/legend items by id, never by name (names repeat, e.g. several "Uncategorised").
 - Categories are edited (name + colour, or deleted) by tapping the chip in Accounts & Categories (`CategoryEditor` in `Settings.jsx`); kind can't change after creation.
 - Accounts are edited (name, type, opening balance) by tapping the row or its pencil (`AccountEditor` in `Settings.jsx`). Deleting one says how many transactions/plan items use it; those are kept but unlinked (`on delete set null`).
 - On phones, the floating + button and bottom nav hide while a text field is focused (CSS `:has` in `src/index.css`), and `.content` has extra bottom padding, so the + never covers a Save button.

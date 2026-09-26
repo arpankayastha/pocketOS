@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { money } from '../lib/format'
 import { TrashIcon, PencilIcon } from '../lib/icons'
 import { useDialog } from '../lib/dialog'
+import { PALETTE, nextColor } from '../lib/colors'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email }) {
   const dialog = useDialog()
@@ -149,11 +150,12 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
   const dialog = useDialog()
   const [form, setForm] = useState({ name: '', type: 'bank', opening_balance: '' })
   const [editing, setEditing] = useState(null) // account being edited
+  const accountColors = accounts.map((a) => a.color)
   const [error, setError] = useState(null)
 
   async function add(e) {
     e.preventDefault()
-    const { error } = await supabase.from('accounts').insert({ ...form, name: form.name.trim(), household_id: activeHouseholdId, opening_balance: Number(form.opening_balance) || 0 })
+    const { error } = await supabase.from('accounts').insert({ ...form, name: form.name.trim(), color: nextColor(accountColors), household_id: activeHouseholdId, opening_balance: Number(form.opening_balance) || 0 })
     if (error) return setError(error.message)
     setForm({ name: '', type: 'bank', opening_balance: '' })
     setError(null)
@@ -166,7 +168,7 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
       {accounts.map((a) => (
         <div className="line" key={a.id}>
           <button type="button" className="line-btn" onClick={() => setEditing(a)}>
-            {a.name} <span className="muted small">{a.type} · opening {money(a.opening_balance)}</span>
+            <span className="dot" style={{ background: a.color || '#94a3b8' }} />{a.name} <span className="muted small">{a.type} · opening {money(a.opening_balance)}</span>
           </button>
           <span>
             <button className="btn icon" aria-label={`Edit ${a.name}`} onClick={() => setEditing(a)}><PencilIcon /></button>
@@ -206,7 +208,7 @@ async function deleteAccount(account, dialog) {
 
 function AccountEditor({ account, onClose, onSaved }) {
   const dialog = useDialog()
-  const [form, setForm] = useState({ name: account.name, type: account.type, opening_balance: String(account.opening_balance ?? 0) })
+  const [form, setForm] = useState({ name: account.name, type: account.type, color: account.color || PALETTE[0], opening_balance: String(account.opening_balance ?? 0) })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -216,7 +218,7 @@ function AccountEditor({ account, onClose, onSaved }) {
     e.preventDefault()
     setBusy(true)
     const { error } = await supabase.from('accounts')
-      .update({ name: form.name.trim(), type: form.type, opening_balance: Number(form.opening_balance) || 0 }).eq('id', account.id)
+      .update({ name: form.name.trim(), type: form.type, color: form.color, opening_balance: Number(form.opening_balance) || 0 }).eq('id', account.id)
     setBusy(false)
     if (error) return setError(error.message)
     onSaved()
@@ -243,7 +245,8 @@ function AccountEditor({ account, onClose, onSaved }) {
             <input type="number" inputMode="decimal" step="0.01" value={form.opening_balance} onChange={set('opening_balance')} />
           </label>
         </div>
-        <p className="muted small" style={{ margin: 0 }}>The balance before your first transaction in PocketOS. Changing it shifts this account's current balance and your net worth by the same amount.</p>
+        <ColorPicker color={form.color} onChange={(color) => setForm((f) => ({ ...f, color }))} />
+        <p className="muted small" style={{ margin: 0 }}>Opening balance is the balance before your first transaction in PocketOS. Changing it shifts this account's current balance and your net worth by the same amount.</p>
         {error && <div className="alert error">{error}</div>}
         <div className="actions">
           <button type="button" className="btn icon" aria-label="Delete account" onClick={remove}><TrashIcon /></button>
@@ -257,7 +260,7 @@ function AccountEditor({ account, onClose, onSaved }) {
 }
 
 function Categories({ categories, activeHouseholdId, refresh }) {
-  const [form, setForm] = useState({ name: '', kind: 'expense', color: '#6366f1' })
+  const [form, setForm] = useState(() => ({ name: '', kind: 'expense', color: nextColor(categories.map((c) => c.color)) }))
   const [editing, setEditing] = useState(null) // category being edited
   const [error, setError] = useState(null)
 
@@ -265,7 +268,7 @@ function Categories({ categories, activeHouseholdId, refresh }) {
     e.preventDefault()
     const { error } = await supabase.from('categories').insert({ ...form, name: form.name.trim(), household_id: activeHouseholdId })
     if (error) return setError(error.message)
-    setForm({ ...form, name: '' })
+    setForm({ ...form, name: '', color: nextColor([...categories.map((c) => c.color), form.color]) })
     setError(null)
     refresh()
   }
@@ -301,7 +304,23 @@ function Categories({ categories, activeHouseholdId, refresh }) {
   )
 }
 
-const SWATCHES = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#16a34a', '#14b8a6', '#0ea5e9', '#3b82f6', '#6366f1', '#a855f7', '#ec4899', '#64748b']
+function ColorPicker({ color, onChange }) {
+  const current = (color || '').toLowerCase()
+  return (
+    <div className="form-field">
+      <span className="muted small">Colour</span>
+      <div className="swatches">
+        {PALETTE.map((c) => (
+          <button type="button" key={c} className={`swatch ${c === current ? 'on' : ''}`} style={{ background: c }}
+            aria-label={`Colour ${c}`} aria-pressed={c === current} onClick={() => onChange(c)} />
+        ))}
+        <label className={`swatch custom ${PALETTE.includes(current) ? '' : 'on'}`} title="Custom colour" style={{ background: PALETTE.includes(current) ? undefined : color }}>
+          <input type="color" value={color} onChange={(e) => onChange(e.target.value)} aria-label="Custom colour" />
+        </label>
+      </div>
+    </div>
+  )
+}
 
 function CategoryEditor({ category, onClose, onSaved }) {
   const dialog = useDialog()
@@ -336,18 +355,7 @@ function CategoryEditor({ category, onClose, onSaved }) {
         <label>Name
           <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        <div className="form-field">
-          <span className="muted small">Colour</span>
-          <div className="swatches">
-            {SWATCHES.map((c) => (
-              <button type="button" key={c} className={`swatch ${c.toLowerCase() === color.toLowerCase() ? 'on' : ''}`} style={{ background: c }}
-                aria-label={`Colour ${c}`} aria-pressed={c.toLowerCase() === color.toLowerCase()} onClick={() => setColor(c)} />
-            ))}
-            <label className="swatch custom" title="Custom colour" style={{ background: SWATCHES.includes(color) ? undefined : color }}>
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Custom colour" />
-            </label>
-          </div>
-        </div>
+        <ColorPicker color={color} onChange={setColor} />
         <div className="chip preview"><span className="dot" style={{ background: color }} />{name || 'Category'}</div>
         {error && <div className="alert error">{error}</div>}
         <div className="actions">
