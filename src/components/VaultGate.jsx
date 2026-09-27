@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MIN_MASTER_PASSWORD } from '../lib/useVault'
+import { MIN_MASTER_PASSWORD, DEVICE_CREDENTIAL_KEY } from '../lib/useVault'
 import { describeWebAuthnError, platformAuthenticatorAvailable } from '../lib/webauthn'
 import { passwordBits } from '../lib/vaultTools'
 import { VaultIcon, FingerprintIcon } from '../lib/icons'
@@ -91,7 +91,12 @@ function Unlock({ vault, onRecovered, title = 'Vault is locked' }) {
   const [error, setError] = useState(null)
   const [canFingerprint, setCanFingerprint] = useState(false)
   const autoTried = useRef(false)
-  const hasFingerprint = vault.fingerprintUnlockers.length > 0
+  // Fingerprint credentials are bound to the web address they were made on, so only offer one
+  // this device registered here (its id is kept in this origin's localStorage). Otherwise a
+  // credential from another address (e.g. after a domain move) pops "No passkeys available".
+  let thisDevice = null
+  try { thisDevice = localStorage.getItem(DEVICE_CREDENTIAL_KEY) } catch { /* ignore */ }
+  const hasFingerprint = vault.fingerprintUnlockers.some((u) => u.credential_id === thisDevice)
 
   useEffect(() => { platformAuthenticatorAvailable().then(setCanFingerprint) }, [])
 
