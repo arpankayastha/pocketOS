@@ -164,8 +164,27 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .pk-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .pk-row:last-child { border-bottom: none; }
 .pk-text { min-width: 0; }
-.pill.logged-pill { margin-left: 6px; background: color-mix(in srgb, var(--pos) 16%, transparent); color: var(--pos); }
-.pill.expected-pill { margin-left: 6px; background: var(--card-2); color: var(--muted); }
+/* Dashboard → Coming up */
+.cu-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.cu-head h3 { margin: 0 0 10px; }
+.cu-progress { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-bottom: 8px; }
+.cu-progress .bar { height: 6px; }
+.cu-list { display: grid; }
+.cu-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.cu-row:last-child { border-bottom: none; padding-bottom: 0; }
+.cu-date { width: 44px; height: 46px; flex: none; border-radius: 12px; display: grid; place-content: center; text-align: center; line-height: 1.05;
+  background: var(--card-2); border: 1px solid var(--line); }
+.cu-date b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.cu-date span { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.cu-row.done .cu-date { background: color-mix(in srgb, var(--pos) 12%, var(--card-2)); border-color: color-mix(in srgb, var(--pos) 30%, var(--line)); }
+.cu-row.planned .cu-date { border-style: dashed; }
+.cu-name, .cu-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cu-name { font-weight: 500; }
+.cu-right { display: grid; justify-items: end; gap: 2px; flex: none; }
+.cu-right .amt { font-size: 15px; }
+.cu-row.planned .cu-right .amt { opacity: .6; }
+.cu-status { font-size: 11px; font-weight: 600; color: var(--muted); }
+.cu-status.ok { color: var(--pos); }
 .acc-flow { display: grid; justify-items: end; gap: 2px; }
 .acc-flow .small { font-family: var(--font-sans, inherit); font-weight: 400; }
 .line b, .amt { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }

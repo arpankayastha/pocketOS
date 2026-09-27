@@ -184,17 +184,7 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
         <div className="card">
           {isPlan ? (
             <>
-              <h3>Coming up <span className="muted small">({stats.upcoming.filter((t) => !t.planned).length} logged · {stats.upcoming.filter((t) => t.planned).length} expected)</span></h3>
-              {stats.upcoming.length === 0 ? <div className="muted">Nothing planned. Add commitments in the Plan tab.</div> : stats.upcoming.map((t) => (
-                <div className="line" key={t.id}>
-                  <span className="grow">
-                    {t.note?.trim() || catById[t.category_id]?.name || 'Uncategorised'}
-                    <span className="muted small"> · {t.planned ? (t.day ? `due ${t.day}` : 'no due date') : `on ${Number(String(t.occurred_on).slice(8, 10))}`}</span>
-                    {t.planned ? <span className="pill expected-pill">expected</span> : <span className="pill logged-pill">✓ logged</span>}
-                  </span>
-                  <b className={`${t.kind === 'income' ? 'pos' : 'neg'} ${t.planned ? 'expected' : ''}`}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</b>
-                </div>
-              ))}
+              <ComingUp rows={stats.upcoming} month={month} catById={catById} accounts={accounts} />
             </>
           ) : (
             <>
@@ -226,3 +216,47 @@ function Tile({ label, value, sub, tone }) {
 
 const shortMonth = (ym) => monthLabel(ym).split(' ')[0]
 const sum = (arr) => arr.reduce((s, t) => s + Number(t.amount), 0)
+
+// Next month's Plan commitments by day: logged ones (✓) and those still expected.
+function ComingUp({ rows, month, catById, accounts }) {
+  const accById = Object.fromEntries(accounts.map((a) => [a.id, a]))
+  const done = rows.filter((t) => !t.planned)
+  const toPay = rows.filter((t) => t.planned && t.kind === 'expense').reduce((s, t) => s + Number(t.amount), 0)
+  const mon = shortMonth(month)
+  return (
+    <>
+      <div className="cu-head">
+        <h3>Coming up</h3>
+        {rows.length > 0 && <span className="muted small">{done.length} of {rows.length} done</span>}
+      </div>
+      {rows.length > 0 && (
+        <div className="cu-progress">
+          <div className="bar"><div className="fill ok" style={{ width: `${(done.length / rows.length) * 100}%` }} /></div>
+          <span className="muted small">{toPay ? `${money(toPay)} still to pay` : 'all paid'}</span>
+        </div>
+      )}
+      {rows.length === 0 ? <div className="muted">Nothing planned. Add commitments in the Plan tab.</div> : (
+        <div className="cu-list">
+          {rows.map((t) => {
+            const day = t.planned ? t.day : Number(String(t.occurred_on).slice(8, 10))
+            const sub = [catById[t.category_id]?.name, accById[t.account_id]?.name].filter(Boolean).join(' · ')
+            const income = t.kind === 'income'
+            return (
+              <div className={`cu-row ${t.planned ? 'planned' : 'done'}`} key={t.id}>
+                <div className="cu-date"><b>{day || '—'}</b><span>{mon}</span></div>
+                <div className="grow">
+                  <div className="cu-name">{t.note?.trim() || catById[t.category_id]?.name || 'Uncategorised'}</div>
+                  {sub && <div className="muted small cu-sub">{sub}</div>}
+                </div>
+                <div className="cu-right">
+                  <b className={`amt ${income ? 'pos' : 'neg'}`}>{income ? '+' : '−'}{money(t.amount)}</b>
+                  <span className={`cu-status ${t.planned ? '' : 'ok'}`}>{t.planned ? 'Expected' : income ? '✓ Received' : '✓ Paid'}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </>
+  )
+}
