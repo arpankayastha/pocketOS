@@ -364,3 +364,55 @@ alter table public.will_log enable row level security;
 drop policy if exists "own rows" on public.will_log;
 create policy "own rows" on public.will_log for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- ============================================================================
+-- Dues (Budget → Dues): money owed between the household and a person, both ways.
+-- Balance of a due = Σ out − Σ in  (> 0: they owe the household; < 0: the household owes them).
+-- Each entry can be mirrored into Budget as a transaction (or a between-household
+-- transfer when the person is one of the user's own households: person_household_id).
+-- An optional EMI is a recurring_items row with due_id, so it shows up in Plan.
+-- ============================================================================
+create table if not exists public.dues (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  person text not null,
+  person_household_id uuid references public.households(id) on delete set null,
+  note text,
+  created_at timestamptz not null default now()
+);
+alter table public.dues enable row level security;
+drop policy if exists "own rows" on public.dues;
+create policy "own rows" on public.dues for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+create table if not exists public.due_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  due_id uuid not null references public.dues(id) on delete cascade,
+  direction text not null check (direction in ('out','in')), -- out: money went to the person; in: came from them
+  amount numeric(14,2) not null check (amount > 0),
+  occurred_on date not null default current_date,
+  note text,
+  transaction_id uuid references public.transactions(id) on delete set null,
+  transfer_id uuid,
+  created_at timestamptz not null default now()
+);
+alter table public.due_entries enable row level security;
+drop policy if exists "own rows" on public.due_entries;
+create policy "own rows" on public.due_entries for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+alter table public.recurring_items add column if not exists due_id uuid references public.dues(id) on delete cascade;
+
+create index if not exists dues_household_id_idx on public.dues (household_id);
+create index if not exists dues_user_id_idx on public.dues (user_id);
+create index if not exists dues_person_household_id_idx on public.dues (person_household_id);
+create index if not exists due_entries_due_id_idx on public.due_entries (due_id);
+create index if not exists due_entries_household_id_idx on public.due_entries (household_id);
+create index if not exists due_entries_user_id_idx on public.due_entries (user_id);
+create index if not exists due_entries_transaction_id_idx on public.due_entries (transaction_id);
+create index if not exists recurring_items_due_id_idx on public.recurring_items (due_id);

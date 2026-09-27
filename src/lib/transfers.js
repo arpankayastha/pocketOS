@@ -26,8 +26,9 @@ export async function loadTransfer(transferId) {
   return { sender: data.find((r) => r.kind === 'expense'), receiver: data.find((r) => r.kind === 'income') }
 }
 
-// Creates a transfer (no transferId) or updates both halves of an existing one.
-export async function saveTransfer({ transferId, fromHouseholdId, toHouseholdId, fromAccountId, toAccountId, amount, occurredOn, note }) {
+// Creates a transfer (no transferId) or updates both halves of an existing one. Returns the transfer id.
+// `fromExtra` / `toExtra` add columns to one half on create (e.g. recurring_item_id).
+export async function saveTransfer({ transferId, fromHouseholdId, toHouseholdId, fromAccountId, toAccountId, amount, occurredOn, note, fromExtra, toExtra }) {
   const shared = { amount, occurred_on: occurredOn, note: note || null }
   if (transferId) {
     const [a, b] = await Promise.all([
@@ -35,16 +36,17 @@ export async function saveTransfer({ transferId, fromHouseholdId, toHouseholdId,
       supabase.from('transactions').update({ ...shared, account_id: toAccountId || null }).eq('transfer_id', transferId).eq('kind', 'income'),
     ])
     if (a.error || b.error) throw a.error || b.error
-    return
+    return transferId
   }
   const [fromCat, toCat] = await Promise.all([transferCategoryId(fromHouseholdId, 'expense'), transferCategoryId(toHouseholdId, 'income')])
   const id = crypto.randomUUID()
   // One insert request → one statement, so both halves are created or neither is.
   const { error } = await supabase.from('transactions').insert([
-    { ...shared, transfer_id: id, kind: 'expense', household_id: fromHouseholdId, category_id: fromCat, account_id: fromAccountId || null },
-    { ...shared, transfer_id: id, kind: 'income', household_id: toHouseholdId, category_id: toCat, account_id: toAccountId || null },
+    { ...shared, ...fromExtra, transfer_id: id, kind: 'expense', household_id: fromHouseholdId, category_id: fromCat, account_id: fromAccountId || null },
+    { ...shared, ...toExtra, transfer_id: id, kind: 'income', household_id: toHouseholdId, category_id: toCat, account_id: toAccountId || null },
   ])
   if (error) throw error
+  return id
 }
 
 export async function deleteTransfer(transferId) {

@@ -6,6 +6,7 @@ import { useMonthSwipe } from '../lib/useSwipe'
 import { TrashIcon } from '../lib/icons'
 import { SkeletonRows } from './Skeleton'
 import { useDialog } from '../lib/dialog'
+import { addEntry } from '../lib/dues'
 
 export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [month, setMonth] = useState(() => shiftMonth(currentMonth(), 1))
@@ -193,11 +194,21 @@ function LogForm({ item, month, onDone }) {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const { error } = await supabase.from('transactions').insert({
-      household_id: item.household_id, kind: item.kind, amount: Number(amount),
-      category_id: item.category_id, account_id: item.account_id,
-      occurred_on: date, note: item.name, recurring_item_id: item.id,
-    })
+    let error = null
+    if (item.due_id) {
+      // A due's EMI: record the repayment on the due too (which adds the Budget entry).
+      try {
+        const { data: due, error: err } = await supabase.from('dues').select('*').eq('id', item.due_id).single()
+        if (err) throw err
+        await addEntry(due, { direction: item.kind === 'expense' ? 'out' : 'in', amount: Number(amount), occurredOn: date, note: 'EMI', toBudget: true, accountId: item.account_id, recurringItemId: item.id })
+      } catch (err) { error = err }
+    } else {
+      ({ error } = await supabase.from('transactions').insert({
+        household_id: item.household_id, kind: item.kind, amount: Number(amount),
+        category_id: item.category_id, account_id: item.account_id,
+        occurred_on: date, note: item.name, recurring_item_id: item.id,
+      }))
+    }
     if (!error) await supabase.from('recurring_items').update({ expected_amount: Number(amount) }).eq('id', item.id)
     setBusy(false)
     if (error) return setError(error.message)

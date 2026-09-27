@@ -228,6 +228,32 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .seg button.on { background: var(--card); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / .1); }
 .seg button.on.expense { color: var(--neg); } .seg button.on.income { color: var(--pos); }
 
+/* Budget → Dues */
+.dues-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.chip-btn.on { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); }
+.due-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+.due-card { display: grid; gap: 10px; width: 100%; margin: 0; text-align: left; font: inherit; color: var(--text); cursor: pointer; transition: border-color .15s, transform .1s; }
+.due-card:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.due-card:active { transform: scale(.99); }
+.due-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.due-avatar { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 20%, var(--card-2)); color: var(--accent); }
+.due-avatar.big { width: 48px; height: 48px; font-size: 18px; }
+.due-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due-name .pill, .due-entry .pill { margin-left: 6px; }
+.due-bal { display: grid; justify-items: end; line-height: 1.2; flex: none; }
+.due-bal b { font-size: 17px; }
+.due-bal.pos { color: var(--pos); } .due-bal.neg { color: var(--neg); } .due-bal.settled { color: var(--muted); }
+.due-sheet > .due-bal { justify-items: start; }
+.due-sheet > .due-bal b { font-size: 26px; }
+.due-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.due-history { display: grid; border-top: 1px solid var(--line); }
+.due-entry { display: flex; align-items: center; gap: 12px; padding: 11px 2px; border: none; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.due-entry:hover { background: var(--card-2); }
+.due-dir { width: 28px; height: 28px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700; }
+.due-dir.out { background: color-mix(in srgb, var(--neg) 16%, transparent); color: var(--neg); }
+.due-dir.in { background: color-mix(in srgb, var(--pos) 16%, transparent); color: var(--pos); }
+
 /* Pill nav (mobile PWA navigation) + universal floating add button */
 .pill-nav { display: none; }
 

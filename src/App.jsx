@@ -7,6 +7,7 @@ import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import Transactions from './components/Transactions'
 import Plan from './components/Plan'
+import Dues from './components/Dues'
 import Settings from './components/Settings'
 import TransactionForm from './components/TransactionForm'
 import TransferForm from './components/TransferForm'
@@ -22,7 +23,7 @@ import { MODULES } from './lib/modules'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, HomeIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
+import { BrandMark, HomeIcon, DuesIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
 
 // PocketOS is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
 const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
@@ -32,6 +33,7 @@ const BUDGET_TABS = [
   { id: 'dashboard', label: 'Home', icon: HomeIcon },
   { id: 'transactions', label: 'Entries', icon: ListIcon },
   { id: 'plan', label: 'Plan', icon: PlanIcon },
+  { id: 'dues', label: 'Dues', icon: DuesIcon },
 ]
 
 const VAULT_TABS = [
@@ -180,6 +182,7 @@ function BudgetModule({ topbar, email }) {
             {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
+            {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
             {tab === 'settings' && <Settings {...data} email={email} />}
           </>
         )}
