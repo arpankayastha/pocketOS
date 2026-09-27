@@ -130,8 +130,8 @@ const ago = (iso) => {
 
 function Households({ households, activeHouseholdId, setActiveHouseholdId, createHousehold, refresh }) {
   const dialog = useDialog()
-  const [name, setName] = useState('')
   const [error, setError] = useState(null)
+  const [openId, setOpenId] = useState(null) // household whose sheet is open
   const [members, setMembers] = useState(null)
   const [loginFor, setLoginFor] = useState(null) // household getting a new login
   const [share, setShare] = useState(null) // { household, username, pin, reset } shown once
@@ -152,18 +152,13 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
     try { await manageMembers('remove', { householdId: h.id, userId: m.user_id }); loadMembers() } catch (err) { setError(err.message) }
   }
 
-  async function add(e) {
-    e.preventDefault()
-    try {
-      await createHousehold(name.trim())
-      setName('')
-      setError(null)
-    } catch (err) { setError(err.message) }
+  async function add() {
+    const name = await dialog.prompt({ title: 'New household', label: 'Name', placeholder: "e.g. Parents' Home", confirmLabel: 'Create' })
+    if (!name?.trim()) return
+    try { await createHousehold(name.trim()); setError(null) } catch (err) { setError(err.message) }
   }
 
-  async function rename(h) {
-    const next = await dialog.prompt({ title: 'Rename household', label: 'Name', defaultValue: h.name })
-    if (!next || next === h.name) return
+  async function rename(h, next) {
     const { error } = await supabase.from('households').update({ name: next }).eq('id', h.id)
     if (error) return setError(error.message)
     refresh()
@@ -171,55 +166,113 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
 
   async function remove(h) {
     if (households.length < 2) return dialog.alert({ title: "Can't delete your only household", message: 'Create another household first.' })
-    if (!await dialog.confirm({ title: `Delete "${h.name}"?`, message: 'All its accounts, categories, transactions and plan items are deleted too. This can\'t be undone.' })) return
+    if (!await dialog.confirm({ title: `Delete "${h.name}"?`, message: 'All its accounts, categories, entries, plan items, dues and Hisab books are deleted too — and its login, if it has one. This can\'t be undone.', confirmLabel: 'Delete household' })) return
+    const m = members?.find((x) => x.household_id === h.id)
+    try { if (m) await manageMembers('remove', { householdId: h.id, userId: m.user_id }) } catch (err) { return setError(err.message) }
     const { error } = await supabase.from('households').delete().eq('id', h.id)
     if (error) return setError(error.message)
+    setOpenId(null)
     if (h.id === activeHouseholdId) setActiveHouseholdId(households.find((x) => x.id !== h.id)?.id)
-    refresh()
+    refresh(); loadMembers()
   }
 
+  const open = households.find((h) => h.id === openId)
   return (
     <div className="card">
-      <h3>Households</h3>
-      <p className="muted small">Give a household its own login: they sign in with a username and 6-digit PIN, then use their fingerprint. They see only their household; you see everything.</p>
-      {households.map((h) => {
-        const m = members?.find((x) => x.household_id === h.id)
-        return (
-          <div className="hh-row" key={h.id}>
-            <div className="line">
-              <span>
-                <button type="button" className="btn link" style={{ fontWeight: h.id === activeHouseholdId ? 700 : 400 }} onClick={() => setActiveHouseholdId(h.id)}>
-                  {h.id === activeHouseholdId ? '● ' : '○ '}{h.name}
-                </button>
+      <div className="card-head">
+        <h3>Households</h3>
+        <button className="btn small primary" onClick={add}>+ Add</button>
+      </div>
+      <p className="muted small">Tap a household to rename it or give it its own login. Members see only their household; you see everything.</p>
+      <div className="hh-list">
+        {households.map((h, i) => {
+          const m = members?.find((x) => x.household_id === h.id)
+          const active = h.id === activeHouseholdId
+          return (
+            <button key={h.id} className={`hh-item ${active ? 'on' : ''}`} onClick={() => setOpenId(h.id)}>
+              <span className="hh-avatar" style={{ '--c': PALETTE[i % PALETTE.length] }}>{h.name.slice(0, 1).toUpperCase()}</span>
+              <span className="grow">
+                <span className="hh-item-name">{h.name}{active && <span className="pill">Active</span>}</span>
+                <span className="hh-item-sub">{members === null ? 'Checking login…' : m ? `@${m.username} · ${ago(m.last_sign_in_at)}` : 'Only you'}</span>
               </span>
-              <span>
-                <button className="btn small ghost" onClick={() => rename(h)}>Rename</button>{' '}
-                <button className="btn icon" aria-label={`Delete ${h.name}`} onClick={() => remove(h)}><TrashIcon /></button>
-              </span>
-            </div>
-            <div className="hh-login">
-              {members === null ? <span className="muted small">Checking logins…</span> : m ? (
-                <>
-                  <span className="grow">
-                    <span className="hh-login-name">👤 {m.username}</span>
-                    <span className="muted small"> · {m.fingerprint_at ? 'fingerprint on' : 'PIN only'} · {ago(m.last_sign_in_at)}</span>
-                  </span>
-                  <button className="btn small ghost" onClick={() => resetPin(h, m)}>Reset PIN</button>
-                  <button className="btn icon" aria-label={`Remove ${m.username}'s login`} onClick={() => removeLogin(h, m)}><TrashIcon /></button>
-                </>
-              ) : <button className="btn small ghost" onClick={() => setLoginFor(h)}>+ Create login</button>}
-            </div>
-          </div>
-        )
-      })}
+              <LoginBadge member={m} loading={members === null} />
+              <span className="hh-chev" aria-hidden="true">›</span>
+            </button>
+          )
+        })}
+      </div>
+      {error && <div className="alert error">{error}</div>}
+
+      {open && <HouseholdSheet household={open} color={PALETTE[households.indexOf(open) % PALETTE.length]} member={members?.find((x) => x.household_id === open.id)} membersLoaded={members !== null}
+        active={open.id === activeHouseholdId} onClose={() => setOpenId(null)}
+        onSwitch={() => { setActiveHouseholdId(open.id); setOpenId(null) }}
+        onRename={(next) => rename(open, next)} onDelete={() => remove(open)}
+        onCreateLogin={() => setLoginFor(open)} onResetPin={(m) => resetPin(open, m)} onRemoveLogin={(m) => removeLogin(open, m)} />}
       {loginFor && <LoginForm household={loginFor} taken={(members || []).map((x) => x.username)} onClose={() => setLoginFor(null)}
         onCreated={(username, pin) => { setShare({ household: loginFor, username, pin }); setLoginFor(null); loadMembers() }} />}
       {share && <ShareLogin {...share} onClose={() => setShare(null)} />}
-      <form className="inline-form" onSubmit={add}>
-        <input required placeholder="New household name" value={name} onChange={(e) => setName(e.target.value)} />
-        <button className="btn primary">Add</button>
-      </form>
-      {error && <div className="alert error">{error}</div>}
+    </div>
+  )
+}
+
+function LoginBadge({ member, loading }) {
+  if (loading) return null
+  if (!member) return <span className="hh-badge none">No login</span>
+  return member.fingerprint_at ? <span className="hh-badge ok">Fingerprint</span> : <span className="hh-badge pin">PIN only</span>
+}
+
+// Everything about one household in one bottom sheet: switch, rename, login, delete.
+function HouseholdSheet({ household, color, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin }) {
+  const [name, setName] = useState(household.name)
+  const changed = name.trim() && name.trim() !== household.name
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <div className="card modal hh-sheet" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="hh-sheet-head">
+          <span className="hh-avatar big" style={{ '--c': color }}>{household.name.slice(0, 1).toUpperCase()}</span>
+          <div className="grow">
+            <h3>{household.name}</h3>
+            <span className="muted small">{active ? 'You are viewing this household' : 'Not currently open'}</span>
+          </div>
+          {!active && <button className="btn small" onClick={onSwitch}>Open</button>}
+        </div>
+
+        <section className="hh-sec">
+          <div className="hh-sec-title">Name</div>
+          <form className="inline-form" onSubmit={(e) => { e.preventDefault(); if (changed) onRename(name.trim()) }}>
+            <input aria-label="Household name" value={name} onChange={(e) => setName(e.target.value)} />
+            <button className="btn small" disabled={!changed}>Save</button>
+          </form>
+        </section>
+
+        <section className="hh-sec">
+          <div className="hh-sec-title">Family login</div>
+          {!membersLoaded ? <div className="muted small">Checking…</div> : member ? (
+            <div className="hh-login-card">
+              <div className="hh-login-top">
+                <span className="hh-login-user">@{member.username}</span>
+                <LoginBadge member={member} />
+              </div>
+              <div className="muted small">{member.fingerprint_at ? 'Opens with their fingerprint; PIN works as backup.' : 'Signs in with username + PIN. Fingerprint not set up yet.'} {ago(member.last_sign_in_at).replace(/^./, (c) => c.toUpperCase())}.</div>
+              <div className="hh-login-actions">
+                <button className="btn small" onClick={() => onResetPin(member)}>Reset PIN</button>
+                <button className="btn small danger-ghost" onClick={() => onRemoveLogin(member)}>Remove login</button>
+              </div>
+            </div>
+          ) : (
+            <div className="hh-login-empty">
+              <p className="muted small">Let someone in this household use PocketOS on their own phone. They sign in once with a username and 6-digit PIN, then use their fingerprint. They'll see only "{household.name}".</p>
+              <button className="btn primary small" onClick={onCreateLogin}>+ Create login</button>
+            </div>
+          )}
+        </section>
+
+        <section className="hh-sec">
+          <button className="btn small danger-ghost" onClick={onDelete}><TrashIcon /> Delete household</button>
+        </section>
+
+        <div className="actions"><button className="btn" onClick={onClose}>Done</button></div>
+      </div>
     </div>
   )
 }
