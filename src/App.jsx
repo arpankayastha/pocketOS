@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { supabase, isConfigured } from './lib/supabase'
 import { useFinanceData } from './lib/useFinanceData'
-import { useVault } from './lib/useVault'
+import { useVault, fingerprintHere } from './lib/useVault'
+import { platformAuthenticatorAvailable, deviceName, describeWebAuthnError } from './lib/webauthn'
 import { useAppLock } from './lib/useAppLock'
 import Auth from './components/Auth'
 import TransactionForm from './components/TransactionForm'
@@ -107,6 +108,7 @@ function Shell({ session }) {
   }, [appLockOn, disableAppLock, vault.status])
 
   useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
+  useOfferFingerprint(vault, dialog, setToast)
   useBackAction(module !== 'budget', () => setModule('budget'), 1)
 
   // Hidden Will: press and hold the logo, then confirm with a fingerprint (master password if
@@ -140,7 +142,7 @@ function Shell({ session }) {
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
         : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
-        : <BudgetModule topbar={topbar} email={session.user.email} />}
+        : <BudgetModule topbar={topbar} email={session.user.email} vault={vault} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -170,6 +172,28 @@ function MemberShell({ session }) {
   )
 }
 
+// After an unlock WITHOUT fingerprint (master password / recovery code) on a phone that has no
+// fingerprint for this address yet, offer to set one up. "Not now" is remembered per device;
+// it can still be turned on from ⚙ → Security.
+const FP_OFFER_KEY = 'pocketos.fingerprintOfferDismissed'
+function useOfferFingerprint(vault, dialog, setToast) {
+  const prev = useRef(vault.status)
+  const { status, unlockers, addFingerprint } = vault
+  useEffect(() => {
+    const was = prev.current
+    prev.current = status
+    if (was !== 'locked' || status !== 'unlocked' || fingerprintHere(unlockers)) return
+    try { if (localStorage.getItem(FP_OFFER_KEY)) return } catch { /* ignore */ }
+    platformAuthenticatorAvailable().then(async (ok) => {
+      if (!ok) return
+      const yes = await dialog.confirm({ title: 'Use your fingerprint next time?', message: 'Unlock eChopdo on this phone with your fingerprint instead of typing the master password. You can change this any time in ⚙ → Security.', confirmLabel: 'Use fingerprint', cancelLabel: 'Not now', danger: false })
+      if (!yes) { try { localStorage.setItem(FP_OFFER_KEY, '1') } catch { /* ignore */ } return }
+      try { await addFingerprint(deviceName()); setToast('Fingerprint unlock is on'); setTimeout(() => setToast(null), 2500) }
+      catch (err) { dialog.alert({ title: "Couldn't turn on fingerprint", message: describeWebAuthnError(err) }) }
+    })
+  }, [status, unlockers, addFingerprint, dialog, setToast])
+}
+
 // Full-screen lock: one fingerprint unlocks the vault key, which opens Budget, Vault and Will.
 function UnlockScreen({ vault, onRecovered }) {
   return (
@@ -183,7 +207,7 @@ function UnlockScreen({ vault, onRecovered }) {
   )
 }
 
-function BudgetModule({ topbar, email, member, appLock }) {
+function BudgetModule({ topbar, email, member, appLock, vault }) {
   const [tab, setTab] = useState('dashboard')
   useBackAction(tab !== 'dashboard', () => setTab('dashboard'), 2)
   const [fabOpen, setFabOpen] = useState(false)
@@ -222,7 +246,7 @@ function BudgetModule({ topbar, email, member, appLock }) {
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
-            {tab === 'settings' && <Settings {...data} email={email} member={member} appLock={appLock} />}
+            {tab === 'settings' && <Settings {...data} email={email} member={member} appLock={appLock} vault={vault} />}
           </Suspense>
         )}
       </main>

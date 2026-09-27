@@ -69,3 +69,14 @@ export function describeWebAuthnError(err) {
   if (err?.name === 'SecurityError') return 'Fingerprint unlock is not allowed on this address.'
   return err?.message || String(err)
 }
+
+// A friendly default label for this device's fingerprint unlocker.
+export function deviceName() {
+  const ua = navigator.userAgent
+  if (/iPhone/.test(ua)) return 'iPhone'
+  if (/iPad/.test(ua)) return 'iPad'
+  if (/Android/.test(ua)) return 'Android phone'
+  if (/Mac/.test(ua)) return 'Mac'
+  if (/Windows/.test(ua)) return 'Windows PC'
+  return 'This device'
+}

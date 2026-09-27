@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { TrashIcon, PencilIcon, PasskeyIcon, FingerprintIcon } from '../lib/icons'
 import { generatePin, manageMembers } from '../lib/members'
-import { describeWebAuthnError } from '../lib/webauthn'
+import { describeWebAuthnError, platformAuthenticatorAvailable, deviceName } from '../lib/webauthn'
+import { fingerprintHere, MIN_MASTER_PASSWORD } from '../lib/useVault'
+import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor } from '../lib/colors'
 
-export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock }) {
+export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock, vault }) {
   const dialog = useDialog()
   return (
     <section className="grid2">
@@ -14,6 +16,11 @@ export default function Settings({ accounts, categories, refresh, households, ac
         {member ? <FingerprintCard appLock={appLock} />
           : <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} />}
       </div>
+      {!member && vault?.status === 'unlocked' && (
+        <div style={{ gridColumn: '1 / -1' }}>
+          <SecurityCard vault={vault} />
+        </div>
+      )}
       <div style={{ gridColumn: '1 / -1' }}>
         <Passkeys />
       </div>
@@ -94,6 +101,87 @@ function Passkeys() {
         {busy ? 'Waiting for fingerprint…' : '+ Add a passkey for this device'}
       </button>
       {error && <div className="alert error">{error}</div>}
+    </div>
+  )
+}
+
+// Owner: fingerprint unlock for this phone + change master password (same as Vault → Security,
+// surfaced here because the fingerprint opens the whole app, not just the Vault).
+function SecurityCard({ vault }) {
+  const [available, setAvailable] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const [changing, setChanging] = useState(false)
+  const [done, setDone] = useState(null)
+  useEffect(() => { platformAuthenticatorAvailable().then(setAvailable) }, [])
+  const here = fingerprintHere(vault.unlockers)
+
+  async function enable() {
+    setBusy(true); setError(null)
+    try { await vault.addFingerprint(deviceName()); setDone('Fingerprint unlock is on for this phone.') } catch (err) { setError(describeWebAuthnError(err)) }
+    setBusy(false)
+  }
+
+  return (
+    <div className="card">
+      <h3>Security</h3>
+      <div className="sec-row">
+        <span className="sec-ico"><FingerprintIcon /></span>
+        <div className="grow">
+          <div className="sec-title">Fingerprint unlock</div>
+          <div className="muted small">{here ? 'On for this phone — eChopdo opens with your fingerprint.' : available === false ? 'This browser has no fingerprint unlock.' : 'Off on this phone — you type the master password to open eChopdo.'}</div>
+        </div>
+        {here ? <span className="hh-badge ok">On</span> : available !== false && (
+          <button className="btn small primary" disabled={busy} onClick={enable}>{busy ? 'Waiting…' : 'Turn on'}</button>
+        )}
+      </div>
+      <div className="sec-row">
+        <span className="sec-ico"><PasskeyIcon /></span>
+        <div className="grow">
+          <div className="sec-title">Master password</div>
+          <div className="muted small">Opens eChopdo when fingerprint isn't available, on any device.</div>
+        </div>
+        <button className="btn small" onClick={() => { setChanging(true); setDone(null) }}>Change</button>
+      </div>
+      {error && <div className="alert error">{error}</div>}
+      {done && <div className="alert ok">{done}</div>}
+      {changing && <ChangeMasterPassword vault={vault} onClose={() => setChanging(false)} onDone={() => { setChanging(false); setDone('Master password changed. Use the new one from now on.') }} />}
+    </div>
+  )
+}
+
+function ChangeMasterPassword({ vault, onClose, onDone }) {
+  const [current, setCurrent] = useState('')
+  const [pw, setPw] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function save(e) {
+    e.preventDefault()
+    setError(null)
+    if (pw.length < MIN_MASTER_PASSWORD) return setError(`Use at least ${MIN_MASTER_PASSWORD} characters.`)
+    if (pw !== confirm) return setError("The two new passwords don't match.")
+    setBusy(true)
+    if (!await vault.checkPassword(current)) { setBusy(false); return setError('Current master password is wrong.') }
+    try { await vault.changePassword(pw); onDone() } catch (err) { setError(err.message); setBusy(false) }
+  }
+
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
+        <h3>Change master password</h3>
+        <p className="muted small">Your data isn't re-encrypted — only the key that unlocks it — so this is instant. Fingerprint unlock and your recovery code keep working.</p>
+        <label>Current master password<input type="password" autoComplete="current-password" required autoFocus value={current} onChange={(e) => setCurrent(e.target.value)} /></label>
+        <label>New master password<input type="password" autoComplete="new-password" required value={pw} onChange={(e) => setPw(e.target.value)} /></label>
+        <StrengthMeter password={pw} />
+        <label>Confirm new master password<input type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} /></label>
+        {error && <div className="alert error">{error}</div>}
+        <div className="actions">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={busy}>{busy ? 'Checking…' : 'Change password'}</button>
+        </div>
+      </form>
     </div>
   )
 }

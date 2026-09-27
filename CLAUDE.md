@@ -10,6 +10,7 @@ PocketOS is a shell of independent modules (list in `src/lib/modules.js`; Will i
 
 ## Locking, one fingerprint
 - Once the vault exists, the **whole app** sits behind the vault unlock: `Shell` shows `UnlockScreen` (VaultGate, auto fingerprint prompt) while `vault.status === 'locked'`, so Budget is protected too, and one fingerprint opens Budget, Vault and Will — never ask twice. The old separate app lock (`useAppLock`) only applies when no vault is set up, and is switched off automatically once one is (it caused the double prompt).
+- Fingerprint is per phone *and* per web address: `fingerprintHere(unlockers)` (useVault.js) checks this origin's `pocketos.vaultCredential`; the unlock screen only offers/auto-prompts that one. After an unlock by master password/recovery code on a phone without one, `useOfferFingerprint` (App.jsx) asks once "Use your fingerprint next time?" ("Not now" remembered in `pocketos.fingerprintOfferDismissed`). ⚙ Settings has a **Security** card for the owner (fingerprint on/off for this phone, **Change master password** — asks for the current one first, then `vault.changePassword`, which only re-wraps the key).
 - Idle auto-lock counts activity in every module (`onPointerDownCapture`/`onKeyDownCapture` on `.shell`); locks after 5 min idle or 60 s in the background, or via a module's lock button.
 
 ## Back button (installed PWA)

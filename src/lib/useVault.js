@@ -14,6 +14,14 @@ export const DEVICE_CREDENTIAL_KEY = 'pocketos.vaultCredential' // this device's
 
 export const MIN_MASTER_PASSWORD = 10
 
+// True when THIS device has a fingerprint unlocker for THIS web address (credentials are
+// per-origin; the id of the one made here is kept in this origin's localStorage).
+export function fingerprintHere(unlockers) {
+  let id = null
+  try { id = localStorage.getItem(DEVICE_CREDENTIAL_KEY) } catch { /* ignore */ }
+  return !!id && unlockers.some((u) => u.kind === 'prf' && u.credential_id === id)
+}
+
 // Vault state lives in the Shell (not the Vault module) so switching to Budget and back
 // doesn't lock it. The decrypted vault key is only ever held in memory, in refs.
 export function useVault(session) {

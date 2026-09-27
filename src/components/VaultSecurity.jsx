@@ -1,21 +1,12 @@
 import { useEffect, useState } from 'react'
 import { DEVICE_CREDENTIAL_KEY, MIN_MASTER_PASSWORD } from '../lib/useVault'
-import { describeWebAuthnError, platformAuthenticatorAvailable } from '../lib/webauthn'
+import { describeWebAuthnError, platformAuthenticatorAvailable, deviceName } from '../lib/webauthn'
 import { itemsFromLastPassCsv, pwnedCount } from '../lib/vaultTools'
 import { itemTitle, typedFromLastPassNote } from '../lib/vaultTypes'
 import { TrashIcon, FingerprintIcon } from '../lib/icons'
 import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
 
-function deviceName() {
-  const ua = navigator.userAgent
-  if (/iPhone/.test(ua)) return 'iPhone'
-  if (/iPad/.test(ua)) return 'iPad'
-  if (/Android/.test(ua)) return 'Android phone'
-  if (/Mac/.test(ua)) return 'Mac'
-  if (/Windows/.test(ua)) return 'Windows PC'
-  return 'This device'
-}
 
 export default function VaultSecurity({ vault, onRecoveryCode, onOpenItem }) {
   return (
