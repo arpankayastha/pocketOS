@@ -557,3 +557,22 @@ begin
   return new;
 end $$;
 revoke execute on function public.seed_new_user() from public, anon, authenticated;
+
+-- Public sign-ups are closed (done in SQL because the dashboard toggle wasn't reachable):
+-- the only new users allowed are household member logins, which the `members` Edge Function
+-- creates via the admin API (role 'member', members.* address). Existing users are unaffected;
+-- this only runs on INSERT into auth.users. Drop the trigger to allow a new owner account.
+create or replace function private.block_public_signups()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if coalesce(new.raw_app_meta_data->>'role', '') = 'member' and new.email like '%@members.my-pocket-os.vercel.app' then
+    return new;
+  end if;
+  raise exception 'Sign-ups are closed for PocketOS.' using errcode = '42501';
+end $$;
+revoke execute on function private.block_public_signups() from public, anon, authenticated;
+
+drop trigger if exists block_public_signups on auth.users;
+create trigger block_public_signups
+  before insert on auth.users
+  for each row execute function private.block_public_signups();
