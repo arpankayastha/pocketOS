@@ -8,3 +8,7 @@ export function nextColor(used) {
   const taken = new Set(used.filter(Boolean).map((c) => c.toLowerCase()))
   return PALETTE.find((c) => !taken.has(c)) || PALETTE[used.length % PALETTE.length]
 }
+
+// A household's colour (saved on the row; older rows fall back to their position).
+export const householdColor = (h, households = []) =>
+  h?.color || PALETTE[Math.max(0, households.findIndex((x) => x.id === h?.id)) % PALETTE.length]

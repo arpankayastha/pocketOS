@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { nextColor } from './colors'
 
 const ACTIVE_HOUSEHOLD_KEY = 'pocketos.activeHouseholdId'
 
@@ -26,12 +27,13 @@ export function useFinanceData() {
   }, [])
 
   const createHousehold = useCallback(async (name) => {
-    const { data, error: err } = await supabase.from('households').insert({ name }).select().single()
+    const color = nextColor(households.map((h) => h.color))
+    const { data, error: err } = await supabase.from('households').insert({ name, color }).select().single()
     if (err) throw err
     setHouseholds((hs) => [...hs, data])
     setActiveHouseholdId(data.id)
     return data
-  }, [setActiveHouseholdId])
+  }, [households, setActiveHouseholdId])
 
   const refresh = useCallback(async () => {
     setError(null)

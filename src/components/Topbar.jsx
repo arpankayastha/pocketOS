@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { BrandMark, ChevronDownIcon, CheckIcon, PlusIcon, SettingsIcon } from '../lib/icons'
 import { MODULES, HIDDEN_WILL } from '../lib/modules'
+import { householdColor } from '../lib/colors'
 
 // Shared header: brand, module switcher, then the module's own tabs (`children`, desktop
 // only; phones use the bottom nav) and actions (`right`).
@@ -85,7 +86,7 @@ export function HouseholdMenu({ households, activeId, onSelect, onCreate, onMana
   if (member) return (
     <div className="hh">
       <span className="hh-chip static">
-        <span className="hh-dot" aria-hidden="true">{(active?.name || '?').slice(0, 1).toUpperCase()}</span>
+        <span className="hh-dot" aria-hidden="true" style={{ '--c': householdColor(active, households) }}>{(active?.name || '?').slice(0, 1).toUpperCase()}</span>
         <span className="hh-name">{active?.name || 'Household'}</span>
       </span>
     </div>
@@ -94,7 +95,7 @@ export function HouseholdMenu({ households, activeId, onSelect, onCreate, onMana
   return (
     <div className="hh">
       <button className={`hh-chip ${open ? 'open' : ''}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span className="hh-dot" aria-hidden="true">{(active?.name || '?').slice(0, 1).toUpperCase()}</span>
+        <span className="hh-dot" aria-hidden="true" style={{ '--c': householdColor(active, households) }}>{(active?.name || '?').slice(0, 1).toUpperCase()}</span>
         <span className="hh-name">{active?.name || 'Household'}</span>
         <ChevronDownIcon />
       </button>
@@ -105,7 +106,7 @@ export function HouseholdMenu({ households, activeId, onSelect, onCreate, onMana
             <div className="hh-title">Households</div>
             {households.map((h) => (
               <button key={h.id} role="menuitemradio" aria-checked={h.id === activeId} className={h.id === activeId ? 'on' : ''} onClick={pick(() => onSelect(h.id))}>
-                <span className="hh-dot" aria-hidden="true">{h.name.slice(0, 1).toUpperCase()}</span>
+                <span className="hh-dot" aria-hidden="true" style={{ '--c': householdColor(h, households) }}>{h.name.slice(0, 1).toUpperCase()}</span>
                 <span className="grow ellipsis">{h.name}</span>
                 {h.id === activeId && <CheckIcon />}
               </button>

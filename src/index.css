@@ -117,7 +117,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hh-chip.open svg { transform: rotate(180deg); }
 .hh-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hh-dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: 13px; font-weight: 700;
-  background: var(--accent-2); color: var(--accent); }
+  --c: var(--accent); background: color-mix(in srgb, var(--c) 22%, var(--card)); color: var(--c); }
 .hh-backdrop { position: fixed; inset: 0; z-index: 30; }
 .hh-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 31; min-width: 230px; max-width: calc(100vw - 32px); padding: 6px;
   background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lg); transform-origin: top right; animation: menu-in .16s ease-out; }

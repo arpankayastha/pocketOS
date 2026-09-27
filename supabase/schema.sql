@@ -585,3 +585,12 @@ drop policy if exists "owner sets start tab" on public.household_members;
 create policy "owner sets start tab" on public.household_members for update to authenticated
   using (household_id in (select h.id from public.households h where h.user_id = (select auth.uid())))
   with check (household_id in (select h.id from public.households h where h.user_id = (select auth.uid())));
+
+-- Each household has its own colour (chip, dropdown, Settings avatar), same on every login.
+alter table public.households add column if not exists color text;
+with ranked as (
+  select id, (row_number() over (partition by user_id order by created_at) - 1) % 8 as i
+  from public.households where color is null
+)
+update public.households h set color = (array['#3987e5','#d95926','#199e70','#c98500','#d55181','#008300','#9085e9','#e66767'])[r.i + 1]
+from ranked r where r.id = h.id;

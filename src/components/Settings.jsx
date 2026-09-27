@@ -6,7 +6,7 @@ import { describeWebAuthnError, platformAuthenticatorAvailable, deviceName } fro
 import { fingerprintHere, MIN_MASTER_PASSWORD } from '../lib/useVault'
 import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
-import { PALETTE, nextColor } from '../lib/colors'
+import { PALETTE, nextColor, householdColor } from '../lib/colors'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock, vault }) {
   const dialog = useDialog()
@@ -259,6 +259,12 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
     refresh()
   }
 
+  async function recolor(h, color) {
+    const { error } = await supabase.from('households').update({ color }).eq('id', h.id)
+    if (error) return setError(error.message)
+    refresh()
+  }
+
   async function remove(h) {
     if (households.length < 2) return dialog.alert({ title: "Can't delete your only household", message: 'Create another household first.' })
     if (!await dialog.confirm({ title: `Delete "${h.name}"?`, message: 'All its accounts, categories, entries, plan items, dues and Hisab books are deleted too — and its login, if it has one. This can\'t be undone.', confirmLabel: 'Delete household' })) return
@@ -280,12 +286,12 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
       </div>
       <p className="muted small">Tap a household to rename it or give it its own login. Members see only their household; you see everything.</p>
       <div className="hh-list">
-        {households.map((h, i) => {
+        {households.map((h) => {
           const m = members?.find((x) => x.household_id === h.id)
           const active = h.id === activeHouseholdId
           return (
             <button key={h.id} className={`hh-item ${active ? 'on' : ''}`} onClick={() => setOpenId(h.id)}>
-              <span className="hh-avatar" style={{ '--c': PALETTE[i % PALETTE.length] }}>{h.name.slice(0, 1).toUpperCase()}</span>
+              <span className="hh-avatar" style={{ '--c': householdColor(h, households) }}>{h.name.slice(0, 1).toUpperCase()}</span>
               <span className="grow">
                 <span className="hh-item-name">{h.name}{active && <span className="pill">Active</span>}</span>
                 <span className="hh-item-sub">{members === null ? 'Checking login…' : m ? `@${m.username} · ${ago(m.last_sign_in_at)}` : 'Only you'}</span>
@@ -298,7 +304,7 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
       </div>
       {error && <div className="alert error">{error}</div>}
 
-      {open && <HouseholdSheet household={open} color={PALETTE[households.indexOf(open) % PALETTE.length]} member={members?.find((x) => x.household_id === open.id)} membersLoaded={members !== null}
+      {open && <HouseholdSheet household={open} color={householdColor(open, households)} onColor={(c) => recolor(open, c)} member={members?.find((x) => x.household_id === open.id)} membersLoaded={members !== null}
         active={open.id === activeHouseholdId} onClose={() => setOpenId(null)}
         onSwitch={() => { setActiveHouseholdId(open.id); setOpenId(null) }}
         onRename={(next) => rename(open, next)} onDelete={() => remove(open)}
@@ -320,7 +326,7 @@ function LoginBadge({ member, loading }) {
 }
 
 // Everything about one household in one bottom sheet: switch, rename, login, delete.
-function HouseholdSheet({ household, color, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab }) {
+function HouseholdSheet({ household, color, onColor, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab }) {
   const [name, setName] = useState(household.name)
   const changed = name.trim() && name.trim() !== household.name
   return (
@@ -341,6 +347,10 @@ function HouseholdSheet({ household, color, member, membersLoaded, active, onClo
             <input aria-label="Household name" value={name} onChange={(e) => setName(e.target.value)} />
             <button className="btn small" disabled={!changed}>Save</button>
           </form>
+        </section>
+
+        <section className="hh-sec">
+          <ColorPicker color={color} onChange={onColor} />
         </section>
 
         <section className="hh-sec">
