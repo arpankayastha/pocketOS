@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { money } from '../lib/format'
 import { TrashIcon, PencilIcon } from '../lib/icons'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor } from '../lib/colors'
@@ -148,16 +147,16 @@ const ACCOUNT_TYPES = ['bank', 'cash', 'card', 'wallet', 'investment']
 
 function Accounts({ accounts, activeHouseholdId, refresh }) {
   const dialog = useDialog()
-  const [form, setForm] = useState({ name: '', type: 'bank', opening_balance: '' })
+  const [form, setForm] = useState({ name: '', type: 'bank' })
   const [editing, setEditing] = useState(null) // account being edited
   const accountColors = accounts.map((a) => a.color)
   const [error, setError] = useState(null)
 
   async function add(e) {
     e.preventDefault()
-    const { error } = await supabase.from('accounts').insert({ ...form, name: form.name.trim(), color: nextColor(accountColors), household_id: activeHouseholdId, opening_balance: Number(form.opening_balance) || 0 })
+    const { error } = await supabase.from('accounts').insert({ ...form, name: form.name.trim(), color: nextColor(accountColors), household_id: activeHouseholdId })
     if (error) return setError(error.message)
-    setForm({ name: '', type: 'bank', opening_balance: '' })
+    setForm({ name: '', type: 'bank' })
     setError(null)
     refresh()
   }
@@ -168,7 +167,7 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
       {accounts.map((a) => (
         <div className="line" key={a.id}>
           <button type="button" className="line-btn" onClick={() => setEditing(a)}>
-            <span className="dot" style={{ background: a.color || '#94a3b8' }} />{a.name} <span className="muted small">{a.type} · opening {money(a.opening_balance)}</span>
+            <span className="dot" style={{ background: a.color || '#94a3b8' }} />{a.name} <span className="muted small">{a.type}</span>
           </button>
           <span>
             <button className="btn icon" aria-label={`Edit ${a.name}`} onClick={() => setEditing(a)}><PencilIcon /></button>
@@ -181,7 +180,6 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
         <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
           {ACCOUNT_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
-        <input type="number" inputMode="decimal" step="0.01" placeholder="Opening balance" value={form.opening_balance} onChange={(e) => setForm({ ...form, opening_balance: e.target.value })} />
         <button className="btn primary">Add</button>
       </form>
       {error && <div className="alert error">{error}</div>}
@@ -208,7 +206,7 @@ async function deleteAccount(account, dialog) {
 
 function AccountEditor({ account, onClose, onSaved }) {
   const dialog = useDialog()
-  const [form, setForm] = useState({ name: account.name, type: account.type, color: account.color || PALETTE[0], opening_balance: String(account.opening_balance ?? 0) })
+  const [form, setForm] = useState({ name: account.name, type: account.type, color: account.color || PALETTE[0]})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -218,7 +216,7 @@ function AccountEditor({ account, onClose, onSaved }) {
     e.preventDefault()
     setBusy(true)
     const { error } = await supabase.from('accounts')
-      .update({ name: form.name.trim(), type: form.type, color: form.color, opening_balance: Number(form.opening_balance) || 0 }).eq('id', account.id)
+      .update({ name: form.name.trim(), type: form.type, color: form.color }).eq('id', account.id)
     setBusy(false)
     if (error) return setError(error.message)
     onSaved()
@@ -235,18 +233,12 @@ function AccountEditor({ account, onClose, onSaved }) {
         <label>Name
           <input required autoFocus value={form.name} onChange={set('name')} />
         </label>
-        <div className="row2">
-          <label>Type
-            <select value={form.type} onChange={set('type')}>
-              {types.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </label>
-          <label>Opening balance
-            <input type="number" inputMode="decimal" step="0.01" value={form.opening_balance} onChange={set('opening_balance')} />
-          </label>
-        </div>
+        <label>Type
+          <select value={form.type} onChange={set('type')}>
+            {types.map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </label>
         <ColorPicker color={form.color} onChange={(color) => setForm((f) => ({ ...f, color }))} />
-        <p className="muted small" style={{ margin: 0 }}>Opening balance is the balance before your first transaction in PocketOS. Changing it shifts this account's current balance and your net worth by the same amount.</p>
         {error && <div className="alert error">{error}</div>}
         <div className="actions">
           <button type="button" className="btn icon" aria-label="Delete account" onClick={remove}><TrashIcon /></button>
