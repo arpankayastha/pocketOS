@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { DonutChart } from './LazyCharts'
 import { currentMonth, money, moneyShort, monthLabel, shiftMonth, today } from '../lib/format'
 import { CATEGORIES, IN_CATEGORIES, SOURCES, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
 import { useBackAction } from '../lib/backNav'
@@ -269,14 +269,7 @@ function SummaryView({ entries }) {
         <div className="card">
           <h3>Where it went</h3>
           <div className="hb-donut">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={byCat} dataKey="value" nameKey="name" innerRadius={58} outerRadius={88} paddingAngle={2}>
-                  {byCat.map((c) => <Cell key={c.name} fill={colorFor(c.name, order)} stroke="var(--card)" strokeWidth={2} />)}
-                </Pie>
-                <Tooltip formatter={(v) => money(v)} contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <DonutChart data={byCat.map((c) => ({ ...c, key: c.name, color: colorFor(c.name, order) }))} height={200} inner={58} outer={88} />
             <div className="hb-donut-mid"><span className="muted small">Spent</span><b>{moneyShort(total)}</b></div>
           </div>
           {byCat.map((c) => (

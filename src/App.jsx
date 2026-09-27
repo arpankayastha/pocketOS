@@ -1,24 +1,14 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { supabase, isConfigured } from './lib/supabase'
 import { useFinanceData } from './lib/useFinanceData'
 import { useVault } from './lib/useVault'
 import { useAppLock } from './lib/useAppLock'
 import Auth from './components/Auth'
-import Dashboard from './components/Dashboard'
-import Transactions from './components/Transactions'
-import Plan from './components/Plan'
-import Dues from './components/Dues'
-import Hisab from './components/Hisab'
-import Settings from './components/Settings'
 import TransactionForm from './components/TransactionForm'
 import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
-import VaultItems from './components/VaultItems'
-import PasswordGenerator from './components/PasswordGenerator'
-import VaultSecurity, { ChangePassword } from './components/VaultSecurity'
 import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/AppLockScreen'
 import { isMember, memberName, markFingerprint } from './lib/members'
-import WillModule from './components/will/WillModule'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES } from './lib/modules'
@@ -26,6 +16,25 @@ import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
 import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
+
+// Tabs and modules load on demand (code-split), so the first screen only downloads the shell.
+// The Home tab and the chart chunk are preloaded as soon as the app starts (see preloadBudget).
+const loadDashboard = () => import('./components/Dashboard')
+const Dashboard = lazy(loadDashboard)
+const Transactions = lazy(() => import('./components/Transactions'))
+const Plan = lazy(() => import('./components/Plan'))
+const Dues = lazy(() => import('./components/Dues'))
+const Hisab = lazy(() => import('./components/Hisab'))
+const Settings = lazy(() => import('./components/Settings'))
+const VaultItems = lazy(() => import('./components/VaultItems'))
+const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
+const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
+const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
+const WillModule = lazy(() => import('./components/will/WillModule'))
+function preloadBudget() {
+  loadDashboard()
+  import('./components/Charts')
+}
 
 // PocketOS is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
 const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
@@ -84,6 +93,7 @@ function Shell({ session }) {
   const setModule = (id) => { setModuleState(id); if (MODULES.some((m) => m.id === id)) localStorage.setItem(ACTIVE_MODULE_KEY, id) }
   // Vault state lives here, not in VaultModule, so switching modules doesn't lock the vault.
   const vault = useVault(session)
+  useEffect(() => { preloadBudget() }, []) // fetch Home while the unlock screen is up
   const appLock = useAppLock(session)
   const dialog = useDialog()
   const [mustResetPassword, setMustResetPassword] = useState(false) // after unlocking with the recovery code
@@ -129,7 +139,7 @@ function Shell({ session }) {
     // Any tap or key press counts as activity for the vault's idle auto-lock, in every module.
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
-        : module === 'will' ? <WillModule topbar={topbar} vault={vault} />
+        : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
         : <BudgetModule topbar={topbar} email={session.user.email} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
@@ -141,6 +151,7 @@ function Shell({ session }) {
 const SETUP_SKIPPED_KEY = 'pocketos.fingerprintSkipped'
 function MemberShell({ session }) {
   const appLock = useAppLock(session)
+  useEffect(() => { preloadBudget() }, [])
   const [skipped, setSkipped] = useState(() => { try { return !!sessionStorage.getItem(SETUP_SKIPPED_KEY) } catch { return false } })
   const [toast, setToast] = useState(null)
   useBackButton(() => { setToast('Press back again to close PocketOS'); setTimeout(() => setToast(null), 2000) })
@@ -205,14 +216,14 @@ function BudgetModule({ topbar, email, member, appLock }) {
       <main className="content fade-in">
         {data.error && <div className="alert error">Database error: {data.error}. Did you run <code>supabase/schema.sql</code>?</div>}
         {data.loading ? (tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />) : (
-          <>
+          <Suspense fallback={tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />}>
             {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
             {tab === 'settings' && <Settings {...data} email={email} member={member} appLock={appLock} />}
-          </>
+          </Suspense>
         )}
       </main>
 
@@ -290,7 +301,7 @@ function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword })
           </nav>
         ) : <div className="spacer" />}
       </Topbar>
-      <main className="content fade-in">{body}</main>
+      <main className="content fade-in"><Suspense fallback={<ListSkeleton />}>{body}</Suspense></main>
 
       {ready && (
         <PillNav tabs={VAULT_TABS} tab={tab} setTab={setTab} withFab={tab === 'items'} />

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { TrendChart, DonutChart } from './LazyCharts'
 import { supabase } from '../lib/supabase'
-import { currentMonth, monthEnd, monthKey, monthLabel, monthStart, money, moneyShort, shiftMonth } from '../lib/format'
+import { currentMonth, monthEnd, monthKey, monthLabel, monthStart, money, shiftMonth } from '../lib/format'
 import { MonthPicker } from './Transactions'
 import { DashboardSkeleton } from './Skeleton'
 import { useMonthSwipe } from '../lib/useSwipe'
@@ -122,21 +122,7 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
         <div className="card">
           <h3>Last · this · next month</h3>
           {hasTrend ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={stats.trend} margin={{ left: 8, right: 8 }} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line)" />
-                <XAxis dataKey="month" interval={0} tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={moneyShort} tick={{ fontSize: 12, fill: 'var(--muted)' }} axisLine={false} tickLine={false} width={64} />
-                <Tooltip formatter={(v) => money(v)} cursor={{ fill: 'var(--card-2)' }} contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }} />
-                <Legend />
-                {['Income', 'Expense'].map((key) => (
-                  <Bar key={key} dataKey={key} fill={key === 'Income' ? 'var(--pos)' : 'var(--neg)'} radius={[4, 4, 0, 0]} maxBarSize={48}>
-                    {/* The planned month is drawn faded; its axis label also says "(plan)". */}
-                    {stats.trend.map((d) => <Cell key={d.month} fillOpacity={d.plan ? 0.45 : 1} />)}
-                  </Bar>
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+            <TrendChart data={stats.trend} />
           ) : (
             <div className="empty-chart muted">
               Nothing logged or planned yet.<br />
@@ -149,14 +135,7 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
           <h3>{isPlan ? 'Where the money will go' : 'Where the money went'}</h3>
           {stats.breakdown.length === 0 ? <div className="empty-chart muted" style={{ height: 220 }}>{isPlan ? 'No planned expenses yet.' : 'No expenses this month.'}</div> : (
             <div className="pie-wrap">
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={stats.breakdown} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2}>
-                    {stats.breakdown.map((d) => <Cell key={d.id} fill={d.color} stroke="var(--card)" strokeWidth={2} />)}
-                  </Pie>
-                  <Tooltip formatter={(v) => money(v)} contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <DonutChart data={stats.breakdown.map((d) => ({ ...d, key: d.id }))} />
               <ul className="legend">
                 {stats.breakdown.slice(0, 6).map((d) => (
                   <li key={d.id}><span className="dot" style={{ background: d.color }} />{d.name}<b>{money(d.value)}</b></li>

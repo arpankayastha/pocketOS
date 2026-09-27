@@ -79,6 +79,7 @@ One login (the master account) manages several isolated **households** (workspac
 
 ## Conventions
 - Data access happens directly in components via `supabase.from(...)`. Shared loaders are in `src/lib/useFinanceData.js`.
+- **Code splitting**: every tab, the Vault screens and the Will module are `React.lazy` in `App.jsx` (wrapped in `Suspense` with the matching skeleton); Recharts lives only in `src/components/Charts.jsx`, used through `LazyCharts.jsx` (same-size placeholder while loading). `preloadBudget()` fetches Home + charts while the unlock screen is up. Main chunk ≈ 500 kB (142 kB gz), was 1.09 MB. Don't import `recharts` anywhere else.
 - Money and date helpers are in `src/lib/format.js` (INR / en-IN by default via env). `moneyShort` writes K / L / Cr for en-IN (ICU's compact form says "T" for thousand).
 - After any schema change: add the SQL to `supabase/schema.sql`, apply it as a migration, then run the Supabase security and performance advisors.
 
@@ -95,4 +96,4 @@ One login (the master account) manages several isolated **households** (workspac
 - Google sign-in is enabled in the Supabase dashboard (Authentication → Providers) with a Google Cloud OAuth client already wired up.
 
 ## Status / next steps
-Vault is built (all three phases: core, app lock, extras) and awaiting the user's real-device testing; expect follow-ups. Ship v1 is done end-to-end (Google OAuth + passkeys, multi-household, dark PWA UI, deployed). The user is populating their own `recurring_items` (credit cards, SIPs, salary) in the Plan tab now; expect follow-up refinement once they've used it with real data. Other improvement ideas: recurring *transactions* (auto-generating actual entries, distinct from the Plan tab's manual "Log" step), transfers between accounts, offline data caching (the PWA app-shell is already installable), code-splitting Recharts (bundle is ~550 kB), AI receipt/statement import and credit-card/EMI tracking (seen in competing apps).
+Vault is built (all three phases: core, app lock, extras) and awaiting the user's real-device testing; expect follow-ups. Ship v1 is done end-to-end (Google OAuth + passkeys, multi-household, dark PWA UI, deployed). The user is populating their own `recurring_items` (credit cards, SIPs, salary) in the Plan tab now; expect follow-up refinement once they've used it with real data. Other improvement ideas: recurring *transactions* (auto-generating actual entries, distinct from the Plan tab's manual "Log" step), transfers between accounts, offline data caching (the PWA app-shell is already installable), bank/UPI statement import (next up) and credit-card/EMI tracking (seen in competing apps).
