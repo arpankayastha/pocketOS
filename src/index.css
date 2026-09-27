@@ -255,6 +255,9 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .kind-badge { display: inline-block; padding: 5px 14px; border-radius: 999px; font-weight: 700; font-size: 13px; width: fit-content; }
 .kind-badge.expense { background: color-mix(in srgb, var(--neg) 18%, transparent); color: var(--neg); }
 .kind-badge.income { background: color-mix(in srgb, var(--pos) 18%, transparent); color: var(--pos); }
+.kind-title.expense { color: var(--neg); }
+.kind-title.income { color: var(--pos); }
+.kind-title.transfer { color: #38bdf8; }
 .kind-badge.transfer { background: color-mix(in srgb, #38bdf8 18%, transparent); color: #38bdf8; }
 .transfer-tag { color: #38bdf8; }
 

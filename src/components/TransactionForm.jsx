@@ -47,8 +47,8 @@ export default function TransactionForm({ accounts, categories, initial, presetK
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{initial ? 'Edit transaction' : form.kind === 'income' ? 'Add income' : 'Add expense'}</h3>
-        {initial ? (
+        <h3 className={initial ? undefined : `kind-title ${form.kind}`}>{initial ? 'Edit transaction' : form.kind === 'income' ? 'Add income' : 'Add expense'}</h3>
+        {initial && (
           <div className="seg">
             {['expense', 'income'].map((k) => (
               <button type="button" key={k} className={form.kind === k ? `on ${k}` : ''}
@@ -57,8 +57,6 @@ export default function TransactionForm({ accounts, categories, initial, presetK
               </button>
             ))}
           </div>
-        ) : (
-          <span className={`kind-badge ${form.kind}`}>{form.kind === 'income' ? 'Income' : 'Expense'}</span>
         )}
         <label>Amount
           <input type="number" inputMode="decimal" step="0.01" min="0.01" required autoFocus value={form.amount} onChange={set('amount')} />

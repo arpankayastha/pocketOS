@@ -56,8 +56,7 @@ export default function TransferForm({ households, fromHouseholdId, transferId, 
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{transferId ? 'Edit transfer' : 'Transfer between households'}</h3>
-        <span className="kind-badge transfer">⇄ Transfer</span>
+        <h3 className="kind-title transfer">⇄ {transferId ? 'Edit transfer' : 'Transfer between households'}</h3>
         {loading ? <div className="muted">Loading…</div> : (
           <>
             <label>Amount

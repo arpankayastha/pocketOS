@@ -92,7 +92,8 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
 
     // Everything in the planned month, day by day: entries already logged (✓) and plan items still expected.
     const dayOf = (t) => (t.planned ? t.day || 99 : Number(String(t.occurred_on).slice(8, 10)))
-    const upcoming = [...rows].sort((a, b) => dayOf(a) - dayOf(b))
+    // Only Plan commitments: expected items plus the ones already logged against them.
+    const upcoming = rows.filter((t) => t.planned || t.recurring_item_id).sort((a, b) => dayOf(a) - dayOf(b))
     return { income, expense, accountFlow, topSpend, trend, breakdown, recent: rows.filter((t) => !t.planned).slice(0, 6), upcoming }
   }, [rowsFor, accounts, month, catById, thisMonth, range.min, range.max])
 
