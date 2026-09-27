@@ -4,6 +4,7 @@ import { useFinanceData } from './lib/useFinanceData'
 import { useVault, fingerprintHere } from './lib/useVault'
 import { platformAuthenticatorAvailable, deviceName, describeWebAuthnError } from './lib/webauthn'
 import { useAppLock } from './lib/useAppLock'
+import { clearVaultSession } from './lib/vaultSession'
 import Auth from './components/Auth'
 import TransactionForm from './components/TransactionForm'
 import TransferForm from './components/TransferForm'
@@ -61,7 +62,7 @@ export default function App() {
   useEffect(() => {
     if (!isConfigured) return
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { if (!s) clearVaultSession(); setSession(s) })
     return () => sub.subscription.unsubscribe()
   }, [])
 

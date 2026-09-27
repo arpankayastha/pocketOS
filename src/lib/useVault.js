@@ -5,6 +5,7 @@ import {
   importVaultKey, encryptItem, decryptItem, generateRecoveryCode, recoveryCodeBytes,
 } from './vaultCrypto'
 import { createCredential, getAssertion } from './webauthn'
+import { saveVaultSession, restoreVaultSession, markVaultActive, markVaultHidden, clearVaultSession } from './vaultSession'
 
 const IDLE_LOCK_MS = 5 * 60_000     // lock after 5 minutes without interaction
 const BACKGROUND_LOCK_MS = 60_000   // lock if the app was in the background longer than this
@@ -23,7 +24,9 @@ export function fingerprintHere(unlockers) {
 }
 
 // Vault state lives in the Shell (not the Vault module) so switching to Budget and back
-// doesn't lock it. The decrypted vault key is only ever held in memory, in refs.
+// doesn't lock it. The decrypted vault key is held in memory, in refs — plus, so a reload or
+// pull-to-refresh doesn't ask for the fingerprint again, an encrypted copy for this tab only
+// (vaultSession.js), which expires with the same idle / background limits and on lock.
 // `householdId` (member logins only): new items are tagged with it so the owner and the
 // household both see them.
 export function useVault(session, { householdId } = {}) {
@@ -41,6 +44,7 @@ export function useVault(session, { householdId } = {}) {
     if (rawKey.current) rawKey.current.fill(0)
     rawKey.current = null
     cryptoKey.current = null
+    clearVaultSession()
     setItems([])
     setStatus((s) => (s === 'unlocked' ? 'locked' : s))
   }, [])
@@ -54,12 +58,20 @@ export function useVault(session, { householdId } = {}) {
     return data
   }, [session.user.id])
 
+  const openRef = useRef(null) // openWithRawKey, defined below
   useEffect(() => {
-    loadUnlockers().then((data) => {
-      if (!data) return
-      setStatus((s) => (s === 'unlocked' ? s : data.some((u) => u.kind === 'password') ? 'locked' : 'setup'))
+    let cancelled = false
+    loadUnlockers().then(async (data) => {
+      if (!data || cancelled) return
+      if (!data.some((u) => u.kind === 'password')) { setStatus((s) => (s === 'unlocked' ? s : 'setup')); return }
+      // Reloaded while unlocked (pull-to-refresh)? Carry on without asking again.
+      const raw = await restoreVaultSession(session.user.id, { idleMs: IDLE_LOCK_MS, backgroundMs: BACKGROUND_LOCK_MS })
+      if (cancelled) return
+      if (raw) { try { await openRef.current(raw); return } catch { clearVaultSession() } }
+      setStatus((s) => (s === 'unlocked' ? s : 'locked'))
     })
-  }, [loadUnlockers])
+    return () => { cancelled = true }
+  }, [loadUnlockers, session.user.id])
 
   const loadItems = useCallback(async () => {
     // Owner: own items + everything their household members add. Member: own + shared with them.
@@ -83,10 +95,12 @@ export function useVault(session, { householdId } = {}) {
     cryptoKey.current = await importVaultKey(raw)
     lastActive.current = Date.now()
     await loadItems()
+    await saveVaultSession(session.user.id, raw)
     setError(null)
     setLockedByUser(false)
     setStatus('unlocked')
-  }, [loadItems])
+  }, [loadItems, session.user.id])
+  useEffect(() => { openRef.current = openWithRawKey }, [openWithRawKey])
 
   // ----- Unlockers -----
   async function passwordRow(password, raw) {
@@ -264,15 +278,19 @@ export function useVault(session, { householdId } = {}) {
   }, [unlockers])
 
   // ----- Auto-lock -----
-  const touch = useCallback(() => { lastActive.current = Date.now() }, [])
+  const touch = useCallback(() => {
+    const now = Date.now()
+    if (now - lastActive.current > 10_000) markVaultActive() // throttled: touch runs on every tap
+    lastActive.current = now
+  }, [])
 
   useEffect(() => {
     if (status !== 'unlocked') return
     const timer = setInterval(() => { if (Date.now() - lastActive.current > IDLE_LOCK_MS) lock() }, 15_000)
     const onVisibility = () => {
-      if (document.hidden) hiddenAt.current = Date.now()
+      if (document.hidden) { hiddenAt.current = Date.now(); markVaultHidden() }
       else if (hiddenAt.current && Date.now() - hiddenAt.current > BACKGROUND_LOCK_MS) lock()
-      else lastActive.current = Date.now()
+      else { lastActive.current = Date.now(); markVaultActive() }
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility) }

@@ -7,25 +7,44 @@ import { DEVICE_CREDENTIAL_KEY } from './useVault'
 // (the Vault is, independently). Setting is stored per device in localStorage.
 const APP_LOCK_KEY = 'pocketos.appLock'
 const RELOCK_AFTER_MS = 60_000
+// A reload / pull-to-refresh within this tab doesn't lock again, unless the app sat in the
+// background past RELOCK_AFTER_MS or went unused for IDLE_MS. sessionStorage is cleared when
+// the app is closed, so reopening always asks.
+const SESSION_KEY = 'pocketos.appUnlocked' // sessionStorage: { active, hiddenAt }
+const IDLE_MS = 5 * 60_000
 
 function readSetting() {
   try { return JSON.parse(localStorage.getItem(APP_LOCK_KEY)) } catch { return null }
 }
+const readSession = () => { try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)) } catch { return null } }
+const writeSession = (v) => { try { if (v) sessionStorage.setItem(SESSION_KEY, JSON.stringify(v)); else sessionStorage.removeItem(SESSION_KEY) } catch { /* ignore */ } }
+function stillUnlocked() {
+  const s = readSession(), now = Date.now()
+  return !!s && now - s.active <= IDLE_MS && !(s.hiddenAt && now - s.hiddenAt > RELOCK_AFTER_MS)
+}
 
 export function useAppLock(session) {
   const [setting, setSetting] = useState(readSetting) // { credentialId } | null
-  const [locked, setLocked] = useState(() => !!readSetting())
+  const [locked, setLockedState] = useState(() => !!readSetting() && !stillUnlocked())
   const hiddenAt = useRef(null)
+  const setLocked = useCallback((value) => {
+    writeSession(value ? null : { active: Date.now(), hiddenAt: null })
+    setLockedState(value)
+  }, [])
 
   useEffect(() => {
-    if (!setting) return
+    if (!setting || locked) return
+    let last = 0
+    const onActivity = () => { const now = Date.now(); if (now - last > 10_000) { last = now; writeSession({ active: now, hiddenAt: null }) } }
     const onVisibility = () => {
-      if (document.hidden) hiddenAt.current = Date.now()
+      if (document.hidden) { hiddenAt.current = Date.now(); writeSession({ ...readSession(), hiddenAt: hiddenAt.current }) }
       else if (hiddenAt.current && Date.now() - hiddenAt.current > RELOCK_AFTER_MS) setLocked(true)
+      else { last = Date.now(); writeSession({ active: last, hiddenAt: null }) }
     }
     document.addEventListener('visibilitychange', onVisibility)
-    return () => document.removeEventListener('visibilitychange', onVisibility)
-  }, [setting])
+    document.addEventListener('pointerdown', onActivity, true)
+    return () => { document.removeEventListener('visibilitychange', onVisibility); document.removeEventListener('pointerdown', onActivity, true) }
+  }, [setting, locked, setLocked])
 
   const save = (value) => {
     try {
@@ -43,14 +62,15 @@ export function useAppLock(session) {
     if (credentialId) await getAssertion({ credentials: [{ credentialId }] })
     else credentialId = (await createCredential({ name: session.user.email, displayName: 'eChopdo' })).credentialId
     save({ credentialId })
-  }, [session])
+    setLocked(false) // just verified: counts as unlocked for this session
+  }, [session, setLocked])
 
-  const disable = useCallback(() => { save(null); setLocked(false) }, [])
+  const disable = useCallback(() => { save(null); setLocked(false) }, [setLocked])
 
   const unlock = useCallback(async () => {
     await getAssertion({ credentials: [{ credentialId: setting.credentialId }] })
     setLocked(false)
-  }, [setting])
+  }, [setting, setLocked])
 
   return { enabled: !!setting, locked: !!setting && locked, enable, disable, unlock, unlockWithoutFingerprint: () => setLocked(false), lockNow: () => setLocked(true) }
 }
