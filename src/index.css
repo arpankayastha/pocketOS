@@ -338,6 +338,19 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hb-saved { text-align: center; color: var(--pos); }
 .hb-sheet .actions .btn { flex: 1; }
 
+/* Household logins */
+.hh-row { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.hh-row .line { border-bottom: none; padding-bottom: 2px; }
+.hh-login { display: flex; align-items: center; gap: 6px; padding: 0 0 6px 22px; min-width: 0; flex-wrap: wrap; }
+.hh-login .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hh-login-name { font-weight: 600; font-size: 14px; }
+.hh-chip.static { cursor: default; }
+.brand-member { font-weight: 700; letter-spacing: -.01em; }
+.pin-input { letter-spacing: .4em; font-size: 20px; text-align: center; }
+.share-login { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.share-login > div { display: grid; gap: 4px; padding: 12px; border-radius: 12px; background: var(--card-2); }
+.share-login b { font-size: 20px; letter-spacing: .08em; }
+
 /* Pill nav (mobile PWA navigation) + universal floating add button */
 .pill-nav { display: none; }
 

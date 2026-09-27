@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { TrashIcon, PencilIcon, PasskeyIcon } from '../lib/icons'
+import { TrashIcon, PencilIcon, PasskeyIcon, FingerprintIcon } from '../lib/icons'
+import { generatePin, manageMembers } from '../lib/members'
+import { describeWebAuthnError } from '../lib/webauthn'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor } from '../lib/colors'
 
-export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email }) {
+export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock }) {
   const dialog = useDialog()
   return (
     <section className="grid2">
       <div style={{ gridColumn: '1 / -1' }}>
-        <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} />
+        {member ? <FingerprintCard appLock={appLock} />
+          : <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} />}
       </div>
       <div style={{ gridColumn: '1 / -1' }}>
         <Passkeys />
@@ -20,7 +23,11 @@ export default function Settings({ accounts, categories, refresh, households, ac
         <h3>Account</h3>
         <div className="line">
           <span className="muted small">Signed in as {email}</span>
-          <button className="btn small ghost" onClick={async () => (await dialog.confirm({ title: 'Sign out?', message: 'You can sign back in with Google or a passkey.', confirmLabel: 'Sign out', danger: false })) && supabase.auth.signOut()}>Sign out</button>
+          <button className="btn small ghost" onClick={async () => {
+            if (!await dialog.confirm({ title: 'Sign out?', message: member ? 'You can sign back in with your username and PIN.' : 'You can sign back in with Google or a passkey.', confirmLabel: 'Sign out', danger: false })) return
+            if (member) appLock?.disable()
+            supabase.auth.signOut()
+          }}>Sign out</button>
         </div>
       </div>
     </section>
@@ -91,10 +98,59 @@ function Passkeys() {
   )
 }
 
+// A household member's own lock setting (Settings replaces the Households card for them).
+function FingerprintCard({ appLock }) {
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+  async function enable() {
+    setBusy(true); setError(null)
+    try { await appLock.enable() } catch (err) { setError(describeWebAuthnError(err)) }
+    setBusy(false)
+  }
+  return (
+    <div className="card">
+      <h3>Fingerprint unlock</h3>
+      <p className="muted small">{appLock.enabled
+        ? 'PocketOS asks for your fingerprint when it opens and after a minute in the background. Your PIN still works as a backup.'
+        : 'Turn it on so PocketOS opens with your fingerprint instead of your PIN.'}</p>
+      {appLock.enabled
+        ? <button className="btn" onClick={appLock.disable}>Turn off</button>
+        : <button className="btn primary" disabled={busy} onClick={enable}><FingerprintIcon /> {busy ? 'Waiting for fingerprint…' : 'Use my fingerprint'}</button>}
+      {error && <div className="alert error">{error}</div>}
+    </div>
+  )
+}
+
+const slug = (name) => name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '').slice(0, 32) || 'family'
+const ago = (iso) => {
+  if (!iso) return 'never signed in'
+  const d = Math.floor((Date.now() - new Date(iso)) / 86_400_000)
+  return `last seen ${d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`}`
+}
+
 function Households({ households, activeHouseholdId, setActiveHouseholdId, createHousehold, refresh }) {
   const dialog = useDialog()
   const [name, setName] = useState('')
   const [error, setError] = useState(null)
+  const [members, setMembers] = useState(null)
+  const [loginFor, setLoginFor] = useState(null) // household getting a new login
+  const [share, setShare] = useState(null) // { household, username, pin, reset } shown once
+
+  const loadMembers = useCallback(async () => {
+    try { setMembers((await manageMembers('list')).members) } catch (err) { setError(err.message) }
+  }, [])
+  useEffect(() => { loadMembers() }, [loadMembers])
+
+  async function resetPin(h, m) {
+    const pin = generatePin()
+    if (!await dialog.confirm({ title: `New PIN for ${m.username}?`, message: 'The old PIN stops working. Their fingerprint unlock keeps working.', confirmLabel: 'Reset PIN', danger: false })) return
+    try { await manageMembers('reset_pin', { householdId: h.id, userId: m.user_id, pin }); setShare({ household: h, username: m.username, pin, reset: true }) } catch (err) { setError(err.message) }
+  }
+
+  async function removeLogin(h, m) {
+    if (!await dialog.confirm({ title: `Remove ${m.username}'s login?`, message: `They can no longer open "${h.name}". Everything they added stays in the household.`, confirmLabel: 'Remove login' })) return
+    try { await manageMembers('remove', { householdId: h.id, userId: m.user_id }); loadMembers() } catch (err) { setError(err.message) }
+  }
 
   async function add(e) {
     e.preventDefault()
@@ -125,24 +181,109 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
   return (
     <div className="card">
       <h3>Households</h3>
-      {households.map((h) => (
-        <div className="line" key={h.id}>
-          <span>
-            <button type="button" className="btn link" style={{ fontWeight: h.id === activeHouseholdId ? 700 : 400 }} onClick={() => setActiveHouseholdId(h.id)}>
-              {h.id === activeHouseholdId ? '● ' : '○ '}{h.name}
-            </button>
-          </span>
-          <span>
-            <button className="btn small ghost" onClick={() => rename(h)}>Rename</button>{' '}
-            <button className="btn icon" onClick={() => remove(h)}><TrashIcon /></button>
-          </span>
-        </div>
-      ))}
+      <p className="muted small">Give a household its own login: they sign in with a username and 6-digit PIN, then use their fingerprint. They see only their household; you see everything.</p>
+      {households.map((h) => {
+        const m = members?.find((x) => x.household_id === h.id)
+        return (
+          <div className="hh-row" key={h.id}>
+            <div className="line">
+              <span>
+                <button type="button" className="btn link" style={{ fontWeight: h.id === activeHouseholdId ? 700 : 400 }} onClick={() => setActiveHouseholdId(h.id)}>
+                  {h.id === activeHouseholdId ? '● ' : '○ '}{h.name}
+                </button>
+              </span>
+              <span>
+                <button className="btn small ghost" onClick={() => rename(h)}>Rename</button>{' '}
+                <button className="btn icon" aria-label={`Delete ${h.name}`} onClick={() => remove(h)}><TrashIcon /></button>
+              </span>
+            </div>
+            <div className="hh-login">
+              {members === null ? <span className="muted small">Checking logins…</span> : m ? (
+                <>
+                  <span className="grow">
+                    <span className="hh-login-name">👤 {m.username}</span>
+                    <span className="muted small"> · {m.fingerprint_at ? 'fingerprint on' : 'PIN only'} · {ago(m.last_sign_in_at)}</span>
+                  </span>
+                  <button className="btn small ghost" onClick={() => resetPin(h, m)}>Reset PIN</button>
+                  <button className="btn icon" aria-label={`Remove ${m.username}'s login`} onClick={() => removeLogin(h, m)}><TrashIcon /></button>
+                </>
+              ) : <button className="btn small ghost" onClick={() => setLoginFor(h)}>+ Create login</button>}
+            </div>
+          </div>
+        )
+      })}
+      {loginFor && <LoginForm household={loginFor} taken={(members || []).map((x) => x.username)} onClose={() => setLoginFor(null)}
+        onCreated={(username, pin) => { setShare({ household: loginFor, username, pin }); setLoginFor(null); loadMembers() }} />}
+      {share && <ShareLogin {...share} onClose={() => setShare(null)} />}
       <form className="inline-form" onSubmit={add}>
         <input required placeholder="New household name" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="btn primary">Add</button>
       </form>
       {error && <div className="alert error">{error}</div>}
+    </div>
+  )
+}
+
+function LoginForm({ household, taken, onClose, onCreated }) {
+  const [username, setUsername] = useState(() => slug(household.name))
+  const [pin, setPin] = useState(generatePin)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function save(e) {
+    e.preventDefault()
+    const u = username.trim().toLowerCase()
+    if (taken.includes(u)) return setError(`"${u}" is already used.`)
+    setBusy(true); setError(null)
+    try { await manageMembers('create', { householdId: household.id, username: u, pin }); onCreated(u, pin) } catch (err) { setError(err.message); setBusy(false) }
+  }
+
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
+        <h3>Login for {household.name}</h3>
+        <p className="muted small">They'll see and edit only "{household.name}". No Vault, no other households.</p>
+        <label>Username
+          <input required autoCapitalize="none" spellCheck={false} pattern="[a-z0-9][a-z0-9._\-]{2,31}" value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))} />
+        </label>
+        <label className="form-field">6-digit PIN</label>
+        <div className="inline-form">
+          <input className="mono pin-input" inputMode="numeric" required pattern="\d{6}" maxLength={6} aria-label="6-digit PIN" value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+          <button type="button" className="btn small ghost" onClick={() => setPin(generatePin())}>New PIN</button>
+        </div>
+        {error && <div className="alert error">{error}</div>}
+        <div className="actions">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={busy || pin.length !== 6}>{busy ? 'Creating…' : 'Create login'}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+// Shown once after creating a login or resetting a PIN: the details to pass on.
+function ShareLogin({ household, username, pin, reset, onClose }) {
+  const [copied, setCopied] = useState(false)
+  const text = `PocketOS${reset ? ' — new PIN' : ''} for ${household.name}\nOpen: ${location.origin}\nTap "Household login"\nUsername: ${username}\nPIN: ${pin}\nThen turn on your fingerprint.`
+  async function copy() { try { await navigator.clipboard.writeText(text); setCopied(true) } catch { /* ignore */ } }
+  async function send() { try { await navigator.share({ text }) } catch { /* cancelled */ } }
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <div className="card modal" onMouseDown={(e) => e.stopPropagation()}>
+        <h3>{reset ? 'New PIN ready' : 'Login created'}</h3>
+        <p className="muted small">Send these to them now — the PIN isn't shown again (you can always reset it).</p>
+        <div className="share-login">
+          <div><span className="muted small">Username</span><b className="mono">{username}</b></div>
+          <div><span className="muted small">PIN</span><b className="mono">{pin}</b></div>
+        </div>
+        <div className="actions">
+          <button className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
+          {navigator.share && <button className="btn" onClick={send}>Share…</button>}
+          <button className="btn primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
     </div>
   )
 }

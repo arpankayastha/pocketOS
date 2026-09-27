@@ -461,3 +461,98 @@ create index if not exists hisab_books_user_id_idx on public.hisab_books (user_i
 create index if not exists hisab_entries_book_id_idx on public.hisab_entries (book_id, occurred_on);
 create index if not exists hisab_entries_household_id_idx on public.hisab_entries (household_id);
 create index if not exists hisab_entries_user_id_idx on public.hisab_entries (user_id);
+-- ============================================================================
+-- Household members: the owner (the one Google login) can give a household its own
+-- login (username + 6-digit PIN, then fingerprint). A member sees and edits only that
+-- household; the owner still sees everything. Vault and Will stay owner-only.
+-- Logins are created by the `members` Edge Function (service role), never by the client.
+-- ============================================================================
+create table if not exists public.household_members (
+  household_id uuid not null references public.households(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  username text not null unique,
+  fingerprint_at timestamptz,
+  created_at timestamptz not null default now(),
+  primary key (household_id, user_id)
+);
+create index if not exists household_members_user_id_idx on public.household_members (user_id);
+alter table public.household_members enable row level security;
+-- Only the Edge Function writes membership; a member may only stamp fingerprint_at on their own row.
+revoke insert, update, delete, truncate on public.household_members from anon, authenticated;
+grant update (fingerprint_at) on public.household_members to authenticated;
+drop policy if exists "owner or self reads" on public.household_members;
+create policy "owner or self reads" on public.household_members for select to authenticated
+  using (user_id = (select auth.uid())
+         or household_id in (select h.id from public.households h where h.user_id = (select auth.uid())));
+drop policy if exists "self stamps fingerprint" on public.household_members;
+create policy "self stamps fingerprint" on public.household_members for update to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- Households the caller can open: owned, or joined as a member. Lives in a schema that
+-- PostgREST doesn't expose; security definer so policies can use it without RLS recursion.
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
+create or replace function private.my_household_ids()
+returns setof uuid language sql stable security definer set search_path = '' as $$
+  select h.id from public.households h where h.user_id = auth.uid()
+  union
+  select m.household_id from public.household_members m where m.user_id = auth.uid()
+$$;
+revoke execute on function private.my_household_ids() from public, anon;
+grant execute on function private.my_household_ids() to authenticated;
+
+-- households: members can read theirs; only the owner creates, renames or deletes.
+drop policy if exists "own rows" on public.households;
+drop policy if exists "read own or joined" on public.households;
+drop policy if exists "owner inserts" on public.households;
+drop policy if exists "owner updates" on public.households;
+drop policy if exists "owner deletes" on public.households;
+create policy "read own or joined" on public.households for select to authenticated
+  using (id in (select private.my_household_ids()));
+create policy "owner inserts" on public.households for insert to authenticated
+  with check (user_id = (select auth.uid()));
+create policy "owner updates" on public.households for update to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy "owner deletes" on public.households for delete to authenticated
+  using (user_id = (select auth.uid()));
+
+-- Finance tables: any household the caller can open (was: rows the caller created).
+do $$
+declare t text;
+begin
+  foreach t in array array['accounts','categories','transactions','budgets','recurring_items','dues','due_entries','hisab_books','hisab_entries'] loop
+    execute format('drop policy if exists "own rows" on public.%I', t);
+    execute format('drop policy if exists "household rows" on public.%I', t);
+    execute format('create policy "household rows" on public.%I for all to authenticated
+      using (household_id in (select private.my_household_ids()))
+      with check (household_id in (select private.my_household_ids()))', t);
+  end loop;
+end $$;
+
+-- Member logins don't get their own starter "Home" household.
+create or replace function public.seed_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare hh_id uuid;
+begin
+  if coalesce(new.raw_app_meta_data->>'role', '') = 'member' or new.email like '%@members.my-pocket-os.vercel.app' then
+    return new;
+  end if;
+  insert into public.households (user_id, name) values (new.id, 'Home') returning id into hh_id;
+  insert into public.categories (user_id, household_id, name, kind, color) values
+    (new.id, hh_id, 'Salary',        'income',  '#16a34a'),
+    (new.id, hh_id, 'Freelance',     'income',  '#22c55e'),
+    (new.id, hh_id, 'Other income',  'income',  '#84cc16'),
+    (new.id, hh_id, 'Groceries',     'expense', '#f97316'),
+    (new.id, hh_id, 'Rent',          'expense', '#ef4444'),
+    (new.id, hh_id, 'Utilities',     'expense', '#eab308'),
+    (new.id, hh_id, 'Transport',     'expense', '#3b82f6'),
+    (new.id, hh_id, 'Dining out',    'expense', '#ec4899'),
+    (new.id, hh_id, 'Shopping',      'expense', '#a855f7'),
+    (new.id, hh_id, 'Health',        'expense', '#14b8a6'),
+    (new.id, hh_id, 'Entertainment', 'expense', '#6366f1'),
+    (new.id, hh_id, 'Other',         'expense', '#64748b');
+  insert into public.accounts (user_id, household_id, name, type) values (new.id, hh_id, 'Cash', 'cash');
+  return new;
+end $$;
+revoke execute on function public.seed_new_user() from public, anon, authenticated;

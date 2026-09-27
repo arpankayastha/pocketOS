@@ -16,7 +16,8 @@ import VaultGate, { RecoveryCode } from './components/VaultGate'
 import VaultItems from './components/VaultItems'
 import PasswordGenerator from './components/PasswordGenerator'
 import VaultSecurity, { ChangePassword } from './components/VaultSecurity'
-import AppLockScreen from './components/AppLockScreen'
+import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/AppLockScreen'
+import { isMember, memberName, markFingerprint } from './lib/members'
 import WillModule from './components/will/WillModule'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
@@ -66,7 +67,7 @@ export default function App() {
   }
   if (session === undefined) return <Splash />
   if (!session) return <Auth />
-  return <Shell session={session} />
+  return isMember(session) ? <MemberShell session={session} /> : <Shell session={session} />
 }
 
 // Same look as the pre-JS splash in index.html (classes styled there), shown while the session loads.
@@ -135,6 +136,29 @@ function Shell({ session }) {
   )
 }
 
+// A household member's app: only their household's Budget, behind their own fingerprint
+// (PIN as backup). No Vault, no Will, no module switcher, no household menu.
+const SETUP_SKIPPED_KEY = 'pocketos.fingerprintSkipped'
+function MemberShell({ session }) {
+  const appLock = useAppLock(session)
+  const [skipped, setSkipped] = useState(() => { try { return !!sessionStorage.getItem(SETUP_SKIPPED_KEY) } catch { return false } })
+  const [toast, setToast] = useState(null)
+  useBackButton(() => { setToast('Press back again to close PocketOS'); setTimeout(() => setToast(null), 2000) })
+
+  if (!appLock.enabled && !skipped) {
+    return <FingerprintSetup appLock={appLock} session={session} onDone={() => markFingerprint(session.user.id)}
+      onSkip={() => { try { sessionStorage.setItem(SETUP_SKIPPED_KEY, '1') } catch { /* ignore */ } setSkipped(true) }} />
+  }
+  if (appLock.locked) return <MemberLockScreen appLock={appLock} session={session} />
+  const topbar = { module: 'budget', setModule: () => {}, member: true }
+  return (
+    <div className="shell">
+      <BudgetModule topbar={topbar} email={memberName(session)} member appLock={appLock} />
+      {toast && <div className="toast" role="status">{toast}</div>}
+    </div>
+  )
+}
+
 // Full-screen lock: one fingerprint unlocks the vault key, which opens Budget, Vault and Will.
 function UnlockScreen({ vault, onRecovered }) {
   return (
@@ -148,7 +172,7 @@ function UnlockScreen({ vault, onRecovered }) {
   )
 }
 
-function BudgetModule({ topbar, email }) {
+function BudgetModule({ topbar, email, member, appLock }) {
   const [tab, setTab] = useState('dashboard')
   useBackAction(tab !== 'dashboard', () => setTab('dashboard'), 2)
   const [fabOpen, setFabOpen] = useState(false)
@@ -161,7 +185,7 @@ function BudgetModule({ topbar, email }) {
   return (
     <div className="app">
       <Topbar {...topbar} right={data.households.length > 0 && (<>
-        <HouseholdMenu households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
+        <HouseholdMenu member={member} households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
           onCreate={async () => {
             const name = await dialog.prompt({ title: 'New household', label: 'Name', placeholder: "e.g. Parents' Home", confirmLabel: 'Create' })
             if (name) data.createHousehold(name)
@@ -187,7 +211,7 @@ function BudgetModule({ topbar, email }) {
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
-            {tab === 'settings' && <Settings {...data} email={email} />}
+            {tab === 'settings' && <Settings {...data} email={email} member={member} appLock={appLock} />}
           </>
         )}
       </main>

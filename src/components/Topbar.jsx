@@ -4,7 +4,7 @@ import { MODULES, HIDDEN_WILL } from '../lib/modules'
 
 // Shared header: brand, module switcher, then the module's own tabs (`children`, desktop
 // only; phones use the bottom nav) and actions (`right`).
-export default function Topbar({ module, setModule, onSecret, children, right }) {
+export default function Topbar({ module, setModule, onSecret, member, children, right }) {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4)
@@ -16,7 +16,7 @@ export default function Topbar({ module, setModule, onSecret, children, right })
   return (
     <header className={`topbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="brand" {...useLongPress(onSecret)}><BrandMark size={28} /><span className="brand-text">PocketOS</span></div>
-      <ModuleSwitch module={module} setModule={setModule} />
+      {member ? <div className="brand-member">PocketOS</div> : <ModuleSwitch module={module} setModule={setModule} />}
       {children}
       <div className="topbar-right">{right}</div>
     </header>
@@ -69,7 +69,7 @@ function useLongPress(fn) {
 }
 
 // Household chip + dropdown menu.
-export function HouseholdMenu({ households, activeId, onSelect, onCreate, onManage }) {
+export function HouseholdMenu({ households, activeId, onSelect, onCreate, onManage, member }) {
   const [open, setOpen] = useState(false)
   const active = households.find((h) => h.id === activeId)
   const pick = (fn) => () => { setOpen(false); fn() }
@@ -80,6 +80,16 @@ export function HouseholdMenu({ households, activeId, onSelect, onCreate, onMana
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
+
+  // A household member has exactly one household: a plain label, no menu.
+  if (member) return (
+    <div className="hh">
+      <span className="hh-chip static">
+        <span className="hh-dot" aria-hidden="true">{(active?.name || '?').slice(0, 1).toUpperCase()}</span>
+        <span className="hh-name">{active?.name || 'Household'}</span>
+      </span>
+    </div>
+  )
 
   return (
     <div className="hh">

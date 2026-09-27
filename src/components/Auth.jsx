@@ -1,10 +1,21 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { BrandMark, PasskeyIcon } from '../lib/icons'
+import { BrandMark, PasskeyIcon, HomeIcon } from '../lib/icons'
+import { signInMember } from '../lib/members'
 
 export default function Auth() {
-  const [busy, setBusy] = useState(null) // null | 'google' | 'passkey'
+  const [busy, setBusy] = useState(null) // null | 'google' | 'passkey' | 'member'
   const [msg, setMsg] = useState(null)
+  const [member, setMember] = useState(false) // household login form
+  const [username, setUsername] = useState('')
+  const [pin, setPin] = useState('')
+
+  async function signInWithPin(e) {
+    e.preventDefault()
+    setBusy('member')
+    setMsg(null)
+    try { await signInMember(username, pin) } catch (err) { setMsg({ type: 'error', text: err.message }); setBusy(null) }
+  }
 
   async function signInWithGoogle() {
     setBusy('google')
@@ -34,6 +45,19 @@ export default function Auth() {
         <div className="brand big"><BrandMark size={28} />PocketOS</div>
         <p className="auth-tagline">Everything you run your life with, in one pocket. Starting with your money.</p>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
+        {member ? (
+          <form className="stack" onSubmit={signInWithPin}>
+            <label>Username
+              <input autoComplete="username" autoCapitalize="none" spellCheck={false} required autoFocus value={username} onChange={(e) => setUsername(e.target.value)} />
+            </label>
+            <label>6-digit PIN
+              <input className="mono pin-input" type="password" inputMode="numeric" autoComplete="current-password" pattern="\d{6}" maxLength={6} required
+                value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+            </label>
+            <button className="btn primary" disabled={!!busy || pin.length !== 6}>{busy === 'member' ? 'Signing in…' : 'Sign in'}</button>
+            <button type="button" className="btn link" onClick={() => { setMember(false); setMsg(null) }}>Back</button>
+          </form>
+        ) : (<>
         <button type="button" className="btn google" disabled={!!busy} onClick={signInWithGoogle}>
           <GoogleIcon />
           {busy === 'google' ? 'Redirecting…' : 'Continue with Google'}
@@ -43,7 +67,12 @@ export default function Auth() {
           <PasskeyIcon />
           {busy === 'passkey' ? 'Checking for a passkey…' : 'Sign in with a passkey'}
         </button>
-        <p className="auth-hint">New here? Use Google first, then add a passkey from Settings for faster sign-in next time.</p>
+        <button type="button" className="btn passkey" disabled={!!busy} onClick={() => { setMember(true); setMsg(null) }}>
+          <HomeIcon />
+          Household login
+        </button>
+        <p className="auth-hint">Family member? Use the username and PIN you were given, then turn on fingerprint.</p>
+        </>)}
       </div>
     </div>
   )
