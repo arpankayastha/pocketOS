@@ -674,3 +674,41 @@ revoke execute on function public.family_owner_name() from public, anon;
 grant execute on function public.family_owner_name() to authenticated;
 alter table public.hisab_categories drop constraint if exists hisab_categories_household_direction_name_key;
 alter table public.hisab_categories add constraint hisab_categories_household_direction_name_key unique (household_id, direction, name);
+
+-- Quick-add phones (Android app widget). A phone is paired to one household with a one-time
+-- code created in Settings → Phone widget; the `quickadd` Edge Function exchanges it for a
+-- device token (only its SHA-256 is stored) that can add Hisab / Budget entries to that
+-- household and read the names its pickers need — nothing else. Delete the row to unpair.
+create table if not exists public.quick_devices (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  name text not null default 'Phone',
+  default_target text not null default 'hisab' check (default_target in ('hisab','budget')),
+  pair_code_hash text,
+  pair_expires timestamptz,
+  token_hash text unique,
+  paired_at timestamptz,
+  last_used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.quick_devices enable row level security;
+drop policy if exists "household rows" on public.quick_devices;
+create policy "household rows" on public.quick_devices for select to authenticated
+  using (household_id in (select private.my_household_ids()));
+drop policy if exists "own insert" on public.quick_devices;
+create policy "own insert" on public.quick_devices for insert to authenticated
+  with check (user_id = (select auth.uid()) and household_id in (select private.my_household_ids()) and token_hash is null);
+drop policy if exists "household update" on public.quick_devices;
+create policy "household update" on public.quick_devices for update to authenticated
+  using (household_id in (select private.my_household_ids()))
+  with check (household_id in (select private.my_household_ids()));
+drop policy if exists "household delete" on public.quick_devices;
+create policy "household delete" on public.quick_devices for delete to authenticated
+  using (household_id in (select private.my_household_ids()));
+-- The client may only change the name and the default; tokens are set by the function.
+revoke update on public.quick_devices from authenticated;
+grant update (name, default_target) on public.quick_devices to authenticated;
+create index if not exists quick_devices_household_id_idx on public.quick_devices (household_id);
+create index if not exists quick_devices_user_id_idx on public.quick_devices (user_id);
+create index if not exists quick_devices_pair_code_idx on public.quick_devices (pair_code_hash) where pair_code_hash is not null;

@@ -26,6 +26,9 @@ export default defineConfig({
       workbox: {
         // App shell only — Supabase data always goes over the network, never cached.
         globPatterns: ['**/*.{js,css,html,svg,png}'],
+        globIgnores: ['download/**'],
+        // The Android download page and Digital Asset Links are plain files, not the app.
+        navigateFallbackDenylist: [/^\/download/, /^\/\.well-known/],
       },
     }),
   ],

@@ -712,3 +712,19 @@ details.section[open] .chev { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* Settings → Phone widget */
+.pw-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.pw-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; }
+.pw-main { flex: 1; min-width: 0; }
+.pw-name { font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pw-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--accent)); flex-shrink: 0; }
+.pw-seg { width: 140px; flex-shrink: 0; padding: 3px; }
+.pw-seg button { padding: 6px; min-height: 34px; font-size: 13px; }
+.pw-new { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.pw-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pw-pair { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 10px; padding: 16px; border: 1px dashed var(--line); border-radius: 14px; text-align: center; }
+.pw-code { font-family: 'IBM Plex Mono', monospace; font-size: 32px; font-weight: 600; letter-spacing: .12em; background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pw-pair .btn.primary { min-width: 200px; text-decoration: none; text-align: center; }
+.pw-actions .btn { text-decoration: none; }
+@media (max-width: 420px) { .pw-row { flex-wrap: wrap; } .pw-seg { width: 100%; order: 3; } }

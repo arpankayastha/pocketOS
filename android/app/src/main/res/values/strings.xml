@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">eChopdo</string>
+    <string name="widget_label">eChopdo quick add</string>
+    <string name="tile_label">eChopdo +</string>
+    <string name="asset_statements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://echopdo.vercel.app\"}}]</string>
+    <string name="sc_out">Spent</string>
+    <string name="sc_out_long">Add money spent</string>
+    <string name="sc_in">Received</string>
+    <string name="sc_in_long">Add money received</string>
+    <string name="widget_desc">Add Hisab or Budget entries in a tap</string>
+</resources>

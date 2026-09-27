@@ -6,6 +6,7 @@ import { describeWebAuthnError, platformAuthenticatorAvailable, deviceName } fro
 import { fingerprintHere, MIN_MASTER_PASSWORD } from '../lib/useVault'
 import { loadCategories as loadHisabCategories } from '../lib/hisab'
 import { StrengthMeter } from './VaultGate'
+import PhoneWidget from './PhoneWidget'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor, householdColor } from '../lib/colors'
 
@@ -22,6 +23,9 @@ export default function Settings({ accounts, categories, refresh, households, ac
           <SecurityCard vault={vault} member={member} />
         </div>
       )}
+      <div style={{ gridColumn: '1 / -1' }}>
+        <PhoneWidget Collapsible={Collapsible} households={households} activeHouseholdId={activeHouseholdId} member={member} />
+      </div>
       <div style={{ gridColumn: '1 / -1' }}>
         <Passkeys />
       </div>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="quick_out" android:enabled="true" android:icon="@drawable/ic_shortcut_out"
+        android:shortcutShortLabel="@string/sc_out" android:shortcutLongLabel="@string/sc_out_long">
+        <intent android:action="app.echopdo.QUICK" android:targetPackage="app.echopdo" android:targetClass="app.echopdo.QuickAddActivity">
+            <extra android:name="direction" android:value="out" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="quick_in" android:enabled="true" android:icon="@drawable/ic_shortcut_in"
+        android:shortcutShortLabel="@string/sc_in" android:shortcutLongLabel="@string/sc_in_long">
+        <intent android:action="app.echopdo.QUICK" android:targetPackage="app.echopdo" android:targetClass="app.echopdo.QuickAddActivity">
+            <extra android:name="direction" android:value="in" />
+        </intent>
+    </shortcut>
+</shortcuts>
