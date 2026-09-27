@@ -90,7 +90,9 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
       .map(([id, value]) => ({ id, name: catById[id]?.name.trim() || 'Uncategorised', color: catById[id]?.color || '#94a3b8', value }))
       .sort((a, b) => b.value - a.value)
 
-    const upcoming = rows.filter((t) => t.planned).sort((a, b) => (a.day || 99) - (b.day || 99))
+    // Everything in the planned month, day by day: entries already logged (✓) and plan items still expected.
+    const dayOf = (t) => (t.planned ? t.day || 99 : Number(String(t.occurred_on).slice(8, 10)))
+    const upcoming = [...rows].sort((a, b) => dayOf(a) - dayOf(b))
     return { income, expense, accountFlow, topSpend, trend, breakdown, recent: rows.filter((t) => !t.planned).slice(0, 6), upcoming }
   }, [rowsFor, accounts, month, catById, thisMonth, range.min, range.max])
 
@@ -181,11 +183,15 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
         <div className="card">
           {isPlan ? (
             <>
-              <h3>Coming up</h3>
+              <h3>Coming up <span className="muted small">({stats.upcoming.filter((t) => !t.planned).length} logged · {stats.upcoming.filter((t) => t.planned).length} expected)</span></h3>
               {stats.upcoming.length === 0 ? <div className="muted">Nothing planned. Add commitments in the Plan tab.</div> : stats.upcoming.map((t) => (
                 <div className="line" key={t.id}>
-                  <span>{t.note} <span className="muted small">{t.day ? `due ${t.day}` : 'no due date'}</span></span>
-                  <b className={`${t.kind === 'income' ? 'pos' : 'neg'} expected`}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</b>
+                  <span className="grow">
+                    {t.note?.trim() || catById[t.category_id]?.name || 'Uncategorised'}
+                    <span className="muted small"> · {t.planned ? (t.day ? `due ${t.day}` : 'no due date') : `on ${Number(String(t.occurred_on).slice(8, 10))}`}</span>
+                    {t.planned ? <span className="pill expected-pill">expected</span> : <span className="pill logged-pill">✓ logged</span>}
+                  </span>
+                  <b className={`${t.kind === 'income' ? 'pos' : 'neg'} ${t.planned ? 'expected' : ''}`}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</b>
                 </div>
               ))}
             </>

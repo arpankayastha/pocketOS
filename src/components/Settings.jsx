@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { TrashIcon, PencilIcon } from '../lib/icons'
+import { TrashIcon, PencilIcon, PasskeyIcon } from '../lib/icons'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor } from '../lib/colors'
 
@@ -68,19 +68,23 @@ function Passkeys() {
   return (
     <div className="card">
       <h3>Passkeys</h3>
-      <p className="muted small">Sign in faster next time with Face ID, Touch ID, or your device PIN — no password needed.</p>
-      {passkeys.map((p) => (
-        <div className="line" key={p.id}>
-          <span>{p.friendly_name || 'Passkey'} <span className="muted small">added {new Date(p.created_at).toLocaleDateString()}</span></span>
-          <span>
-            <button className="btn small ghost" onClick={() => rename(p)}>Rename</button>{' '}
-            <button className="btn icon" onClick={() => remove(p)}><TrashIcon /></button>
-          </span>
-        </div>
-      ))}
-      {passkeys.length === 0 && <p className="muted small">No passkeys added yet.</p>}
-      <button className="btn primary" disabled={busy} onClick={add} style={{ marginTop: 10 }}>
-        {busy ? 'Adding…' : '+ Add a passkey for this device'}
+      <p className="muted small" style={{ marginTop: -6 }}>Sign in to PocketOS with your fingerprint or face instead of Google.</p>
+      <div className="pk-list">
+        {passkeys.map((p) => (
+          <div className="pk-row" key={p.id}>
+            <span className="site-badge type" aria-hidden="true"><PasskeyIcon /></span>
+            <div className="grow pk-text">
+              <div className="ellipsis">{p.friendly_name || 'Passkey'}</div>
+              <div className="muted small">Added {new Date(p.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+            </div>
+            <button className="btn icon" aria-label={`Rename ${p.friendly_name || 'passkey'}`} onClick={() => rename(p)}><PencilIcon /></button>
+            <button className="btn icon" aria-label={`Remove ${p.friendly_name || 'passkey'}`} onClick={() => remove(p)}><TrashIcon /></button>
+          </div>
+        ))}
+        {passkeys.length === 0 && <p className="muted small" style={{ margin: 0 }}>No passkeys yet.</p>}
+      </div>
+      <button className="btn primary block" disabled={busy} onClick={add}>
+        {busy ? 'Waiting for fingerprint…' : '+ Add a passkey for this device'}
       </button>
       {error && <div className="alert error">{error}</div>}
     </div>

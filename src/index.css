@@ -153,10 +153,17 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .tile { display: grid; gap: 4px; transition: transform .15s, box-shadow .15s; }
 .tile:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .big-num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.grid2 > * { min-width: 0; } /* grid items default to min-width:auto and would stretch the page on phones */
 .grid2 > .card { margin-bottom: 16px; }
 .line { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .line:last-child { border-bottom: none; }
+.pk-list { display: grid; grid-template-columns: minmax(0, 1fr); margin-bottom: 12px; }
+.pk-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.pk-row:last-child { border-bottom: none; }
+.pk-text { min-width: 0; }
+.pill.logged-pill { margin-left: 6px; background: color-mix(in srgb, var(--pos) 16%, transparent); color: var(--pos); }
+.pill.expected-pill { margin-left: 6px; background: var(--card-2); color: var(--muted); }
 .acc-flow { display: grid; justify-items: end; gap: 2px; }
 .acc-flow .small { font-family: var(--font-sans, inherit); font-weight: 400; }
 .line b, .amt { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
@@ -210,6 +217,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
   animation: fade-in .15s ease-out; }
 .modal { width: 100%; max-width: 440px; display: grid; gap: 12px; margin: 0; box-shadow: var(--shadow-lg); animation: modal-in .18s ease-out; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
@@ -449,7 +457,7 @@ details.section[open] .chev { transform: rotate(90deg); }
   /* While typing, the on-screen keyboard pushes fixed elements up over the form — hide them. */
   body:has(:is(input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file]), textarea):focus) :is(.fab-wrap, .bottom-nav) { display: none; }
   .tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .grid2, .pie-wrap { grid-template-columns: 1fr; }
+  .grid2, .pie-wrap { grid-template-columns: minmax(0, 1fr); }
   .filters { grid-template-columns: 1fr 1fr; }
   .filters input { grid-column: 1 / -1; }
   .budget-head { grid-template-columns: 1fr 110px; }
@@ -476,8 +484,19 @@ details.section[open] .chev { transform: rotate(90deg); }
   .will-preview { padding: 8px; }
   .will-preview .will-doc { padding: 22px 18px; font-size: 11pt; }
   .share-row { grid-template-columns: 1fr 96px auto; }
+  /* Every popup is a bottom sheet on phones: slides up, grab handle, drag down to close (lib/sheetDrag.js). */
+  .modal-bg { place-items: end stretch; padding: 0; }
+  .modal-bg > .modal { max-width: none; width: 100%; margin: 0; border-radius: 22px 22px 0 0; border-bottom: none;
+    max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; position: relative;
+    padding-top: 28px; padding-bottom: calc(18px + var(--safe-b)); animation: sheet-in .28s cubic-bezier(.2, .8, .2, 1); }
+  .modal-bg > .modal::before { content: ''; position: absolute; top: 10px; left: 50%; width: 40px; height: 5px; margin-left: -20px;
+    border-radius: 99px; background: color-mix(in srgb, var(--text) 22%, transparent); }
+  .modal-bg > .modal .actions { position: sticky; bottom: calc(-18px - var(--safe-b)); background: var(--card); margin: 4px -18px calc(-18px - var(--safe-b)); padding: 12px 18px calc(12px + var(--safe-b)); border-top: 1px solid var(--line); }
+  .dialog-bg > .modal .actions { position: static; margin: 4px 0 0; padding: 0; border: none; background: none; }
+  .dialog-bg > .modal .actions .btn { flex: 1; }
   /* Type picker as a full-height sheet on phones, like LastPass's "Add item" screen. */
   .modal-bg:has(.sheet) { padding: 0; place-items: stretch; }
+  .modal.sheet::before { display: none; }
   .modal.sheet { max-width: none; max-height: none; height: 100dvh; border-radius: 0; border: none; padding-top: calc(18px + var(--safe-t)); padding-bottom: calc(18px + var(--safe-b)); }
 }
 
