@@ -1,16 +1,40 @@
 import { useEffect, useId, useMemo, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { householdColor } from '../lib/colors'
 import { copySecret, generatePassword, parseTotp, pwnedCount, totpCode } from '../lib/vaultTools'
 import { VAULT_TYPES, typeOf, itemTitle, itemSubtitle, searchText, formatMonth } from '../lib/vaultTypes'
 import { CopyIcon, EyeIcon, DiceIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
 
-const META = ['id', 'created_at', 'updated_at', 'corrupt']
+// Row/sharing info added by useVault, never encrypted into the item.
+const META = ['id', 'created_at', 'updated_at', 'corrupt', 'owner_id', 'household_ids', 'mine']
 const quickCopyField = (item) => typeOf(item).fields.find((f) => f.copy && f.kind === 'secret' && item[f.key])
 
 // `open` (item being viewed) and `editing` (item being edited; {} = pick a type first) live in
 // VaultModule so the add button and the Security tab can open them; it clears them on lock.
-export default function VaultItems({ vault, open, setOpen, editing, setEditing }) {
+// Owner: households (+ which have a login) for the "Shared with" chips and "by …" labels.
+function useHouseholds(enabled) {
+  const [data, setData] = useState({ households: [], members: [] })
+  useEffect(() => {
+    if (!enabled) return
+    Promise.all([
+      supabase.from('households').select('id, name, color, created_at').order('created_at'),
+      supabase.from('household_members').select('household_id, user_id, username'),
+    ]).then(([h, m]) => setData({ households: h.data || [], members: m.data || [] }))
+  }, [enabled])
+  return data
+}
+
+export default function VaultItems({ vault, member, open: openRaw, setOpen, editing, setEditing }) {
+  const { households, members } = useHouseholds(!member)
+  // Keep the open item in step with the list (e.g. after changing who it's shared with).
+  const open = openRaw && (vault.items.find((i) => i.id === openRaw.id) || openRaw)
+  const byHousehold = (item) => {
+    if (item.mine) return null
+    const m = members.find((x) => x.user_id === item.owner_id)
+    return m ? households.find((h) => h.id === m.household_id) : null
+  }
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [toast, setToast] = useState(null)
@@ -64,6 +88,7 @@ export default function VaultItems({ vault, open, setOpen, editing, setEditing }
                 <div className="ellipsis">{itemTitle(i)}</div>
                 <div className="muted small ellipsis">{itemSubtitle(i) || t.label}{i.folder && <> · {i.folder}</>}</div>
               </span>
+              <ShareTags item={i} member={member} households={households} by={byHousehold(i)} />
               {qc && (
                 <button className="btn icon" title={`Copy ${qc.label.toLowerCase()}`} aria-label={`Copy ${qc.label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); copy(i[qc.key], qc.label) }}><CopyIcon /></button>
               )}
@@ -77,6 +102,8 @@ export default function VaultItems({ vault, open, setOpen, editing, setEditing }
 
       {open && !editing && (
         <ItemView item={open} copy={copy} onClose={() => setOpen(null)} onEdit={() => setEditing(open)}
+          readOnly={member && !open.mine} by={byHousehold(open)}
+          share={member ? null : { households, members, onChange: (ids) => vault.shareItem(open.id, ids) }}
           onDelete={async () => {
             if (!await dialog.confirm({ title: `Delete "${itemTitle(open)}"?`, message: `This ${typeOf(open).label.toLowerCase()} is removed from your vault for good.` })) return
             await vault.deleteItem(open.id)
@@ -147,7 +174,49 @@ function Field({ label, value, secret, multiline, onCopy, children }) {
   )
 }
 
-function ItemView({ item, copy, onClose, onEdit, onDelete }) {
+// Small coloured household dots (owner) / "Shared" tag (member) on a list row.
+function ShareTags({ item, member, households, by }) {
+  if (member) return item.mine ? null : <span className="vault-tag">Shared</span>
+  const dots = households.filter((h) => item.household_ids.includes(h.id))
+  if (!dots.length && !by) return null
+  return (
+    <span className="vault-dots" title={by ? `Added by ${by.name}` : `Shared with ${dots.map((h) => h.name).join(', ')}`}>
+      {(by ? [by, ...dots.filter((h) => h.id !== by.id)] : dots).map((h) => (
+        <span key={h.id} className="vault-dot" style={{ '--c': householdColor(h, households) }}>{h.name.slice(0, 1).toUpperCase()}</span>
+      ))}
+    </span>
+  )
+}
+
+// Owner: tap households to share an item with them (they see it read-only in their vault).
+function ShareWith({ item, share, by }) {
+  const withLogin = share.households.filter((h) => share.members.some((m) => m.household_id === h.id))
+  const [busy, setBusy] = useState(false)
+  if (!withLogin.length) return null
+  async function toggle(h) {
+    const ids = item.household_ids.includes(h.id) ? item.household_ids.filter((x) => x !== h.id) : [...item.household_ids, h.id]
+    setBusy(true)
+    try { await share.onChange(ids) } finally { setBusy(false) }
+  }
+  return (
+    <div className="share-with">
+      <div className="hh-sec-title">{by ? `Added by ${by.name} · also share with` : 'Share with'}</div>
+      <div className="chips">
+        {withLogin.filter((h) => !by || h.id !== by.id).map((h) => {
+          const on = item.household_ids.includes(h.id)
+          return (
+            <button type="button" key={h.id} disabled={busy} className={`chip chip-btn share-chip ${on ? 'on' : ''}`} style={{ '--c': householdColor(h, share.households) }}
+              aria-pressed={on} onClick={() => toggle(h)}>
+              <span className="vault-dot">{h.name.slice(0, 1).toUpperCase()}</span>{h.name}{on && ' ✓'}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, by, share }) {
   const t = typeOf(item)
   const [breach, setBreach] = useState(null) // null | 'checking' | number | error text
 
@@ -196,11 +265,13 @@ function ItemView({ item, copy, onClose, onEdit, onDelete }) {
             )}
           </>
         )}
+        {share && !item.corrupt && <ShareWith item={item} share={share} by={by} />}
+        {readOnly && <div className="muted small">Shared with you by the family admin · view only</div>}
         <div className="actions">
-          <button type="button" className="btn icon" aria-label="Delete" onClick={onDelete}><TrashIcon /></button>
+          {!readOnly && <button type="button" className="btn icon" aria-label="Delete" onClick={onDelete}><TrashIcon /></button>}
           <span className="spacer" />
           <button type="button" className="btn ghost" onClick={onClose}>Close</button>
-          {!item.corrupt && <button type="button" className="btn primary" onClick={onEdit}><PencilIcon /> Edit</button>}
+          {!item.corrupt && !readOnly && <button type="button" className="btn primary" onClick={onEdit}><PencilIcon /> Edit</button>}
         </div>
       </div>
     </div>

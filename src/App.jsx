@@ -148,37 +148,52 @@ function Shell({ session }) {
   )
 }
 
-// A household member's app: only their household's Budget, behind their own fingerprint
-// (PIN as backup). No Vault, no Will, no module switcher, no household menu.
+// A household member's app: their household's Budget, plus the family Vault once the owner
+// enables it for them (then ONE vault fingerprint opens both, like the owner's app). Without a
+// vault they're behind the per-device app lock (fingerprint, PIN as backup). No Will.
 const SETUP_SKIPPED_KEY = 'pocketos.fingerprintSkipped'
-const START_TAB_KEY = 'pocketos.memberStartTab'
+const MEMBER_INFO_KEY = 'pocketos.memberInfo'
 function MemberShell({ session }) {
-  const appLock = useAppLock(session)
   useEffect(() => { preloadBudget() }, [])
-  // The tab the app opens on is chosen by the owner (household_members.start_tab). Cached per
-  // device so the app can open instantly; refreshed from the server on every start.
-  const [startTab, setStartTab] = useState(() => { try { return localStorage.getItem(START_TAB_KEY) } catch { return null } })
+  // Which tab the app opens on (chosen by the owner) and the member's household. Cached per
+  // device so the app opens instantly; refreshed from the server on every start.
+  const [info, setInfo] = useState(() => { try { return JSON.parse(localStorage.getItem(MEMBER_INFO_KEY)) } catch { return null } })
   useEffect(() => {
-    supabase.from('household_members').select('start_tab').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
-      const t = data?.start_tab || 'dashboard'
-      try { localStorage.setItem(START_TAB_KEY, t) } catch { /* ignore */ }
-      setStartTab((cur) => cur || t)
+    supabase.from('household_members').select('start_tab, household_id').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
+      if (!data) return
+      try { localStorage.setItem(MEMBER_INFO_KEY, JSON.stringify(data)) } catch { /* ignore */ }
+      setInfo((cur) => (cur ? { ...cur, household_id: data.household_id } : data))
     })
   }, [session.user.id])
+  const vault = useVault(session, { householdId: info?.household_id })
+  const appLock = useAppLock(session)
+  const dialog = useDialog()
+  const [module, setModule] = useState('budget')
   const [skipped, setSkipped] = useState(() => { try { return !!sessionStorage.getItem(SETUP_SKIPPED_KEY) } catch { return false } })
   const [toast, setToast] = useState(null)
-  useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
+  const vaultOn = vault.status === 'locked' || vault.status === 'unlocked'
 
-  if (!appLock.enabled && !skipped) {
-    return <FingerprintSetup appLock={appLock} session={session} onDone={() => markFingerprint(session.user.id)}
-      onSkip={() => { try { sessionStorage.setItem(SETUP_SKIPPED_KEY, '1') } catch { /* ignore */ } setSkipped(true) }} />
+  // With a vault, its fingerprint is the one lock — switch the separate app lock off.
+  const { enabled: appLockOn, disable: disableAppLock } = appLock
+  useEffect(() => { if (appLockOn && vaultOn) disableAppLock() }, [appLockOn, vaultOn, disableAppLock])
+  useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
+  useOfferFingerprint(vault, dialog, setToast)
+  useBackAction(module !== 'budget', () => setModule('budget'), 1)
+
+  if (vault.status === 'loading' || !info) return <Splash />
+  if (vault.status === 'locked') return <UnlockScreen vault={vault} onRecovered={() => {}} />
+  if (!vaultOn) {
+    if (!appLock.enabled && !skipped) {
+      return <FingerprintSetup appLock={appLock} session={session} onDone={() => markFingerprint(session.user.id)}
+        onSkip={() => { try { sessionStorage.setItem(SETUP_SKIPPED_KEY, '1') } catch { /* ignore */ } setSkipped(true) }} />
+    }
+    if (appLock.locked) return <MemberLockScreen appLock={appLock} session={session} />
   }
-  if (appLock.locked) return <MemberLockScreen appLock={appLock} session={session} />
-  if (!startTab) return <Splash />
-  const topbar = { module: 'budget', setModule: () => {}, member: true }
+  const topbar = { module, setModule, member: !vaultOn }
   return (
-    <div className="shell">
-      <BudgetModule topbar={topbar} email={memberName(session)} member appLock={appLock} startTab={startTab} />
+    <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
+      {module === 'vault' && vaultOn ? <VaultModule topbar={topbar} vault={vault} member />
+        : <BudgetModule topbar={topbar} email={memberName(session)} member appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} startTab={info.start_tab || 'dashboard'} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -295,7 +310,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   )
 }
 
-function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword }) {
+function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword, member }) {
   const [tab, setTab] = useState('items')
   useBackAction(tab !== 'items', () => setTab('items'), 2)
   const [recoveryCode, setRecoveryCode] = useState(null) // { code, firstTime } shown once
@@ -319,9 +334,9 @@ function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword })
     </div>
   )
   else if (!unlocked) body = <VaultGate vault={vault} onRecovered={() => setMustResetPassword(true)} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: true })} />
-  else if (tab === 'items') body = <VaultItems vault={vault} open={openItem} setOpen={setOpenItem} editing={editing} setEditing={setEditing} />
+  else if (tab === 'items') body = <VaultItems vault={vault} member={member} open={openItem} setOpen={setOpenItem} editing={editing} setEditing={setEditing} />
   else if (tab === 'generator') body = <PasswordGenerator />
-  else body = <VaultSecurity vault={vault} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: false })} onOpenItem={(item) => { setTab('items'); setOpenItem(item) }} />
+  else body = <VaultSecurity vault={vault} member={member} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: false })} onOpenItem={(item) => { setTab('items'); setOpenItem(item) }} />
 
   return (
     <div className="app">

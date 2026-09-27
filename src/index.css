@@ -463,6 +463,15 @@ input[type=range] { padding: 0; border: none; background: none; accent-color: va
 .recovery-code { display: block; text-align: center; font-size: 16px; font-weight: 600; letter-spacing: .04em; line-height: 1.8; padding: 14px; word-spacing: 4px; user-select: all; }
 
 .vault-row { cursor: pointer; }
+.vault-dots { display: flex; flex: none; }
+.vault-dot { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 10px; font-weight: 700;
+  background: color-mix(in srgb, var(--c, var(--accent)) 28%, var(--card)); color: var(--c, var(--accent)); border: 2px solid var(--card); }
+.vault-dots .vault-dot + .vault-dot { margin-left: -6px; }
+.vault-tag { flex: none; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--accent-2); color: var(--accent); }
+.share-with { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.share-chip { gap: 6px; }
+.share-chip .vault-dot { border: none; }
+.share-chip.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
 .site-badge.type { background: var(--accent-2); color: var(--accent); }
 .site-badge.type svg { width: 20px; height: 20px; }
 .form-field { display: grid; gap: 6px; }

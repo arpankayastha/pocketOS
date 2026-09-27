@@ -24,7 +24,9 @@ export function fingerprintHere(unlockers) {
 
 // Vault state lives in the Shell (not the Vault module) so switching to Budget and back
 // doesn't lock it. The decrypted vault key is only ever held in memory, in refs.
-export function useVault(session) {
+// `householdId` (member logins only): new items are tagged with it so the owner and the
+// household both see them.
+export function useVault(session, { householdId } = {}) {
   const [status, setStatus] = useState('loading') // loading | setup | locked | unlocked
   const [unlockers, setUnlockers] = useState([])
   const [items, setItems] = useState([])
@@ -44,12 +46,13 @@ export function useVault(session) {
   }, [])
 
   const loadUnlockers = useCallback(async () => {
+    // The owner can also read their household members' unlockers (RLS); only our own count here.
     const { data, error } = await supabase.from('vault_unlockers')
-      .select('id, kind, label, credential_id, salt, iterations, iv, wrapped_key, created_at').order('created_at')
+      .select('id, kind, label, credential_id, salt, iterations, iv, wrapped_key, created_at').eq('user_id', session.user.id).order('created_at')
     if (error) { setError(error.message); return null }
     setUnlockers(data)
     return data
-  }, [])
+  }, [session.user.id])
 
   useEffect(() => {
     loadUnlockers().then((data) => {
@@ -59,19 +62,21 @@ export function useVault(session) {
   }, [loadUnlockers])
 
   const loadItems = useCallback(async () => {
-    const { data, error } = await supabase.from('vault_items').select('id, iv, ciphertext, created_at, updated_at')
+    // Owner: own items + everything their household members add. Member: own + shared with them.
+    const { data, error } = await supabase.from('vault_items').select('id, iv, ciphertext, created_at, updated_at, user_id, household_ids')
     if (error) throw new Error(error.message)
     const out = []
     for (const row of data) {
       try {
-        out.push({ ...(await decryptItem(cryptoKey.current, row)), id: row.id, created_at: row.created_at, updated_at: row.updated_at })
+        out.push({ ...(await decryptItem(cryptoKey.current, row)), id: row.id, created_at: row.created_at, updated_at: row.updated_at,
+          owner_id: row.user_id, household_ids: row.household_ids || [], mine: row.user_id === session.user.id })
       } catch {
-        out.push({ id: row.id, title: '⚠ Unreadable item', corrupt: true })
+        out.push({ id: row.id, title: '⚠ Unreadable item', corrupt: true, owner_id: row.user_id, household_ids: row.household_ids || [], mine: row.user_id === session.user.id })
       }
     }
     out.sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' }))
     setItems(out)
-  }, [])
+  }, [session.user.id])
 
   const openWithRawKey = useCallback(async (raw) => {
     rawKey.current = raw
@@ -159,6 +164,8 @@ export function useVault(session) {
 
   const changePassword = useCallback(async (password) => {
     const row = await passwordRow(password, rawKey.current)
+    // No user filter on purpose: for the owner this also updates every household vault
+    // (they share the owner's master password and key); for anyone else RLS limits it to self.
     const { error } = await supabase.from('vault_unlockers').update(row).eq('kind', 'password')
     if (error) throw new Error(error.message)
     await loadUnlockers()
@@ -182,10 +189,35 @@ export function useVault(session) {
     const payload = await encryptItem(cryptoKey.current, itemId, data)
     const { error } = id
       ? await supabase.from('vault_items').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', id)
-      : await supabase.from('vault_items').insert({ id: itemId, ...payload })
+      : await supabase.from('vault_items').insert({ id: itemId, ...payload, household_ids: householdId ? [householdId] : [] })
+    if (error) throw new Error(error.message)
+    await loadItems()
+  }, [loadItems, householdId])
+
+  // Owner: which households can see an item (not secret — it only controls who can fetch it).
+  const shareItem = useCallback(async (id, householdIds) => {
+    const { error } = await supabase.from('vault_items').update({ household_ids: householdIds }).eq('id', id)
     if (error) throw new Error(error.message)
     await loadItems()
   }, [loadItems])
+
+  // Owner: give a household login access to the family vault — a copy of the owner's password
+  // unlocker (same master password, same key) under the member's user id.
+  const enableHouseholdVault = useCallback(async (memberUserId, password) => {
+    const u = unlockers.find((x) => x.kind === 'password')
+    try { (await unwrapVaultKey(u, await kekFromPassword(password, fromB64(u.salt), u.iterations))).fill(0) }
+    catch { throw new Error('Wrong master password.') }
+    const row = await passwordRow(password, rawKey.current)
+    await supabase.from('vault_unlockers').delete().eq('user_id', memberUserId).eq('kind', 'password')
+    const { error } = await supabase.from('vault_unlockers').insert({ ...row, user_id: memberUserId })
+    if (error) throw new Error(error.message)
+  }, [unlockers])
+
+  // Owner: turn a household's vault access off (their fingerprints too). Their items stay (you still see them).
+  const disableHouseholdVault = useCallback(async (memberUserId) => {
+    const { error } = await supabase.from('vault_unlockers').delete().eq('user_id', memberUserId)
+    if (error) throw new Error(error.message)
+  }, [])
 
   const deleteItem = useCallback(async (id) => {
     const { error } = await supabase.from('vault_items').delete().eq('id', id)
@@ -251,5 +283,6 @@ export function useVault(session) {
     setup, unlockWithPassword, unlockWithRecovery, unlockWithFingerprint, checkPassword,
     addFingerprint, removeUnlocker, changePassword, regenerateRecovery,
     saveItem, deleteItem, importItems, seal, unseal, lock, lockNow, touch, verifyUser,
+    shareItem, enableHouseholdVault, disableHouseholdVault,
   }
 }

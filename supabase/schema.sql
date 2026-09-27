@@ -594,3 +594,48 @@ with ranked as (
 )
 update public.households h set color = (array['#3987e5','#d95926','#199e70','#c98500','#d55181','#008300','#9085e9','#e66767'])[r.i + 1]
 from ranked r where r.id = h.id;
+-- ============================================================================
+-- Household vault sharing. One family vault key (the owner's); the owner can "enable Vault"
+-- for a household login, which gives that member a copy of the owner's password unlocker
+-- (same master password, same key). Items stay encrypted with that key; `household_ids` only
+-- decides WHO CAN FETCH a row:
+--   owner  → sees every item: their own + everything their members add
+--   member → sees items shared with their household (read-only) + items they add
+-- The owner manages their members' unlocker rows (enable/disable vault, password sync).
+-- ============================================================================
+alter table public.vault_items add column if not exists household_ids uuid[] not null default '{}';
+create index if not exists vault_items_household_ids_idx on public.vault_items using gin (household_ids);
+
+create or replace function private.my_member_ids()
+returns setof uuid language sql stable security definer set search_path = '' as $$
+  select m.user_id from public.household_members m
+  join public.households h on h.id = m.household_id
+  where h.user_id = auth.uid()
+$$;
+revoke execute on function private.my_member_ids() from public, anon;
+grant execute on function private.my_member_ids() to authenticated;
+
+drop policy if exists "own rows" on public.vault_unlockers;
+drop policy if exists "own or member rows" on public.vault_unlockers;
+create policy "own or member rows" on public.vault_unlockers for all to authenticated
+  using (user_id = (select auth.uid()) or user_id in (select private.my_member_ids()))
+  with check (user_id = (select auth.uid()) or user_id in (select private.my_member_ids()));
+
+-- Reading: own, members' (owner), or shared with one of my households (member).
+-- Writing: only own rows, or members' rows (owner) — so members can't edit shared items.
+drop policy if exists "own rows" on public.vault_items;
+drop policy if exists "read own member or shared" on public.vault_items;
+drop policy if exists "write own or member" on public.vault_items;
+drop policy if exists "insert own or member" on public.vault_items;
+drop policy if exists "update own or member" on public.vault_items;
+drop policy if exists "delete own or member" on public.vault_items;
+create policy "read own member or shared" on public.vault_items for select to authenticated
+  using (user_id = (select auth.uid()) or user_id in (select private.my_member_ids())
+         or household_ids && (select coalesce(array_agg(x), '{}') from private.my_household_ids() x));
+create policy "insert own or member" on public.vault_items for insert to authenticated
+  with check (user_id = (select auth.uid()) or user_id in (select private.my_member_ids()));
+create policy "update own or member" on public.vault_items for update to authenticated
+  using (user_id = (select auth.uid()) or user_id in (select private.my_member_ids()))
+  with check (user_id = (select auth.uid()) or user_id in (select private.my_member_ids()));
+create policy "delete own or member" on public.vault_items for delete to authenticated
+  using (user_id = (select auth.uid()) or user_id in (select private.my_member_ids()));

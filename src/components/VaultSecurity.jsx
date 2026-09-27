@@ -8,13 +8,15 @@ import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
 
 
-export default function VaultSecurity({ vault, onRecoveryCode, onOpenItem }) {
+// Household members share the owner's master password, so they can't change it or make a
+// recovery code — only the owner manages those.
+export default function VaultSecurity({ vault, member, onRecoveryCode, onOpenItem }) {
   return (
     <section className="grid2">
       <Fingerprints vault={vault} />
       <AppLockCard />
-      <ChangePassword vault={vault} />
-      <Recovery vault={vault} onRecoveryCode={onRecoveryCode} />
+      {!member && <ChangePassword vault={vault} />}
+      {!member && <Recovery vault={vault} onRecoveryCode={onRecoveryCode} />}
       <Import vault={vault} />
       <BreachCheck vault={vault} onOpenItem={onOpenItem} />
     </section>

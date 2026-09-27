@@ -13,12 +13,12 @@ export default function Settings({ accounts, categories, refresh, households, ac
   return (
     <section className="grid2">
       <div style={{ gridColumn: '1 / -1' }}>
-        {member ? <FingerprintCard appLock={appLock} />
-          : <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} />}
+        {member ? (appLock ? <FingerprintCard appLock={appLock} /> : null)
+          : <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} vault={vault} />}
       </div>
-      {!member && vault?.status === 'unlocked' && (
+      {vault?.status === 'unlocked' && (
         <div style={{ gridColumn: '1 / -1' }}>
-          <SecurityCard vault={vault} />
+          <SecurityCard vault={vault} member={member} />
         </div>
       )}
       <div style={{ gridColumn: '1 / -1' }}>
@@ -107,7 +107,7 @@ function Passkeys() {
 
 // Owner: fingerprint unlock for this phone + change master password (same as Vault → Security,
 // surfaced here because the fingerprint opens the whole app, not just the Vault).
-function SecurityCard({ vault }) {
+function SecurityCard({ vault, member }) {
   const [available, setAvailable] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -135,14 +135,14 @@ function SecurityCard({ vault }) {
           <button className="btn small primary" disabled={busy} onClick={enable}>{busy ? 'Waiting…' : 'Turn on'}</button>
         )}
       </div>
-      <div className="sec-row">
+      {!member && <div className="sec-row">
         <span className="sec-ico"><PasskeyIcon /></span>
         <div className="grow">
           <div className="sec-title">Master password</div>
           <div className="muted small">Opens eChopdo when fingerprint isn't available, on any device.</div>
         </div>
         <button className="btn small" onClick={() => { setChanging(true); setDone(null) }}>Change</button>
-      </div>
+      </div>}
       {error && <div className="alert error">{error}</div>}
       {done && <div className="alert ok">{done}</div>}
       {changing && <ChangeMasterPassword vault={vault} onClose={() => setChanging(false)} onDone={() => { setChanging(false); setDone('Master password changed. Use the new one from now on.') }} />}
@@ -216,7 +216,7 @@ const ago = (iso) => {
   return `last seen ${d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`}`
 }
 
-function Households({ households, activeHouseholdId, setActiveHouseholdId, createHousehold, refresh }) {
+function Households({ households, activeHouseholdId, setActiveHouseholdId, createHousehold, refresh, vault }) {
   const dialog = useDialog()
   const [error, setError] = useState(null)
   const [openId, setOpenId] = useState(null) // household whose sheet is open
@@ -224,9 +224,28 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
   const [loginFor, setLoginFor] = useState(null) // household getting a new login
   const [share, setShare] = useState(null) // { household, username, pin, reset } shown once
 
+  const [vaultOn, setVaultOn] = useState({}) // member user_id → has vault access
   const loadMembers = useCallback(async () => {
-    try { setMembers((await manageMembers('list')).members) } catch (err) { setError(err.message) }
+    try {
+      const list = (await manageMembers('list')).members
+      setMembers(list)
+      if (list.length) {
+        const { data } = await supabase.from('vault_unlockers').select('user_id').eq('kind', 'password').in('user_id', list.map((m) => m.user_id))
+        setVaultOn(Object.fromEntries((data || []).map((r) => [r.user_id, true])))
+      }
+    } catch (err) { setError(err.message) }
   }, [])
+
+  // Vault access for a household login: same master password as yours, same family vault key.
+  async function enableVault(m) {
+    const pw = await dialog.prompt({ title: `Give ${m.username} the Vault?`, message: 'They will unlock it with YOUR master password (then their fingerprint), and see only items you share with them plus what they add. Everything they add shows in your vault too.', label: 'Your master password', inputType: 'password', confirmLabel: 'Enable Vault' })
+    if (!pw) return
+    try { await vault.enableHouseholdVault(m.user_id, pw); loadMembers() } catch (err) { dialog.alert({ title: "Couldn't enable the Vault", message: err.message }) }
+  }
+  async function disableVault(m) {
+    if (!await dialog.confirm({ title: `Turn off ${m.username}'s Vault?`, message: 'They lose access on every phone. Items they added stay in your vault.', confirmLabel: 'Turn off' })) return
+    try { await vault.disableHouseholdVault(m.user_id); loadMembers() } catch (err) { setError(err.message) }
+  }
   useEffect(() => { loadMembers() }, [loadMembers])
 
   async function resetPin(h, m) {
@@ -309,7 +328,7 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
         onSwitch={() => { setActiveHouseholdId(open.id); setOpenId(null) }}
         onRename={(next) => rename(open, next)} onDelete={() => remove(open)}
         onCreateLogin={() => setLoginFor(open)} onResetPin={(m) => resetPin(open, m)} onRemoveLogin={(m) => removeLogin(open, m)}
-        onStartTab={setStartTab} />}
+        onStartTab={setStartTab} vaultOn={vaultOn} canVault={vault?.status === 'unlocked'} onEnableVault={enableVault} onDisableVault={disableVault} />}
       {loginFor && <LoginForm household={loginFor} taken={(members || []).map((x) => x.username)} onClose={() => setLoginFor(null)}
         onCreated={(username, pin) => { setShare({ household: loginFor, username, pin }); setLoginFor(null); loadMembers() }} />}
       {share && <ShareLogin {...share} onClose={() => setShare(null)} />}
@@ -326,7 +345,7 @@ function LoginBadge({ member, loading }) {
 }
 
 // Everything about one household in one bottom sheet: switch, rename, login, delete.
-function HouseholdSheet({ household, color, onColor, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab }) {
+function HouseholdSheet({ household, color, onColor, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab, vaultOn, canVault, onEnableVault, onDisableVault }) {
   const [name, setName] = useState(household.name)
   const changed = name.trim() && name.trim() !== household.name
   return (
@@ -367,6 +386,14 @@ function HouseholdSheet({ household, color, onColor, member, membersLoaded, acti
                   {START_TABS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
                 </select>
               </label>
+              {canVault && (
+                <div className="hh-start">
+                  <span>Vault {vaultOn[member.user_id] ? <span className="hh-badge ok">On</span> : <span className="hh-badge none">Off</span>}</span>
+                  {vaultOn[member.user_id]
+                    ? <button className="btn small" onClick={() => onDisableVault(member)}>Turn off</button>
+                    : <button className="btn small primary" onClick={() => onEnableVault(member)}>Enable Vault</button>}
+                </div>
+              )}
               <div className="hh-login-actions">
                 <button className="btn small" onClick={() => onResetPin(member)}>Reset PIN</button>
                 <button className="btn small danger-ghost" onClick={() => onRemoveLogin(member)}>Remove login</button>
