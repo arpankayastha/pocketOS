@@ -134,7 +134,7 @@ export function useVault(session) {
 
   const addFingerprint = useCallback(async (label) => {
     const prfSalt = randomBytes(32)
-    const { credentialId, prf } = await createCredential({ name: session.user.email, displayName: 'PocketOS Vault', prfSalt })
+    const { credentialId, prf } = await createCredential({ name: session.user.email, displayName: 'eChopdo Vault', prfSalt })
     const wrapped = await wrapVaultKey(rawKey.current, await kekFromSecret(prf, new Uint8Array(), PRF_INFO))
     const { error } = await supabase.from('vault_unlockers').insert({ kind: 'prf', label, credential_id: credentialId, salt: toB64(prfSalt), ...wrapped })
     if (error) throw new Error(error.message)

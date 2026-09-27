@@ -39,7 +39,7 @@ export default function AppLockScreen({ appLock, vault }) {
     <div className="auth-wrap">
       <div className="auth-glow" />
       <div className="card auth">
-        <div className="brand big"><BrandMark size={28} />PocketOS</div>
+        <div className="brand big"><BrandMark size={28} />eChopdo</div>
         <p className="auth-tagline">Locked. Use your fingerprint to continue.</p>
         <button className="btn primary" disabled={busy} onClick={fingerprint}><FingerprintIcon /> Unlock with fingerprint</button>
         {usePassword ? (
@@ -88,7 +88,7 @@ export function MemberLockScreen({ appLock, session }) {
     <div className="auth-wrap">
       <div className="auth-glow" />
       <div className="card auth">
-        <div className="brand big"><BrandMark size={28} />PocketOS</div>
+        <div className="brand big"><BrandMark size={28} />eChopdo</div>
         <p className="auth-tagline">Hi {name}. Use your fingerprint to continue.</p>
         <button className="btn primary" disabled={busy} onClick={fingerprint}><FingerprintIcon /> Unlock with fingerprint</button>
         {usePin ? (
@@ -117,8 +117,8 @@ export function FingerprintSetup({ appLock, session, onDone, onSkip }) {
     <div className="auth-wrap">
       <div className="auth-glow" />
       <div className="card auth">
-        <div className="brand big"><BrandMark size={28} />PocketOS</div>
-        <p className="auth-tagline">Welcome, {memberName(session)}! Turn on fingerprint so PocketOS opens with just your finger from now on.</p>
+        <div className="brand big"><BrandMark size={28} />eChopdo</div>
+        <p className="auth-tagline">Welcome, {memberName(session)}! Turn on fingerprint so eChopdo opens with just your finger from now on.</p>
         <button className="btn primary" disabled={busy} onClick={enable}><FingerprintIcon /> {busy ? 'Waiting for fingerprint…' : 'Use my fingerprint'}</button>
         {error && <div className="alert error">{error}</div>}
         <button className="btn link" onClick={onSkip}>Not now</button>

@@ -42,8 +42,8 @@ export default function Auth() {
     <div className="auth-wrap">
       <div className="auth-glow" aria-hidden="true" />
       <div className="card auth">
-        <div className="brand big"><BrandMark size={28} />PocketOS</div>
-        <p className="auth-tagline">Everything you run your life with, in one pocket. Starting with your money.</p>
+        <div className="brand big"><BrandMark size={28} />eChopdo</div>
+        <p className="auth-tagline">The family chopdo, now digital — money, passwords and records in one safe place.</p>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
         {member ? (
           <form className="stack" onSubmit={signInWithPin}>

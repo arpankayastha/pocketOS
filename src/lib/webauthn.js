@@ -25,7 +25,7 @@ function prfResult(cred) {
 export async function createCredential({ name, displayName, prfSalt }) {
   const cred = await navigator.credentials.create({
     publicKey: {
-      rp: { name: 'PocketOS', id: location.hostname },
+      rp: { name: 'eChopdo', id: location.hostname },
       user: { id: randomBytes(16), name, displayName },
       challenge: randomBytes(32),
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],

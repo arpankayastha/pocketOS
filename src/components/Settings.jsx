@@ -75,7 +75,7 @@ function Passkeys() {
   return (
     <div className="card">
       <h3>Passkeys</h3>
-      <p className="muted small" style={{ marginTop: -6 }}>Sign in to PocketOS with your fingerprint or face instead of Google.</p>
+      <p className="muted small" style={{ marginTop: -6 }}>Sign in to eChopdo with your fingerprint or face instead of Google.</p>
       <div className="pk-list">
         {passkeys.map((p) => (
           <div className="pk-row" key={p.id}>
@@ -111,8 +111,8 @@ function FingerprintCard({ appLock }) {
     <div className="card">
       <h3>Fingerprint unlock</h3>
       <p className="muted small">{appLock.enabled
-        ? 'PocketOS asks for your fingerprint when it opens and after a minute in the background. Your PIN still works as a backup.'
-        : 'Turn it on so PocketOS opens with your fingerprint instead of your PIN.'}</p>
+        ? 'eChopdo asks for your fingerprint when it opens and after a minute in the background. Your PIN still works as a backup.'
+        : 'Turn it on so eChopdo opens with your fingerprint instead of your PIN.'}</p>
       {appLock.enabled
         ? <button className="btn" onClick={appLock.disable}>Turn off</button>
         : <button className="btn primary" disabled={busy} onClick={enable}><FingerprintIcon /> {busy ? 'Waiting for fingerprint…' : 'Use my fingerprint'}</button>}
@@ -261,7 +261,7 @@ function HouseholdSheet({ household, color, member, membersLoaded, active, onClo
             </div>
           ) : (
             <div className="hh-login-empty">
-              <p className="muted small">Let someone in this household use PocketOS on their own phone. They sign in once with a username and 6-digit PIN, then use their fingerprint. They'll see only "{household.name}".</p>
+              <p className="muted small">Let someone in this household use eChopdo on their own phone. They sign in once with a username and 6-digit PIN, then use their fingerprint. They'll see only "{household.name}".</p>
               <button className="btn primary small" onClick={onCreateLogin}>+ Create login</button>
             </div>
           )}
@@ -319,7 +319,7 @@ function LoginForm({ household, taken, onClose, onCreated }) {
 // Shown once after creating a login or resetting a PIN: the details to pass on.
 function ShareLogin({ household, username, pin, reset, onClose }) {
   const [copied, setCopied] = useState(false)
-  const text = `PocketOS${reset ? ' — new PIN' : ''} for ${household.name}\nOpen: ${location.origin}\nTap "Household login"\nUsername: ${username}\nPIN: ${pin}\nThen turn on your fingerprint.`
+  const text = `eChopdo${reset ? ' — new PIN' : ''} for ${household.name}\nOpen: ${location.origin}\nTap "Household login"\nUsername: ${username}\nPIN: ${pin}\nThen turn on your fingerprint.`
   async function copy() { try { await navigator.clipboard.writeText(text); setCopied(true) } catch { /* ignore */ } }
   async function send() { try { await navigator.share({ text }) } catch { /* cancelled */ } }
   return (

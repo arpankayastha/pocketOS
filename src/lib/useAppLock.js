@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createCredential, getAssertion } from './webauthn'
 import { DEVICE_CREDENTIAL_KEY } from './useVault'
 
-// App lock: a per-device privacy screen that asks for a fingerprint when PocketOS opens
+// App lock: a per-device privacy screen that asks for a fingerprint when eChopdo opens
 // or returns from the background. It gates the UI only; Budget data isn't encrypted
 // (the Vault is, independently). Setting is stored per device in localStorage.
 const APP_LOCK_KEY = 'pocketos.appLock'
@@ -36,12 +36,12 @@ export function useAppLock(session) {
   }
 
   // Reuses this device's vault fingerprint credential if there is one, so the user
-  // doesn't end up with two "PocketOS" passkeys on the same phone.
+  // doesn't end up with two "eChopdo" passkeys on the same phone.
   const enable = useCallback(async () => {
     let credentialId = null
     try { credentialId = localStorage.getItem(DEVICE_CREDENTIAL_KEY) } catch { /* ignore */ }
     if (credentialId) await getAssertion({ credentials: [{ credentialId }] })
-    else credentialId = (await createCredential({ name: session.user.email, displayName: 'PocketOS' })).credentialId
+    else credentialId = (await createCredential({ name: session.user.email, displayName: 'eChopdo' })).credentialId
     save({ credentialId })
   }, [session])
 

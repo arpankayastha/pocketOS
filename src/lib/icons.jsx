@@ -1,6 +1,6 @@
 import { useId } from 'react'
 
-// PocketOS logo: cards tucked into a stitched pocket (money + passwords in one place).
+// eChopdo logo: cards tucked into a stitched pocket (money + passwords in one place).
 // Keep in sync with public/favicon.svg, public/icons/*.svg and the splash in index.html.
 export function BrandMark({ size = 24 }) {
   const id = useId()

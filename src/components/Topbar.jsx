@@ -15,8 +15,8 @@ export default function Topbar({ module, setModule, onSecret, member, children, 
 
   return (
     <header className={`topbar ${scrolled ? 'scrolled' : ''}`}>
-      <div className="brand" {...useLongPress(onSecret)}><BrandMark size={28} /><span className="brand-text">PocketOS</span></div>
-      {member ? <div className="brand-member">PocketOS</div> : <ModuleSwitch module={module} setModule={setModule} />}
+      <div className="brand" {...useLongPress(onSecret)}><BrandMark size={28} /><span className="brand-text">eChopdo</span></div>
+      {member ? <div className="brand-member">eChopdo</div> : <ModuleSwitch module={module} setModule={setModule} />}
       {children}
       <div className="topbar-right">{right}</div>
     </header>

@@ -1,6 +1,6 @@
-# PocketOS
+# eChopdo (repo: pocketOS)
 
-A personal "pocket operating system", used mainly as an installed PWA. React 19 + Vite, `@supabase/supabase-js`, Recharts. Plain CSS in `src/index.css` — dark-only, IBM Plex Sans/Mono for a "dev tool" feel (no light theme). No router: modules and their tabs live in `src/App.jsx`.
+A personal family app, used mainly as an installed PWA. **Display name: eChopdo** (Gujlish: *chopdo* = the family account/record book, blessed at Chopda Pujan; renamed from "PocketOS" by the user's choice — use eChopdo in all user-visible text). Internal identifiers keep the old name on purpose: repo/Vercel project, `pocketos.*` localStorage keys, the member email domain. React 19 + Vite, `@supabase/supabase-js`, Recharts. Plain CSS in `src/index.css` — dark-only, IBM Plex Sans/Mono for a "dev tool" feel (no light theme). No router: modules and their tabs live in `src/App.jsx`.
 
 ## Modules
 PocketOS is a shell of independent modules (list in `src/lib/modules.js`; Will is hidden, see below), picked via the segmented module switcher in the topbar (persisted to `localStorage` as `pocketos.activeModule`). The shared `Topbar` (`src/components/Topbar.jsx`) holds brand + switcher; each module component in `src/App.jsx` (`BudgetModule`, `VaultModule`) passes its desktop tabs as children and its actions as `right` (Budget: the `HouseholdMenu` chip; Vault: a lock button). No account/sign-out UI in the header — Sign out lives at the bottom of Budget → Accounts & Categories (and on the lock screens). One owner (the Google login) plus optional **household member logins** (see "Household member logins"). Module names are single words, **no "Pocket" prefix**.

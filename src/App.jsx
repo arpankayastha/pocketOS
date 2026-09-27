@@ -36,7 +36,7 @@ function preloadBudget() {
   import('./components/Charts')
 }
 
-// PocketOS is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
+// eChopdo is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
 const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
 
 // Accounts & Categories ('settings') isn't a tab: it opens from the ⚙ button in the header.
@@ -81,7 +81,7 @@ export default function App() {
 
 // Same look as the pre-JS splash in index.html (classes styled there), shown while the session loads.
 function Splash() {
-  return <div className="splash" aria-label="Loading PocketOS"><BrandMark size={76} /><span>PocketOS</span></div>
+  return <div className="splash" aria-label="Loading eChopdo"><BrandMark size={76} /><span>eChopdo</span></div>
 }
 
 function Shell({ session }) {
@@ -106,7 +106,7 @@ function Shell({ session }) {
     if (appLockOn && (vault.status === 'locked' || vault.status === 'unlocked')) disableAppLock()
   }, [appLockOn, disableAppLock, vault.status])
 
-  useBackButton(() => { setToast('Press back again to close PocketOS'); setTimeout(() => setToast(null), 2000) })
+  useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
   useBackAction(module !== 'budget', () => setModule('budget'), 1)
 
   // Hidden Will: press and hold the logo, then confirm with a fingerprint (master password if
@@ -125,7 +125,7 @@ function Shell({ session }) {
   if (vault.status === 'loading') {
     return vault.error ? (
       <div className="auth-wrap"><div className="card auth">
-        <div className="brand big"><BrandMark size={28} />PocketOS</div>
+        <div className="brand big"><BrandMark size={28} />eChopdo</div>
         <div className="alert error">Couldn't reach the server: {vault.error}</div>
         <button className="btn primary" onClick={() => location.reload()}>Try again</button>
       </div></div>
@@ -154,7 +154,7 @@ function MemberShell({ session }) {
   useEffect(() => { preloadBudget() }, [])
   const [skipped, setSkipped] = useState(() => { try { return !!sessionStorage.getItem(SETUP_SKIPPED_KEY) } catch { return false } })
   const [toast, setToast] = useState(null)
-  useBackButton(() => { setToast('Press back again to close PocketOS'); setTimeout(() => setToast(null), 2000) })
+  useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
 
   if (!appLock.enabled && !skipped) {
     return <FingerprintSetup appLock={appLock} session={session} onDone={() => markFingerprint(session.user.id)}
@@ -176,8 +176,8 @@ function UnlockScreen({ vault, onRecovered }) {
     <div className="auth-wrap">
       <div className="auth-glow" />
       <div className="unlock-wrap">
-        <div className="brand big unlock-brand"><BrandMark size={28} />PocketOS</div>
-        <VaultGate vault={vault} title="Unlock PocketOS" onRecovered={onRecovered} onRecoveryCode={() => {}} />
+        <div className="brand big unlock-brand"><BrandMark size={28} />eChopdo</div>
+        <VaultGate vault={vault} title="Unlock eChopdo" onRecovered={onRecovered} onRecoveryCode={() => {}} />
       </div>
     </div>
   )

@@ -10,9 +10,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'PocketOS',
-        short_name: 'PocketOS',
-        description: 'Your pocket operating system — Budget (plan next month ahead) and Vault (passwords, coming soon).',
+        name: 'eChopdo',
+        short_name: 'eChopdo',
+        description: 'eChopdo — the family chopdo, now digital: budget, dues, hisab, passwords and records in one safe place.',
         theme_color: '#050608',
         background_color: '#050608',
         display: 'standalone',

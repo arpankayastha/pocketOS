@@ -82,7 +82,7 @@ function AppLockCard() {
   return (
     <div className="card">
       <h3>App lock</h3>
-      <p className="muted small">PocketOS always opens with your fingerprint (or master password). That one unlock opens Budget, Vault and everything else — you're never asked twice.</p>
+      <p className="muted small">eChopdo always opens with your fingerprint (or master password). That one unlock opens Budget, Vault and everything else — you're never asked twice.</p>
       <p className="muted small" style={{ margin: 0 }}>It locks again after 5 minutes without use, after a minute in the background, or when you tap the lock button.</p>
     </div>
   )
@@ -157,7 +157,7 @@ function Import({ vault }) {
   return (
     <div className="card">
       <h3>Import from LastPass</h3>
-      <p className="muted small">LastPass's phone app can't export. On a computer, sign in at lastpass.com (or open the browser extension), find Export under Advanced Options or Account, choose LastPass CSV, then open PocketOS on that computer and pick the file here. Passwords and secure notes (cards, bank accounts, IDs…) come in as their matching types. The file is read and encrypted here on your device; it's never uploaded as-is.</p>
+      <p className="muted small">LastPass's phone app can't export. On a computer, sign in at lastpass.com (or open the browser extension), find Export under Advanced Options or Account, choose LastPass CSV, then open eChopdo on that computer and pick the file here. Passwords and secure notes (cards, bank accounts, IDs…) come in as their matching types. The file is read and encrypted here on your device; it's never uploaded as-is.</p>
       <label className="btn file-btn">
         Choose LastPass CSV…
         <input type="file" accept=".csv,text/csv" onChange={onFile} disabled={!!status?.busy} />

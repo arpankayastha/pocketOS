@@ -32,7 +32,7 @@ function Setup({ vault, onRecoveryCode }) {
     <form className="card gate" onSubmit={submit}>
       <VaultIcon />
       <h2>Set up your Vault</h2>
-      <p className="muted">Pick a master password. It encrypts everything on this device before it's saved, and it's never sent anywhere — so <b>nobody, including PocketOS, can reset it for you</b>.</p>
+      <p className="muted">Pick a master password. It encrypts everything on this device before it's saved, and it's never sent anywhere — so <b>nobody, including eChopdo, can reset it for you</b>.</p>
       <label>Master password
         <input type="password" autoComplete="new-password" required autoFocus value={pw} onChange={(e) => setPw(e.target.value)} />
       </label>
@@ -62,7 +62,7 @@ export function RecoveryCode({ code, onDone, firstTime }) {
   const [copied, setCopied] = useState(false)
 
   function download() {
-    const text = `PocketOS Vault recovery code\n\n${code}\n\nKeep this somewhere safe and offline. It unlocks your vault if you forget your master password.\n`
+    const text = `eChopdo Vault recovery code\n\n${code}\n\nKeep this somewhere safe and offline. It unlocks your vault if you forget your master password.\n`
     const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
     const a = Object.assign(document.createElement('a'), { href: url, download: 'pocketos-vault-recovery-code.txt' })
     a.click()
