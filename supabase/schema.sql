@@ -508,8 +508,9 @@ drop policy if exists "read own or joined" on public.households;
 drop policy if exists "owner inserts" on public.households;
 drop policy if exists "owner updates" on public.households;
 drop policy if exists "owner deletes" on public.households;
+-- user_id check first: on INSERT … RETURNING the new row isn't yet visible to my_household_ids().
 create policy "read own or joined" on public.households for select to authenticated
-  using (id in (select private.my_household_ids()));
+  using (user_id = (select auth.uid()) or id in (select private.my_household_ids()));
 create policy "owner inserts" on public.households for insert to authenticated
   with check (user_id = (select auth.uid()));
 create policy "owner updates" on public.households for update to authenticated
