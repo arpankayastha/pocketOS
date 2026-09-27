@@ -2,9 +2,10 @@
 
 A small native app, installed from https://echopdo.vercel.app/download/ (not the Play Store).
 
-- **Launcher icon → the whole eChopdo web app**, full screen in Chrome (Trusted Web Activity), so login,
+- **Launcher icon → `MainActivity` → the whole eChopdo web app**, full screen in Chrome (Trusted Web Activity via `TwaLauncher`, always Chrome when installed — Samsung Internet is often the default browser and has no eChopdo login), so login,
   vault fingerprint and passkeys are the same as the installed web app. Needs
   `/.well-known/assetlinks.json` on the site with this app's signing-key SHA-256, or Chrome shows a URL bar.
+- `MainActivity` shows its own start screen; if Chrome doesn't open within 8 s, or the app crashed last time (`App` saves the stack trace), it shows the error with Try again / Open in Chrome / Copy error report. No R8 minify (kept simple; APK ≈ 4 MB).
 - **Quick add** (`QuickAddActivity`): a sheet over the home screen — Hisab (default) or Budget, calculator
   keypad, category / book / source (or account) chips, date, note, Save / Save & next. Opened from the
   widget, the app-icon shortcuts (Spent / Received) and the quick-settings tile "eChopdo +".

@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
-import com.google.androidbrowserhelper.trusted.LauncherActivity
 
 // Home-screen widget: Spent / Received open the quick-add sheet; the chips below are the
 // household's frequent Hisab entries and save in one tap (with Undo in a notification).
@@ -36,7 +35,7 @@ class QuickWidget : AppWidgetProvider() {
 
         fun views(ctx: Context): RemoteViews {
             val v = RemoteViews(ctx.packageName, R.layout.widget_quick)
-            v.setOnClickPendingIntent(R.id.wTitle, activity(ctx, 1, Intent(ctx, LauncherActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
+            v.setOnClickPendingIntent(R.id.wTitle, activity(ctx, 1, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
             if (!Store.paired(ctx)) {
                 v.setTextViewText(R.id.wTitle, "eChopdo")
                 v.setViewVisibility(R.id.wButtons, View.GONE)

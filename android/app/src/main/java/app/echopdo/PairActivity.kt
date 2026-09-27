@@ -19,7 +19,6 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.google.androidbrowserhelper.trusted.LauncherActivity
 import org.json.JSONObject
 
 // Pairs this phone with a household: eChopdo → Settings → Phone widget → "Pair this phone"
@@ -144,7 +143,7 @@ class PairActivity : Activity() {
     }
 
     private fun openApp() {
-        startActivity(Intent(this, LauncherActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
+        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
     }
 
     private fun deviceName(): String {
