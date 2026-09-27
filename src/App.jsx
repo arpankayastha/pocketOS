@@ -17,20 +17,21 @@ import VaultSecurity, { ChangePassword } from './components/VaultSecurity'
 import AppLockScreen from './components/AppLockScreen'
 import WillModule from './components/will/WillModule'
 import Topbar, { HouseholdMenu } from './components/Topbar'
+import PillNav from './components/PillNav'
 import { MODULES } from './lib/modules'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
+import { BrandMark, HomeIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
 
 // PocketOS is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
 const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
 
+// Accounts & Categories ('settings') isn't a tab: it opens from the ⚙ button in the header.
 const BUDGET_TABS = [
-  { id: 'dashboard', label: 'Dashboard', icon: DashboardIcon },
-  { id: 'transactions', label: 'Transactions', icon: ListIcon },
+  { id: 'dashboard', label: 'Home', icon: HomeIcon },
+  { id: 'transactions', label: 'Entries', icon: ListIcon },
   { id: 'plan', label: 'Plan', icon: PlanIcon },
-  { id: 'settings', label: 'Accounts & Categories', icon: SettingsIcon },
 ]
 
 const VAULT_TABS = [
@@ -154,14 +155,16 @@ function BudgetModule({ topbar, email }) {
 
   return (
     <div className="app">
-      <Topbar {...topbar} right={data.households.length > 0 && (
+      <Topbar {...topbar} right={data.households.length > 0 && (<>
         <HouseholdMenu households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
           onCreate={async () => {
             const name = await dialog.prompt({ title: 'New household', label: 'Name', placeholder: "e.g. Parents' Home", confirmLabel: 'Create' })
             if (name) data.createHousehold(name)
           }}
           onManage={() => setTab('settings')} />
-      )}>
+        <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Accounts & Categories" title="Accounts & Categories"
+          onClick={() => setTab(tab === 'settings' ? 'dashboard' : 'settings')}><SettingsIcon /></button>
+      </>)}>
         <nav className="tabs">
           {BUDGET_TABS.map((t) => (
             <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
@@ -182,13 +185,7 @@ function BudgetModule({ topbar, email }) {
         )}
       </main>
 
-      <nav className="bottom-nav">
-        {BUDGET_TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-            <t.icon /> {t.label.split(' ')[0]}
-          </button>
-        ))}
-      </nav>
+      <PillNav tabs={BUDGET_TABS} tab={tab} setTab={setTab} withFab />
 
       {fabOpen && <div className="fab-backdrop" onClick={() => setFabOpen(false)} />}
       <div className="fab-wrap">
@@ -264,13 +261,7 @@ function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword })
       <main className="content fade-in">{body}</main>
 
       {ready && (
-        <nav className="bottom-nav">
-          {VAULT_TABS.map((t) => (
-            <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-              <t.icon /> {t.label}
-            </button>
-          ))}
-        </nav>
+        <PillNav tabs={VAULT_TABS} tab={tab} setTab={setTab} withFab={tab === 'items'} />
       )}
       {ready && tab === 'items' && (
         <div className="fab-wrap">

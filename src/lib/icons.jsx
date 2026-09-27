@@ -244,3 +244,11 @@ export function FileIcon() {
 export function UserIcon() {
   return <svg {...base}><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 4.2-6 8-6s7 2 8 6" /></svg>
 }
+
+// ---- Budget: Dues / Hisab ----
+export function DuesIcon() {
+  return <svg {...base}><path d="M4 8h14l-3-3M20 16H6l3 3" /></svg>
+}
+export function BookIcon() {
+  return <svg {...base}><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z" /><path d="M4 19V5M8 7h7M8 11h5" /></svg>
+}

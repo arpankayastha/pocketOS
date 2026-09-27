@@ -132,6 +132,8 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hh-icon svg { width: 18px; height: 18px; }
 .hh-sep { height: 1px; background: var(--line); margin: 6px 4px; }
 .btn.icon.lock-btn { border: 1px solid var(--line); background: var(--card-2); border-radius: 99px; }
+.btn.icon.settings-btn { border: 1px solid var(--line); background: var(--card-2); border-radius: 99px; }
+.btn.icon.settings-btn.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .empty-module { display: grid; justify-items: center; gap: 4px; text-align: center; padding: 40px 20px; margin-top: 24px; }
 .empty-module svg { width: 36px; height: 36px; color: var(--accent); margin-bottom: 8px; }
 .empty-module p { max-width: 380px; margin: 0; }
@@ -226,8 +228,8 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .seg button.on { background: var(--card); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / .1); }
 .seg button.on.expense { color: var(--neg); } .seg button.on.income { color: var(--pos); }
 
-/* Bottom nav (mobile PWA navigation) + universal floating add button */
-.bottom-nav { display: none; }
+/* Pill nav (mobile PWA navigation) + universal floating add button */
+.pill-nav { display: none; }
 
 .fab-wrap { position: fixed; z-index: 15; right: calc(18px + var(--safe-r)); bottom: calc(24px + var(--safe-b)); display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
 .fab {
@@ -458,7 +460,7 @@ details.section[open] .chev { transform: rotate(90deg); }
   .hh-name { max-width: 96px; }
   .content { padding-bottom: calc(160px + var(--safe-b)); }
   /* While typing, the on-screen keyboard pushes fixed elements up over the form — hide them. */
-  body:has(:is(input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file]), textarea):focus) :is(.fab-wrap, .bottom-nav) { display: none; }
+  body:has(:is(input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file]), textarea):focus) :is(.fab-wrap, .pill-nav) { display: none; }
   .tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
   .grid2, .pie-wrap { grid-template-columns: minmax(0, 1fr); }
   .filters { grid-template-columns: 1fr 1fr; }
@@ -470,19 +472,34 @@ details.section[open] .chev { transform: rotate(90deg); }
   .btn.icon, .btn.small, .chip button, .seg button { min-height: 44px; min-width: 44px; }
   .btn { min-height: 44px; }
 
-  .bottom-nav {
-    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 15;
-    background: color-mix(in srgb, var(--card) 96%, transparent); backdrop-filter: blur(10px);
-    border-top: 1px solid var(--line); padding: 6px calc(4px + var(--safe-l)) calc(6px + var(--safe-b)) calc(4px + var(--safe-r));
+  /* Floating pill navigation (components/PillNav.jsx); the + button sits beside it on the right. */
+  .pill-nav {
+    display: flex; justify-content: center; position: fixed; z-index: 15; pointer-events: none;
+    left: calc(12px + var(--safe-l)); right: calc(12px + var(--safe-r)); bottom: calc(14px + var(--safe-b));
+    transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s;
   }
-  .bottom-nav button {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    border: none; background: none; padding: 6px 4px; min-height: 52px; color: var(--muted); cursor: pointer;
-    font-size: 11px; border-radius: 10px; transition: color .15s;
+  .pill-nav.with-fab { right: calc(12px + 56px + 10px + var(--safe-r)); }
+  .pill-nav.hidden { transform: translateY(calc(100% + 24px)) scale(.9); opacity: 0; }
+  .pill {
+    pointer-events: auto; display: flex; gap: 2px; padding: 5px; border-radius: 999px; max-width: 100%;
+    background: color-mix(in srgb, var(--card-2) 82%, transparent); backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--text) 9%, transparent); box-shadow: 0 10px 30px rgb(0 0 0 / .45);
   }
-  .bottom-nav button.active { color: var(--accent); }
-  .bottom-nav svg { width: 22px; height: 22px; }
-  .fab-wrap { bottom: calc(78px + var(--safe-b)); }
+  .pill button {
+    flex: 0 1 auto; min-width: 42px; height: 46px; padding: 0 12px; border: none; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center; gap: 0; background: none; color: var(--muted);
+    cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap;
+    transition: background .25s, color .2s, padding .25s, gap .25s;
+  }
+  .pill button svg { width: 22px; height: 22px; flex: none; }
+  .pill-label { display: inline-block; max-width: 0; overflow: hidden; opacity: 0; transition: max-width .3s cubic-bezier(.2, .8, .2, 1), opacity .2s; }
+  .pill button.active { flex-shrink: 0; gap: 7px; padding: 0 15px 0 13px; color: var(--text); background: color-mix(in srgb, var(--accent) 24%, transparent); }
+  .pill button.active svg { color: var(--accent); }
+  .pill button.active .pill-label { max-width: 96px; opacity: 1; }
+  .pill button:active { transform: scale(.94); }
+  .fab-wrap { bottom: calc(14px + var(--safe-b)); right: calc(12px + var(--safe-r)); }
+  .fab-wrap .fab { width: 56px; height: 56px; }
   .toast { bottom: calc(84px + var(--safe-b)); }
   .will-preview { padding: 8px; }
   .will-preview .will-doc { padding: 22px 18px; font-size: 11pt; }

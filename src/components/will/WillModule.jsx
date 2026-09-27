@@ -3,6 +3,7 @@ import { useDialog } from '../../lib/dialog'
 import { useBackAction } from '../../lib/backNav'
 import { emptyWill } from '../../lib/willModel'
 import Topbar from '../Topbar'
+import PillNav from '../PillNav'
 import VaultGate from '../VaultGate'
 import { GateSkeleton } from '../Skeleton'
 import { useWill } from '../../lib/useWill'
@@ -101,11 +102,7 @@ function WillEditor({ topbar, vault }) {
         )}
         <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={onFile} />
       </main>
-      <nav className="bottom-nav">
-        {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}><t.icon /> {t.label}</button>
-        ))}
-      </nav>
+      <PillNav tabs={TABS} tab={tab} setTab={setTab} />
     </div>
   )
 }
