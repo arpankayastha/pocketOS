@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.echopdo",
+    "sha256_cert_fingerprints": ["7E:EF:CC:41:E4:07:5E:FA:8B:61:C9:9A:75:B1:82:8D:D4:1D:5B:EB:32:18:EB:0C:62:B4:05:7F:A9:CD:96:6E"]
+  }
+}]

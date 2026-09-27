@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050608" />
+  <meta name="robots" content="noindex" />
+  <title>eChopdo for Android</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+  <style>
+    :root { --bg: #050608; --card: #0d0f14; --card-2: #14171f; --line: #1f232d; --text: #e6e8ee; --muted: #8b93a5; --accent: #60a5fa;
+      --grad: linear-gradient(135deg, #22d3ee 0%, #3b82f6 55%, #8b5cf6 100%); }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 'IBM Plex Sans', system-ui, sans-serif; }
+    main { max-width: 560px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 16px 48px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 22px; }
+    .brand img { width: 52px; height: 52px; border-radius: 14px; }
+    .brand span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    h1 { font-size: 26px; line-height: 1.2; margin: 22px 0 6px; }
+    p { color: var(--muted); margin: 0 0 12px; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; border-radius: 14px; background: var(--grad);
+      color: #050608; font-weight: 700; font-size: 17px; text-decoration: none; margin: 18px 0 6px; box-shadow: 0 4px 24px rgb(59 130 246 / .4); }
+    .meta { font: 500 12px 'IBM Plex Mono', monospace; color: var(--muted); text-align: center; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-top: 18px; }
+    .card h2 { font-size: 16px; margin: 0 0 10px; }
+    ol { margin: 0; padding-left: 22px; } li { margin: 6px 0; } li b { color: var(--text); }
+    ul.feat { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    ul.feat li { background: var(--card-2); border-radius: 12px; padding: 10px 12px; margin: 0; }
+    .muted { color: var(--muted); }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="brand"><img src="/icons/icon-192.png" alt="" /><span>eChopdo</span></div>
+  <h1>eChopdo for Android</h1>
+  <p>The whole eChopdo app, plus a home-screen widget to add Hisab or Budget entries in a couple of taps.</p>
+  <a class="btn" id="dl" href="/download/echopdo.apk" download>⬇ Download eChopdo</a>
+  <div class="meta" id="meta">Android 8 or newer</div>
+
+  <div class="card">
+    <h2>Install</h2>
+    <ol class="muted">
+      <li>Tap <b>Download</b>, then open the file.</li>
+      <li>If Android asks, allow <b>Install unknown apps</b> for Chrome (only once).</li>
+      <li>If Play Protect warns “unknown developer”, tap <b>More details → Install anyway</b> — the app isn't in the Play Store, that's all.</li>
+      <li>Open eChopdo. It's the same app as before — sign in or unlock as usual. You can remove the old eChopdo icon afterwards.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Turn on the widget</h2>
+    <ol class="muted">
+      <li>In eChopdo open <b>⚙ Settings → Phone widget → Pair a phone</b>.</li>
+      <li>Tap <b>Pair this phone</b>, then <b>Add widget to home screen</b>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>What you get</h2>
+    <ul class="feat muted">
+      <li><b>Widget</b> — Spent / Received, and one-tap buttons for things you add often (with Undo).</li>
+      <li><b>Quick add</b> — calculator keypad, category, book, paid by, date. Saves to Hisab (or Budget — your choice per phone).</li>
+      <li><b>Shortcuts</b> — long-press the eChopdo icon, or the “eChopdo +” tile in the notification shade.</li>
+      <li><b>Works offline</b> — entries wait and send when you're back online.</li>
+    </ul>
+  </div>
+  <p class="muted" style="margin-top:18px;font-size:13px">A paired phone can only add entries to its household. Unpair any time in Settings → Phone widget.</p>
+</main>
+<script>
+  fetch('/download/version.json', { cache: 'no-store' }).then((r) => r.json()).then((v) => {
+    document.getElementById('meta').textContent = `Version ${v.versionName} · ${(v.size / 1048576).toFixed(1)} MB · ${v.date} · Android 8+`
+    document.getElementById('dl').href = `/download/echopdo.apk?v=${v.versionCode}`
+  }).catch(() => {})
+</script>
+</body>
+</html>
