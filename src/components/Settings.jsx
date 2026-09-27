@@ -4,6 +4,7 @@ import { TrashIcon, PencilIcon, PasskeyIcon, FingerprintIcon } from '../lib/icon
 import { generatePin, manageMembers } from '../lib/members'
 import { describeWebAuthnError, platformAuthenticatorAvailable, deviceName } from '../lib/webauthn'
 import { fingerprintHere, MIN_MASTER_PASSWORD } from '../lib/useVault'
+import { loadCategories as loadHisabCategories } from '../lib/hisab'
 import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor, householdColor } from '../lib/colors'
@@ -25,6 +26,11 @@ export default function Settings({ accounts, categories, refresh, households, ac
         <Passkeys />
       </div>
       <Accounts accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
+      {!member && activeHouseholdId && (
+        <div style={{ gridColumn: '1 / -1' }}>
+          <HisabCategories key={activeHouseholdId} householdId={activeHouseholdId} householdName={households.find((h) => h.id === activeHouseholdId)?.name} />
+        </div>
+      )}
       <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
       <div className="card" style={{ gridColumn: '1 / -1' }}>
         <h3>Account</h3>
@@ -477,6 +483,93 @@ function ShareLogin({ household, username, pin, reset, onClose }) {
           <button className="btn primary" onClick={onClose}>Done</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+const EMOJI_PICKS = ['🛍️', '👗', '🍽️', '🥦', '🍬', '🎁', '🪔', '🎉', '💐', '🚕', '⛽', '💄', '💊', '🏠', '📦', '👶', '📚', '🐄', '🧾', '📱', '🧹', '🙏', '🧧', '💵', '↩️', '☕']
+
+// Owner: the icon grid shown when adding a Hisab entry, per household — add, rename, reorder, remove.
+// Removing one doesn't touch old entries (they keep their category text).
+function HisabCategories({ householdId, householdName }) {
+  const dialog = useDialog()
+  const [list, setList] = useState(null)
+  const [dir, setDir] = useState('out')
+  const [name, setName] = useState('')
+  const [icon, setIcon] = useState('🏷️')
+  const [error, setError] = useState(null)
+  const load = useCallback(async () => {
+    try { setList(await loadHisabCategories(householdId)); setError(null) } catch (err) { setError(err.message) }
+  }, [householdId])
+  useEffect(() => { load() }, [load])
+  const shown = (list || []).filter((c) => c.direction === dir)
+
+  async function add(e) {
+    e.preventDefault()
+    if (!name.trim()) return
+    const position = shown.length ? Math.max(...shown.map((c) => c.position)) + 1 : 0
+    const { error } = await supabase.from('hisab_categories').insert({ household_id: householdId, direction: dir, name: name.trim(), icon: icon || '🏷️', position })
+    if (error) return setError(error.code === '23505' ? `"${name.trim()}" is already in the list.` : error.message)
+    setName(''); setIcon('🏷️'); load()
+  }
+  async function move(c, delta) {
+    const i = shown.indexOf(c), other = shown[i + delta]
+    if (!other) return
+    await Promise.all([
+      supabase.from('hisab_categories').update({ position: other.position }).eq('id', c.id),
+      supabase.from('hisab_categories').update({ position: c.position }).eq('id', other.id),
+    ])
+    // Positions can repeat after the seed; normalise once so swaps always move.
+    if (c.position === other.position) await Promise.all(shown.map((x, j) => supabase.from('hisab_categories').update({ position: j === i ? i + delta : j === i + delta ? i : j }).eq('id', x.id)))
+    load()
+  }
+  async function rename(c) {
+    const next = await dialog.prompt({ title: 'Rename category', label: 'Name', defaultValue: c.name, confirmLabel: 'Save' })
+    if (!next?.trim() || next.trim() === c.name) return
+    const { error } = await supabase.from('hisab_categories').update({ name: next.trim() }).eq('id', c.id)
+    if (error) return setError(error.message)
+    load()
+  }
+  async function remove(c) {
+    if (!await dialog.confirm({ title: `Remove "${c.name}"?`, message: 'It leaves the Hisab picker. Entries already saved with it keep it.', confirmLabel: 'Remove' })) return
+    const { error } = await supabase.from('hisab_categories').delete().eq('id', c.id)
+    if (error) return setError(error.message)
+    load()
+  }
+
+  return (
+    <div className="card">
+      <h3>Hisab categories</h3>
+      <p className="muted small">The icons shown when adding a Hisab entry{householdName ? ` in ${householdName}` : ''}. Tap a name to rename; arrows change the order.</p>
+      <div className="seg" style={{ marginBottom: 10 }}>
+        <button type="button" className={dir === 'out' ? 'on expense' : ''} onClick={() => setDir('out')}>Spent</button>
+        <button type="button" className={dir === 'in' ? 'on income' : ''} onClick={() => setDir('in')}>Received</button>
+      </div>
+      {!list ? <div className="muted small">Loading…</div> : (
+        <div className="hc-list">
+          {shown.map((c, i) => (
+            <div className="hc-row" key={c.id}>
+              <span className="hc-icon">{c.icon}</span>
+              <button type="button" className="hc-name" onClick={() => rename(c)}>{c.name}</button>
+              <button type="button" className="btn icon" aria-label={`Move ${c.name} up`} disabled={i === 0} onClick={() => move(c, -1)}>↑</button>
+              <button type="button" className="btn icon" aria-label={`Move ${c.name} down`} disabled={i === shown.length - 1} onClick={() => move(c, 1)}>↓</button>
+              <button type="button" className="btn icon" aria-label={`Remove ${c.name}`} onClick={() => remove(c)}><TrashIcon /></button>
+            </div>
+          ))}
+          {shown.length === 0 && <div className="muted small pad">No categories — add one below.</div>}
+        </div>
+      )}
+      <form className="hc-add" onSubmit={add}>
+        <div className="hc-picks">
+          {EMOJI_PICKS.map((e) => <button type="button" key={e} className={`hc-pick ${icon === e ? 'on' : ''}`} onClick={() => setIcon(e)}>{e}</button>)}
+        </div>
+        <div className="inline-form">
+          <input className="hc-emoji" aria-label="Icon" value={icon} maxLength={4} onChange={(e) => setIcon(e.target.value)} />
+          <input aria-label="Category name" placeholder={dir === 'out' ? 'e.g. Milk, Maid' : 'e.g. Rent received'} value={name} onChange={(e) => setName(e.target.value)} />
+          <button className="btn primary" disabled={!name.trim()}>Add</button>
+        </div>
+      </form>
+      {error && <div className="alert error">{error}</div>}
     </div>
   )
 }

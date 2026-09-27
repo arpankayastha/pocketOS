@@ -28,6 +28,8 @@ function useHouseholds(enabled) {
 
 export default function VaultItems({ vault, member, open: openRaw, setOpen, editing, setEditing }) {
   const { households, members } = useHouseholds(!member)
+  const [sharedBy, setSharedBy] = useState(null) // member: the owner's household name, e.g. "Arpan"
+  useEffect(() => { if (member) supabase.rpc('family_owner_name').then(({ data }) => setSharedBy(data)) }, [member])
   // Keep the open item in step with the list (e.g. after changing who it's shared with).
   const open = openRaw && (vault.items.find((i) => i.id === openRaw.id) || openRaw)
   const byHousehold = (item) => {
@@ -102,7 +104,7 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
 
       {open && !editing && (
         <ItemView item={open} copy={copy} onClose={() => setOpen(null)} onEdit={() => setEditing(open)}
-          readOnly={member && !open.mine} by={byHousehold(open)}
+          readOnly={member && !open.mine} sharedBy={sharedBy} by={byHousehold(open)}
           share={member ? null : { households, members, onChange: (ids) => vault.shareItem(open.id, ids) }}
           onDelete={async () => {
             if (!await dialog.confirm({ title: `Delete "${itemTitle(open)}"?`, message: `This ${typeOf(open).label.toLowerCase()} is removed from your vault for good.` })) return
@@ -216,7 +218,7 @@ function ShareWith({ item, share, by }) {
   )
 }
 
-function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, by, share }) {
+function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by, share }) {
   const t = typeOf(item)
   const [breach, setBreach] = useState(null) // null | 'checking' | number | error text
 
@@ -266,7 +268,7 @@ function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, by, share }
           </>
         )}
         {share && !item.corrupt && <ShareWith item={item} share={share} by={by} />}
-        {readOnly && <div className="muted small">Shared with you by the family admin · view only</div>}
+        {readOnly && <div className="muted small">Shared by {sharedBy || 'the family admin'}</div>}
         <div className="actions">
           {!readOnly && <button type="button" className="btn icon" aria-label="Delete" onClick={onDelete}><TrashIcon /></button>}
           <span className="spacer" />

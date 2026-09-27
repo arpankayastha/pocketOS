@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DonutChart } from './LazyCharts'
 import { currentMonth, money, moneyShort, monthLabel, shiftMonth, today } from '../lib/format'
-import { CATEGORIES, IN_CATEGORIES, SOURCES, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
+import { SOURCES, loadCategories, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
 import { useBackAction } from '../lib/backNav'
 import { useMonthSwipe } from '../lib/useSwipe'
 import { useDialog } from '../lib/dialog'
@@ -19,9 +19,12 @@ export default function Hisab({ activeHouseholdId, addSignal }) {
   const [books, setBooks] = useState(null)
   const [bookId, setBookId] = useState(null)
   const [addReq, setAddReq] = useState(0)
+  const [openAdd, setOpenAdd] = useState(false)
   const [editingBook, setEditingBook] = useState(null) // {} new, or a book
   const [error, setError] = useState(null)
+  const [categories, setCategories] = useState([])
   const lastSignal = useRef(addSignal)
+  useEffect(() => { if (activeHouseholdId) loadCategories(activeHouseholdId).then(setCategories).catch((err) => setError(err.message)) }, [activeHouseholdId])
 
   const load = useCallback(async () => {
     if (!activeHouseholdId) return
@@ -32,14 +35,16 @@ export default function Hisab({ activeHouseholdId, addSignal }) {
   useEffect(() => {
     if (addSignal === lastSignal.current || !books) return
     lastSignal.current = addSignal
-    if (!bookId) setBookId(books.find((b) => b.kind === 'daily')?.id)
-    setAddReq((n) => n + 1)
+    // From the book list: open Daily with the entry sheet already up (BookView reads openAdd on
+    // mount); inside a book: bump addReq so the open BookView shows the sheet.
+    if (!bookId) { setBookId(books.find((b) => b.kind === 'daily')?.id); setOpenAdd(true) }
+    else setAddReq((n) => n + 1)
   }, [addSignal, books, bookId])
 
   useBackAction(!!bookId, () => setBookId(null), 3)
   const book = books?.find((b) => b.id === bookId)
 
-  if (book) return <BookView book={book} addReq={addReq} onBack={() => setBookId(null)} onChanged={load} onEdit={() => setEditingBook(book)} editor={editingBook && (
+  if (book) return <BookView book={book} categories={categories} addReq={addReq} openAdd={openAdd} onAddOpened={() => setOpenAdd(false)} onBack={() => setBookId(null)} onChanged={load} onEdit={() => setEditingBook(book)} editor={editingBook && (
     <BookForm book={editingBook} householdId={activeHouseholdId} onClose={() => setEditingBook(null)}
       onSaved={() => { setEditingBook(null); load() }} onDeleted={() => { setEditingBook(null); setBookId(null); load() }} />
   )} />
@@ -105,7 +110,7 @@ function TargetBar({ spent, target }) {
   )
 }
 
-function BookView({ book, addReq, onBack, onChanged, onEdit, editor }) {
+function BookView({ book, categories, addReq, openAdd, onAddOpened, onBack, onChanged, onEdit, editor }) {
   const [entries, setEntries] = useState(null)
   const [view, setView] = useState('daily') // daily | calendar | summary
   const [month, setMonth] = useState(currentMonth)
@@ -122,6 +127,7 @@ function BookView({ book, addReq, onBack, onChanged, onEdit, editor }) {
   useEffect(() => {
     if (addReq !== lastAdd.current) { lastAdd.current = addReq; setSheet({}) }
   }, [addReq])
+  useEffect(() => { if (openAdd) { setSheet({}); onAddOpened() } }, [openAdd, onAddOpened])
 
   const changed = () => { load(); onChanged() }
   const shown = useMemo(() => (entries || []).filter((e) => !isDaily || e.occurred_on.startsWith(month)), [entries, isDaily, month])
@@ -164,7 +170,7 @@ function BookView({ book, addReq, onBack, onChanged, onEdit, editor }) {
         <CalendarView month={cal} setMonth={isDaily ? setMonth : setCalMonth} entries={entries} onOpen={setSheet} />
       ) : <SummaryView entries={shown} />}
 
-      {sheet && <EntrySheet book={book} entry={sheet.id ? sheet : null} used={used}
+      {sheet && <EntrySheet book={book} categories={categories} entry={sheet.id ? sheet : null} used={used}
         defaultDate={isDaily && month !== currentMonth() ? `${month}-01` : today()}
         onClose={() => setSheet(null)} onSaved={changed} />}
       {editor}
@@ -302,7 +308,7 @@ function SummaryView({ entries }) {
 
 const KEYS = ['7', '8', '9', '⌫', '4', '5', '6', '+', '1', '2', '3', '−', '.', '0', '00', '×']
 
-function EntrySheet({ book, entry, used, defaultDate, onClose, onSaved }) {
+function EntrySheet({ book, categories, entry, used, defaultDate, onClose, onSaved }) {
   const dialog = useDialog()
   const [dir, setDir] = useState(entry?.direction || 'out')
   const [expr, setExpr] = useState(entry ? String(Number(entry.amount)) : '')
@@ -317,8 +323,9 @@ function EntrySheet({ book, entry, used, defaultDate, onClose, onSaved }) {
   const amount = evaluate(expr)
   const hasOps = /[+−×]/.test(expr)
 
-  const base = dir === 'out' ? CATEGORIES : IN_CATEGORIES
-  const cats = [...base, ...used.categories.filter((c) => !base.some((b) => b.name === c)).map((name) => ({ name, icon: iconFor(name) }))]
+  // The household's managed list (⚙ → Hisab categories); an entry's own category stays pickable when editing.
+  const cats = categories.filter((c) => c.direction === dir)
+  if (entry?.category && !cats.some((c) => c.name === entry.category)) cats.push({ name: entry.category, icon: iconFor(entry.category) })
   const sources = [...new Set([...SOURCES, ...used.sources, ...extraSources, ...(source ? [source] : [])])]
 
   function press(k) {

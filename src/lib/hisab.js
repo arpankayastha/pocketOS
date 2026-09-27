@@ -19,7 +19,27 @@ export const IN_CATEGORIES = [
 export const SOURCES = ['Cash', 'UPI', 'Card']
 
 const ICONS = Object.fromEntries([...CATEGORIES, ...IN_CATEGORIES].map((c) => [c.name.toLowerCase(), c.icon]))
-export const iconFor = (category) => ICONS[(category || '').toLowerCase()] || '🏷️'
+let custom = {} // icons of the household's managed categories (registerIcons)
+export const iconFor = (category) => { const k = (category || '').toLowerCase(); return custom[k] || ICONS[k] || '🏷️' }
+export function registerIcons(list) { custom = Object.fromEntries(list.map((c) => [c.name.toLowerCase(), c.icon])) }
+
+// The household's Hisab categories (managed in Settings). The first time, seed the defaults.
+export async function loadCategories(householdId) {
+  const { data, error } = await supabase.from('hisab_categories').select('*').eq('household_id', householdId).order('position')
+  if (error) throw error
+  if (data.length) { registerIcons(data); return data }
+  const rows = [
+    ...CATEGORIES.map((c, i) => ({ household_id: householdId, direction: 'out', name: c.name, icon: c.icon, position: i })),
+    ...IN_CATEGORIES.map((c, i) => ({ household_id: householdId, direction: 'in', name: c.name, icon: c.icon, position: i })),
+  ]
+  // Two screens can seed at once; the unique (household, direction, name) makes the second a no-op.
+  const { error: err } = await supabase.from('hisab_categories').upsert(rows, { onConflict: 'household_id,direction,name', ignoreDuplicates: true })
+  if (err) throw err
+  const { data: seeded, error: err2 } = await supabase.from('hisab_categories').select('*').eq('household_id', householdId).order('position')
+  if (err2) throw err2
+  registerIcons(seeded)
+  return seeded
+}
 
 // Stable colour per category name (charts key by name here: names are the identity).
 export function colorFor(category, order) {

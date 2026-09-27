@@ -338,6 +338,17 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hb-saved { text-align: center; color: var(--pos); }
 .hb-sheet .actions .btn { flex: 1; }
 
+/* Settings → Hisab categories */
+.hc-list { display: grid; }
+.hc-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.hc-icon { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--card-2); font-size: 18px; }
+.hc-name { flex: 1; min-width: 0; text-align: left; border: none; background: none; color: var(--text); font: inherit; padding: 8px 4px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hc-add { display: grid; gap: 8px; margin-top: 12px; }
+.hc-picks { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.hc-pick { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid transparent; background: var(--card-2); font-size: 18px; cursor: pointer; }
+.hc-pick.on { border-color: var(--accent); background: var(--accent-2); }
+.inline-form input.hc-emoji:not([type=color]) { width: 56px; min-width: 0; flex: none; text-align: center; font-size: 18px; }
+
 /* Settings → Security */
 .sec-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .sec-row:last-of-type { border-bottom: none; }

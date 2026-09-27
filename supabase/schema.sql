@@ -639,3 +639,38 @@ create policy "update own or member" on public.vault_items for update to authent
   with check (user_id = (select auth.uid()) or user_id in (select private.my_member_ids()));
 create policy "delete own or member" on public.vault_items for delete to authenticated
   using (user_id = (select auth.uid()) or user_id in (select private.my_member_ids()));
+
+-- Hisab categories, managed by the owner in Settings (per household; seeded with the defaults
+-- from src/lib/hisab.js the first time a household opens Hisab).
+create table if not exists public.hisab_categories (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  direction text not null default 'out' check (direction in ('out','in')),
+  name text not null,
+  icon text not null default '🏷️',
+  position integer not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table public.hisab_categories enable row level security;
+drop policy if exists "household rows" on public.hisab_categories;
+create policy "household rows" on public.hisab_categories for all to authenticated
+  using (household_id in (select private.my_household_ids()))
+  with check (household_id in (select private.my_household_ids()));
+create index if not exists hisab_categories_household_id_idx on public.hisab_categories (household_id, direction, position);
+create index if not exists hisab_categories_user_id_idx on public.hisab_categories (user_id);
+
+-- For a household member: the name of the family owner's first household (e.g. "Arpan"),
+-- shown as "Shared by …" on vault items. Returns null for the owner or anyone else.
+create or replace function public.family_owner_name()
+returns text language sql stable security definer set search_path = '' as $$
+  select h.name from public.households h
+  where h.user_id = (select o.user_id from public.households o
+                     join public.household_members m on m.household_id = o.id
+                     where m.user_id = auth.uid() limit 1)
+  order by h.created_at limit 1
+$$;
+revoke execute on function public.family_owner_name() from public, anon;
+grant execute on function public.family_owner_name() to authenticated;
+alter table public.hisab_categories drop constraint if exists hisab_categories_household_direction_name_key;
+alter table public.hisab_categories add constraint hisab_categories_household_direction_name_key unique (household_id, direction, name);
