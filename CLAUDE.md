@@ -75,6 +75,7 @@ One login (the master account) manages several isolated **households** (workspac
 - Grids: use `minmax(0, 1fr)` columns (see `.grid2`, `.pk-list`) — plain `1fr` grid items grow to their content and stretched the whole page wider than the phone.
 - Dashboard "Coming up" (next month, `ComingUp` in Dashboard.jsx) lists only Plan commitments by day — date tile, name, category · account, amount with "✓ Paid / ✓ Received" or "Expected", plus a done-count bar and "still to pay": ones already logged against a plan item (✓, `recurring_item_id`) and plan items still expected. One-off transactions are left out.
 - On phones, the floating + button and pill nav hide while a text field is focused (CSS `:has` in `src/index.css`), and `.content` has extra bottom padding, so the + never covers a Save button.
+- **Brand**: logo = a stack of ledger pages (`BrandMark` in `src/lib/icons.jsx`), theme "Cyber Blue": `--accent #60a5fa`, `--accent-grad` cyan #22d3ee → blue #3b82f6 → violet #8b5cf6 on the dark UI. Icon files: `public/favicon.svg`, `public/icons/source.svg` (rounded) and `maskable.svg` (full bleed, glyph at 78%); the PNGs (`icon-192/512`, `maskable-512`, `apple-touch-icon`) are rendered from those SVGs with headless Chromium — regenerate them if the logo changes. Green/red stay reserved for income/expense.
 - Splash screen: static markup + inline CSS inside `#root` in `index.html` (paints before JS), and the matching `<Splash />` in `src/App.jsx` while the session loads. Keep the two in sync if the logo changes.
 
 ## Conventions

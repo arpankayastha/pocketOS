@@ -1,9 +1,9 @@
 :root {
   --bg: #050608; --card: #0d0f14; --card-2: #14171f; --text: #e6e8ee; --muted: #8b93a5; --line: #1f232d;
-  --accent: #818cf8; --accent-2: #1a1c3a; --pos: #34d399; --neg: #f87171; --warn: #fbbf24;
-  --accent-grad: linear-gradient(135deg, #818cf8 0%, #c084fc 55%, #f472b6 100%);
-  --focus-ring: #a5b4fc;
-  --glow: 0 4px 24px color-mix(in srgb, #c084fc 45%, transparent);
+  --accent: #60a5fa; --accent-2: #0f1d36; --pos: #34d399; --neg: #f87171; --warn: #fbbf24;
+  --accent-grad: linear-gradient(135deg, #22d3ee 0%, #3b82f6 55%, #8b5cf6 100%);
+  --focus-ring: #7dd3fc;
+  --glow: 0 4px 24px color-mix(in srgb, #3b82f6 45%, transparent);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / .4), 0 1px 1px rgb(0 0 0 / .3);
   --shadow-md: 0 4px 16px rgb(0 0 0 / .45), 0 1px 2px rgb(0 0 0 / .3);
   --shadow-lg: 0 16px 40px rgb(0 0 0 / .55), 0 2px 8px rgb(0 0 0 / .35);
@@ -66,8 +66,8 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
   position: relative; min-height: 100vh; display: grid; place-items: center; overflow: hidden;
   padding: calc(16px + var(--safe-t)) 16px calc(16px + var(--safe-b));
   background:
-    radial-gradient(50vw 50vh at 12% 15%, color-mix(in srgb, #818cf8 20%, transparent), transparent 60%),
-    radial-gradient(55vw 55vh at 88% 85%, color-mix(in srgb, #f472b6 16%, transparent), transparent 60%),
+    radial-gradient(50vw 50vh at 12% 15%, color-mix(in srgb, #22d3ee 16%, transparent), transparent 60%),
+    radial-gradient(55vw 55vh at 88% 85%, color-mix(in srgb, #8b5cf6 16%, transparent), transparent 60%),
     var(--bg);
 }
 .auth-glow {
@@ -401,7 +401,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .fab-option:hover { transform: translateX(-3px); }
 .fab-option.expense { background: linear-gradient(135deg, #fb923c, #f87171); animation-delay: .06s; }
 .fab-option.income { background: linear-gradient(135deg, #34d399, #22d3ee); animation-delay: .02s; }
-.fab-option.transfer { background: linear-gradient(135deg, #38bdf8, #818cf8); animation-delay: 0s; }
+.fab-option.transfer { background: linear-gradient(135deg, #38bdf8, #6366f1); animation-delay: 0s; }
 @keyframes fab-pop { from { opacity: 0; transform: translateY(10px) scale(.9); } to { opacity: 1; transform: none; } }
 
 .kind-badge { display: inline-block; padding: 5px 14px; border-radius: 999px; font-weight: 700; font-size: 13px; width: fit-content; }

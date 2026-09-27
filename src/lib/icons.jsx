@@ -1,22 +1,27 @@
 import { useId } from 'react'
 
-// eChopdo logo: cards tucked into a stitched pocket (money + passwords in one place).
-// Keep in sync with public/favicon.svg, public/icons/*.svg and the splash in index.html.
+// eChopdo logo: a stack of ledger pages (the family chopdo, kept safe), cyan → blue → violet.
+// Keep in sync with public/favicon.svg, public/icons/*.svg (+ PNGs) and the splash in index.html.
 export function BrandMark({ size = 24 }) {
   const id = useId()
-  const grad = `url(#${CSS.escape(id)})`
+  const bg = `${id}bg`, pg = `${id}pg`
+  const url = (x) => `url(#${CSS.escape(x)})`
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" className="brand-mark">
       <defs>
-        <linearGradient id={id} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="512">
-          <stop offset="0" stopColor="#818cf8" /><stop offset=".55" stopColor="#c084fc" /><stop offset="1" stopColor="#f472b6" />
+        <linearGradient id={bg} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="512">
+          <stop offset="0" stopColor="#0d1526" /><stop offset="1" stopColor="#05070d" />
+        </linearGradient>
+        <linearGradient id={pg} gradientUnits="userSpaceOnUse" x1="142" y1="126" x2="370" y2="402">
+          <stop offset="0" stopColor="#22d3ee" /><stop offset=".55" stopColor="#3b82f6" /><stop offset="1" stopColor="#8b5cf6" />
         </linearGradient>
       </defs>
-      <rect width="512" height="512" rx="112" fill={grad} />
-      <rect x="170" y="112" width="150" height="200" rx="18" fill="#0d0f14" opacity=".55" transform="rotate(-12 245 212)" />
-      <rect x="206" y="126" width="150" height="200" rx="18" fill="#0d0f14" opacity=".8" transform="rotate(8 281 226)" />
-      <path d="M124 236H388V336A68 68 0 0 1 320 404H192A68 68 0 0 1 124 336Z" fill="#fff" />
-      <path d="M154 266H358" stroke={grad} strokeWidth="10" strokeLinecap="round" strokeDasharray="1 22" />
+      <rect width="512" height="512" rx="112" fill={url(bg)} />
+      <rect x="150" y="116" width="220" height="270" rx="30" fill="#3b82f6" opacity=".25" transform="rotate(-10 260 251)" />
+      <rect x="150" y="116" width="220" height="270" rx="30" fill="#8b5cf6" opacity=".45" transform="rotate(-4 260 251)" />
+      <rect x="142" y="126" width="228" height="276" rx="30" fill={url(pg)} />
+      <path d="M186 196H300M186 244H326M186 292H262" stroke="#05070d" strokeWidth="18" strokeLinecap="round" opacity=".8" />
+      <circle cx="316" cy="340" r="22" fill="#05070d" opacity=".85" />
     </svg>
   )
 }
