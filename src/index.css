@@ -480,24 +480,24 @@ details.section[open] .chev { transform: rotate(90deg); }
   }
   .pill-nav.with-fab { right: calc(12px + 56px + 10px + var(--safe-r)); }
   .pill-nav.hidden { transform: translateY(calc(100% + 24px)) scale(.9); opacity: 0; }
-  .pill {
+  .pill-bar {
     pointer-events: auto; display: flex; gap: 2px; padding: 5px; border-radius: 999px; max-width: 100%;
     background: color-mix(in srgb, var(--card-2) 82%, transparent); backdrop-filter: blur(18px) saturate(1.4);
     -webkit-backdrop-filter: blur(18px) saturate(1.4);
     border: 1px solid color-mix(in srgb, var(--text) 9%, transparent); box-shadow: 0 10px 30px rgb(0 0 0 / .45);
   }
-  .pill button {
+  .pill-bar button {
     flex: 0 1 auto; min-width: 42px; height: 46px; padding: 0 12px; border: none; border-radius: 999px;
     display: flex; align-items: center; justify-content: center; gap: 0; background: none; color: var(--muted);
     cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap;
     transition: background .25s, color .2s, padding .25s, gap .25s;
   }
-  .pill button svg { width: 22px; height: 22px; flex: none; }
+  .pill-bar button svg { width: 22px; height: 22px; flex: none; }
   .pill-label { display: inline-block; max-width: 0; overflow: hidden; opacity: 0; transition: max-width .3s cubic-bezier(.2, .8, .2, 1), opacity .2s; }
-  .pill button.active { flex-shrink: 0; gap: 7px; padding: 0 15px 0 13px; color: var(--text); background: color-mix(in srgb, var(--accent) 24%, transparent); }
-  .pill button.active svg { color: var(--accent); }
-  .pill button.active .pill-label { max-width: 96px; opacity: 1; }
-  .pill button:active { transform: scale(.94); }
+  .pill-bar button.active { flex-shrink: 0; gap: 7px; padding: 0 15px 0 13px; color: var(--text); background: color-mix(in srgb, var(--accent) 24%, transparent); }
+  .pill-bar button.active svg { color: var(--accent); }
+  .pill-bar button.active .pill-label { max-width: 96px; opacity: 1; }
+  .pill-bar button:active { transform: scale(.94); }
   .fab-wrap { bottom: calc(14px + var(--safe-b)); right: calc(12px + var(--safe-r)); }
   .fab-wrap .fab { width: 56px; height: 56px; }
   .toast { bottom: calc(84px + var(--safe-b)); }

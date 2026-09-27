@@ -7,7 +7,7 @@ export default function PillNav({ tabs, tab, setTab, withFab }) {
   const hidden = useHideOnScroll()
   return (
     <nav className={`pill-nav ${withFab ? 'with-fab' : ''} ${hidden ? 'hidden' : ''}`}>
-      <div className="pill">
+      <div className="pill-bar">
         {tabs.map((t) => (
           <button key={t.id} className={tab === t.id ? 'active' : ''} aria-label={t.label} aria-current={tab === t.id ? 'page' : undefined}
             onClick={() => { setTab(t.id); if (tab === t.id) window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
