@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 // a username + 6-digit PIN (a Supabase email/password user with a made-up address under
 // MEMBER_DOMAIN), then the member turns on fingerprint unlock on their phone. Members see only
 // their household (RLS via household_members); logins are managed by the `members` Edge Function.
-export const MEMBER_DOMAIN = 'members.my-pocket-os.vercel.app'
+export const MEMBER_DOMAIN = 'members.echopdo.vercel.app'
 
 export const isMember = (session) => session?.user?.app_metadata?.role === 'member'
 export const memberEmail = (username) => `${username.trim().toLowerCase()}@${MEMBER_DOMAIN}`

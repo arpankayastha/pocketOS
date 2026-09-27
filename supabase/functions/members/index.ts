@@ -7,7 +7,7 @@
 //   { action: 'remove', householdId, userId }           → delete login (their entries stay, re-owned by the caller)
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const EMAIL_DOMAIN = 'members.my-pocket-os.vercel.app'
+const EMAIL_DOMAIN = 'members.echopdo.vercel.app'
 const FINANCE_TABLES = ['accounts', 'categories', 'transactions', 'budgets', 'recurring_items', 'dues', 'due_entries', 'hisab_books', 'hisab_entries']
 const cors = {
   'Access-Control-Allow-Origin': '*',

@@ -536,7 +536,7 @@ create or replace function public.seed_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare hh_id uuid;
 begin
-  if coalesce(new.raw_app_meta_data->>'role', '') = 'member' or new.email like '%@members.my-pocket-os.vercel.app' then
+  if coalesce(new.raw_app_meta_data->>'role', '') = 'member' or new.email like '%@members.echopdo.vercel.app' then
     return new;
   end if;
   insert into public.households (user_id, name) values (new.id, 'Home') returning id into hh_id;
@@ -565,10 +565,10 @@ revoke execute on function public.seed_new_user() from public, anon, authenticat
 create or replace function private.block_public_signups()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
-  if coalesce(new.raw_app_meta_data->>'role', '') = 'member' and new.email like '%@members.my-pocket-os.vercel.app' then
+  if coalesce(new.raw_app_meta_data->>'role', '') = 'member' and new.email like '%@members.echopdo.vercel.app' then
     return new;
   end if;
-  raise exception 'Sign-ups are closed for PocketOS.' using errcode = '42501';
+  raise exception 'Sign-ups are closed for eChopdo.' using errcode = '42501';
 end $$;
 revoke execute on function private.block_public_signups() from public, anon, authenticated;
 
