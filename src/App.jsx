@@ -151,9 +151,20 @@ function Shell({ session }) {
 // A household member's app: only their household's Budget, behind their own fingerprint
 // (PIN as backup). No Vault, no Will, no module switcher, no household menu.
 const SETUP_SKIPPED_KEY = 'pocketos.fingerprintSkipped'
+const START_TAB_KEY = 'pocketos.memberStartTab'
 function MemberShell({ session }) {
   const appLock = useAppLock(session)
   useEffect(() => { preloadBudget() }, [])
+  // The tab the app opens on is chosen by the owner (household_members.start_tab). Cached per
+  // device so the app can open instantly; refreshed from the server on every start.
+  const [startTab, setStartTab] = useState(() => { try { return localStorage.getItem(START_TAB_KEY) } catch { return null } })
+  useEffect(() => {
+    supabase.from('household_members').select('start_tab').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
+      const t = data?.start_tab || 'dashboard'
+      try { localStorage.setItem(START_TAB_KEY, t) } catch { /* ignore */ }
+      setStartTab((cur) => cur || t)
+    })
+  }, [session.user.id])
   const [skipped, setSkipped] = useState(() => { try { return !!sessionStorage.getItem(SETUP_SKIPPED_KEY) } catch { return false } })
   const [toast, setToast] = useState(null)
   useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
@@ -163,10 +174,11 @@ function MemberShell({ session }) {
       onSkip={() => { try { sessionStorage.setItem(SETUP_SKIPPED_KEY, '1') } catch { /* ignore */ } setSkipped(true) }} />
   }
   if (appLock.locked) return <MemberLockScreen appLock={appLock} session={session} />
+  if (!startTab) return <Splash />
   const topbar = { module: 'budget', setModule: () => {}, member: true }
   return (
     <div className="shell">
-      <BudgetModule topbar={topbar} email={memberName(session)} member appLock={appLock} />
+      <BudgetModule topbar={topbar} email={memberName(session)} member appLock={appLock} startTab={startTab} />
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -207,9 +219,10 @@ function UnlockScreen({ vault, onRecovered }) {
   )
 }
 
-function BudgetModule({ topbar, email, member, appLock, vault }) {
-  const [tab, setTab] = useState('dashboard')
-  useBackAction(tab !== 'dashboard', () => setTab('dashboard'), 2)
+function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard' }) {
+  // `startTab` is the "home" of this app: where it opens and where Android back returns to.
+  const [tab, setTab] = useState(startTab)
+  useBackAction(tab !== startTab, () => setTab(startTab), 2)
   const [fabOpen, setFabOpen] = useState(false)
   const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
   const [dataVersion, setDataVersion] = useState(0)

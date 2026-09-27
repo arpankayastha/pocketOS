@@ -235,6 +235,13 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
     try { await manageMembers('reset_pin', { householdId: h.id, userId: m.user_id, pin }); setShare({ household: h, username: m.username, pin, reset: true }) } catch (err) { setError(err.message) }
   }
 
+  // Which tab the member's app opens on; takes effect the next time they open the app.
+  async function setStartTab(m, startTab) {
+    setMembers((ms) => ms.map((x) => (x.user_id === m.user_id ? { ...x, start_tab: startTab } : x)))
+    const { error } = await supabase.from('household_members').update({ start_tab: startTab }).eq('user_id', m.user_id).eq('household_id', m.household_id)
+    if (error) { setError(error.message); loadMembers() }
+  }
+
   async function removeLogin(h, m) {
     if (!await dialog.confirm({ title: `Remove ${m.username}'s login?`, message: `They can no longer open "${h.name}". Everything they added stays in the household.`, confirmLabel: 'Remove login' })) return
     try { await manageMembers('remove', { householdId: h.id, userId: m.user_id }); loadMembers() } catch (err) { setError(err.message) }
@@ -295,13 +302,16 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
         active={open.id === activeHouseholdId} onClose={() => setOpenId(null)}
         onSwitch={() => { setActiveHouseholdId(open.id); setOpenId(null) }}
         onRename={(next) => rename(open, next)} onDelete={() => remove(open)}
-        onCreateLogin={() => setLoginFor(open)} onResetPin={(m) => resetPin(open, m)} onRemoveLogin={(m) => removeLogin(open, m)} />}
+        onCreateLogin={() => setLoginFor(open)} onResetPin={(m) => resetPin(open, m)} onRemoveLogin={(m) => removeLogin(open, m)}
+        onStartTab={setStartTab} />}
       {loginFor && <LoginForm household={loginFor} taken={(members || []).map((x) => x.username)} onClose={() => setLoginFor(null)}
         onCreated={(username, pin) => { setShare({ household: loginFor, username, pin }); setLoginFor(null); loadMembers() }} />}
       {share && <ShareLogin {...share} onClose={() => setShare(null)} />}
     </div>
   )
 }
+
+const START_TABS = [['dashboard', 'Home'], ['transactions', 'Entries'], ['plan', 'Plan'], ['dues', 'Dues'], ['hisab', 'Hisab']]
 
 function LoginBadge({ member, loading }) {
   if (loading) return null
@@ -310,7 +320,7 @@ function LoginBadge({ member, loading }) {
 }
 
 // Everything about one household in one bottom sheet: switch, rename, login, delete.
-function HouseholdSheet({ household, color, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin }) {
+function HouseholdSheet({ household, color, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab }) {
   const [name, setName] = useState(household.name)
   const changed = name.trim() && name.trim() !== household.name
   return (
@@ -342,6 +352,11 @@ function HouseholdSheet({ household, color, member, membersLoaded, active, onClo
                 <LoginBadge member={member} />
               </div>
               <div className="muted small">{member.fingerprint_at ? 'Opens with their fingerprint; PIN works as backup.' : 'Signs in with username + PIN. Fingerprint not set up yet.'} {ago(member.last_sign_in_at).replace(/^./, (c) => c.toUpperCase())}.</div>
+              <label className="hh-start">Opens on
+                <select value={member.start_tab || 'dashboard'} onChange={(e) => onStartTab(member, e.target.value)}>
+                  {START_TABS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                </select>
+              </label>
               <div className="hh-login-actions">
                 <button className="btn small" onClick={() => onResetPin(member)}>Reset PIN</button>
                 <button className="btn small danger-ghost" onClick={() => onRemoveLogin(member)}>Remove login</button>

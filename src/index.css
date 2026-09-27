@@ -371,6 +371,8 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hh-login-card { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); }
 .hh-login-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .hh-login-user { font-family: var(--font-mono); font-weight: 600; font-size: 16px; }
+.hh-start { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--text); }
+.hh-start select { width: auto; min-width: 120px; }
 .hh-login-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .hh-login-empty { display: grid; gap: 10px; justify-items: start; }
 .hh-login-empty p { margin: 0; }

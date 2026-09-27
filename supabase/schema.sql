@@ -576,3 +576,12 @@ drop trigger if exists block_public_signups on auth.users;
 create trigger block_public_signups
   before insert on auth.users
   for each row execute function private.block_public_signups();
+
+-- Which Budget tab a member's app opens on (set by the owner in Settings → Households).
+alter table public.household_members add column if not exists start_tab text not null default 'dashboard'
+  check (start_tab in ('dashboard','transactions','plan','dues','hisab'));
+grant update (start_tab) on public.household_members to authenticated;
+drop policy if exists "owner sets start tab" on public.household_members;
+create policy "owner sets start tab" on public.household_members for update to authenticated
+  using (household_id in (select h.id from public.households h where h.user_id = (select auth.uid())))
+  with check (household_id in (select h.id from public.households h where h.user_id = (select auth.uid())));
