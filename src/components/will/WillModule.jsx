@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useDialog } from '../../lib/dialog'
+import { useBackAction } from '../../lib/backNav'
 import { emptyWill } from '../../lib/willModel'
 import Topbar from '../Topbar'
 import VaultGate from '../VaultGate'
@@ -53,6 +54,7 @@ export default function WillModule({ topbar, vault }) {
 
 function WillEditor({ topbar, vault }) {
   const [tab, setTab] = useState('details')
+  useBackAction(tab !== 'details', () => setTab('details'), 2)
   const will = useWill(vault)
   const { doc, update, saveState, error, importDoc } = will
   const dialog = useDialog()

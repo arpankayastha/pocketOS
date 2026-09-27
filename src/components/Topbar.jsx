@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { BrandMark, ChevronDownIcon, CheckIcon, PlusIcon, SettingsIcon } from '../lib/icons'
-import { MODULES } from '../lib/modules'
+import { MODULES, HIDDEN_WILL } from '../lib/modules'
 
 // Shared header: brand, module switcher, then the module's own tabs (`children`, desktop
 // only; phones use the bottom nav) and actions (`right`).
-export default function Topbar({ module, setModule, children, right }) {
+export default function Topbar({ module, setModule, onSecret, children, right }) {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4)
@@ -15,7 +15,7 @@ export default function Topbar({ module, setModule, children, right }) {
 
   return (
     <header className={`topbar ${scrolled ? 'scrolled' : ''}`}>
-      <div className="brand"><BrandMark size={28} /><span className="brand-text">PocketOS</span></div>
+      <div className="brand" {...useLongPress(onSecret)}><BrandMark size={28} /><span className="brand-text">PocketOS</span></div>
       <ModuleSwitch module={module} setModule={setModule} />
       {children}
       <div className="topbar-right">{right}</div>
@@ -45,13 +45,27 @@ function ModuleSwitch({ module, setModule }) {
   return (
     <nav className="module-switch" aria-label="Module" ref={navRef}>
       {thumb && <span className="module-thumb" aria-hidden="true" style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }} />}
-      {MODULES.map((m) => (
+      {(module === HIDDEN_WILL.id ? [...MODULES, HIDDEN_WILL] : MODULES).map((m) => (
         <button key={m.id} className={m.id === module ? 'on' : ''} aria-current={m.id === module ? 'page' : undefined} onClick={() => setModule(m.id)}>
           <m.icon /><span className="module-label">{m.label}</span>
         </button>
       ))}
     </nav>
   )
+}
+
+// Press-and-hold (700 ms) without moving: the hidden entry point. No visual hint by design.
+function useLongPress(fn) {
+  const t = useRef(null)
+  const start = useRef(null)
+  const cancel = () => { clearTimeout(t.current); t.current = null }
+  if (!fn) return {}
+  return {
+    onPointerDown: (e) => { start.current = { x: e.clientX, y: e.clientY }; cancel(); t.current = setTimeout(() => { t.current = null; fn() }, 700) },
+    onPointerMove: (e) => { if (t.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 10) cancel() },
+    onPointerUp: cancel, onPointerLeave: cancel, onPointerCancel: cancel,
+    onContextMenu: (e) => e.preventDefault(),
+  }
 }
 
 // Household chip + dropdown menu.

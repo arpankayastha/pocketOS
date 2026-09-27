@@ -24,7 +24,7 @@ export default function DialogProvider({ children }) {
 }
 
 function Dialog({ kind, opts, close }) {
-  const { title, message, label, placeholder, defaultValue = '', danger = kind === 'confirm', cancelLabel = 'Cancel' } = opts
+  const { title, message, label, placeholder, defaultValue = '', danger = kind === 'confirm', cancelLabel = 'Cancel', inputType = 'text' } = opts
   const confirmLabel = opts.confirmLabel || (kind === 'prompt' ? 'Save' : kind === 'alert' ? 'OK' : 'Delete')
   const [value, setValue] = useState(defaultValue)
   const cancelRef = useRef(null)
@@ -42,7 +42,7 @@ function Dialog({ kind, opts, close }) {
 
   function submit(e) {
     e.preventDefault()
-    if (kind === 'prompt') { if (value.trim()) close(value.trim()) }
+    if (kind === 'prompt') { if (value.trim()) close(inputType === 'password' ? value : value.trim()) }
     else close(kind === 'confirm' ? true : undefined)
   }
 
@@ -55,7 +55,7 @@ function Dialog({ kind, opts, close }) {
         {message && <p className="muted">{message}</p>}
         {kind === 'prompt' && (
           <label>{title ? label : null}
-            <input autoFocus value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)} onFocus={(e) => e.target.select()} />
+            <input autoFocus type={inputType} autoComplete={inputType === 'password' ? 'current-password' : 'off'} value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)} onFocus={(e) => e.target.select()} />
           </label>
         )}
         <div className="actions">

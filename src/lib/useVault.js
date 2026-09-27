@@ -7,7 +7,7 @@ import {
 import { createCredential, getAssertion } from './webauthn'
 
 const IDLE_LOCK_MS = 5 * 60_000     // lock after 5 minutes without interaction
-const BACKGROUND_LOCK_MS = 30_000   // lock if the app was in the background longer than this
+const BACKGROUND_LOCK_MS = 60_000   // lock if the app was in the background longer than this
 const RECOVERY_INFO = 'pocketos-vault-recovery-v1'
 const PRF_INFO = 'pocketos-vault-prf-v1'
 export const DEVICE_CREDENTIAL_KEY = 'pocketos.vaultCredential' // this device's vault fingerprint credential id
@@ -214,6 +214,15 @@ export function useVault(session) {
 
   const lockNow = useCallback(() => { setLockedByUser(true); lock() }, [lock])
 
+  // Fresh fingerprint check while already unlocked (e.g. to open the hidden Will).
+  // Resolves true on success, false if this device has no fingerprint set up; throws if cancelled.
+  const verifyUser = useCallback(async () => {
+    const prfs = unlockers.filter((u) => u.kind === 'prf')
+    if (!prfs.length) return false
+    await getAssertion({ credentials: prfs.map((u) => ({ credentialId: u.credential_id })) })
+    return true
+  }, [unlockers])
+
   // ----- Auto-lock -----
   const touch = useCallback(() => { lastActive.current = Date.now() }, [])
 
@@ -233,6 +242,6 @@ export function useVault(session) {
     status, error, lockedByUser, unlockers, fingerprintUnlockers, items, hasRecovery: unlockers.some((u) => u.kind === 'recovery'),
     setup, unlockWithPassword, unlockWithRecovery, unlockWithFingerprint, checkPassword,
     addFingerprint, removeUnlocker, changePassword, regenerateRecovery,
-    saveItem, deleteItem, importItems, seal, unseal, lock, lockNow, touch,
+    saveItem, deleteItem, importItems, seal, unseal, lock, lockNow, touch, verifyUser,
   }
 }

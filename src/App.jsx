@@ -19,6 +19,7 @@ import WillModule from './components/will/WillModule'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import { MODULES } from './lib/modules'
 import { useDialog } from './lib/dialog'
+import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
 import { BrandMark, DashboardIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
 
@@ -73,20 +74,78 @@ function Shell({ session }) {
     const saved = localStorage.getItem(ACTIVE_MODULE_KEY)
     return MODULES.some((m) => m.id === saved) ? saved : 'budget'
   })
-  const setModule = (id) => { setModuleState(id); localStorage.setItem(ACTIVE_MODULE_KEY, id) }
+  // The hidden Will module is never remembered, so the app always reopens on Budget / Vault.
+  const setModule = (id) => { setModuleState(id); if (MODULES.some((m) => m.id === id)) localStorage.setItem(ACTIVE_MODULE_KEY, id) }
   // Vault state lives here, not in VaultModule, so switching modules doesn't lock the vault.
   const vault = useVault(session)
   const appLock = useAppLock(session)
-  const topbar = { module, setModule }
+  const dialog = useDialog()
+  const [mustResetPassword, setMustResetPassword] = useState(false) // after unlocking with the recovery code
+  const [toast, setToast] = useState(null)
 
-  if (appLock.locked) return <AppLockScreen appLock={appLock} vault={vault} />
-  if (module === 'vault') return <VaultModule topbar={topbar} vault={vault} appLock={appLock} />
-  if (module === 'will') return <WillModule topbar={topbar} vault={vault} />
-  return <BudgetModule topbar={topbar} email={session.user.email} />
+  // Once the vault exists, ONE fingerprint (the vault unlock) opens the whole app. The older,
+  // separate app lock would ask a second time, so it's switched off.
+  const { enabled: appLockOn, disable: disableAppLock } = appLock
+  useEffect(() => {
+    if (appLockOn && (vault.status === 'locked' || vault.status === 'unlocked')) disableAppLock()
+  }, [appLockOn, disableAppLock, vault.status])
+
+  useBackButton(() => { setToast('Press back again to close PocketOS'); setTimeout(() => setToast(null), 2000) })
+  useBackAction(module !== 'budget', () => setModule('budget'), 1)
+
+  // Hidden Will: press and hold the logo, then confirm with a fingerprint (master password if
+  // this device has no fingerprint set up).
+  async function openWill() {
+    if (module === 'will' || vault.status !== 'unlocked') return
+    try {
+      if (!await vault.verifyUser()) {
+        const pw = await dialog.prompt({ title: 'Confirm it’s you', label: 'Vault master password', inputType: 'password', confirmLabel: 'Open' })
+        if (!pw || !await vault.checkPassword(pw)) return
+      }
+      setModule('will')
+    } catch { /* fingerprint cancelled */ }
+  }
+
+  if (vault.status === 'loading') {
+    return vault.error ? (
+      <div className="auth-wrap"><div className="card auth">
+        <div className="brand big"><BrandMark size={28} />PocketOS</div>
+        <div className="alert error">Couldn't reach the server: {vault.error}</div>
+        <button className="btn primary" onClick={() => location.reload()}>Try again</button>
+      </div></div>
+    ) : <Splash />
+  }
+  if (vault.status === 'locked') return <UnlockScreen vault={vault} onRecovered={() => { setMustResetPassword(true); setModule('vault') }} />
+  if (vault.status === 'setup' && appLock.locked) return <AppLockScreen appLock={appLock} vault={vault} />
+
+  const topbar = { module, setModule, onSecret: openWill }
+  return (
+    // Any tap or key press counts as activity for the vault's idle auto-lock, in every module.
+    <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
+      {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
+        : module === 'will' ? <WillModule topbar={topbar} vault={vault} />
+        : <BudgetModule topbar={topbar} email={session.user.email} />}
+      {toast && <div className="toast" role="status">{toast}</div>}
+    </div>
+  )
+}
+
+// Full-screen lock: one fingerprint unlocks the vault key, which opens Budget, Vault and Will.
+function UnlockScreen({ vault, onRecovered }) {
+  return (
+    <div className="auth-wrap">
+      <div className="auth-glow" />
+      <div className="unlock-wrap">
+        <div className="brand big unlock-brand"><BrandMark size={28} />PocketOS</div>
+        <VaultGate vault={vault} title="Unlock PocketOS" onRecovered={onRecovered} onRecoveryCode={() => {}} />
+      </div>
+    </div>
+  )
 }
 
 function BudgetModule({ topbar, email }) {
   const [tab, setTab] = useState('dashboard')
+  useBackAction(tab !== 'dashboard', () => setTab('dashboard'), 2)
   const [fabOpen, setFabOpen] = useState(false)
   const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
   const [dataVersion, setDataVersion] = useState(0)
@@ -159,10 +218,10 @@ function BudgetModule({ topbar, email }) {
   )
 }
 
-function VaultModule({ topbar, vault, appLock }) {
+function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword }) {
   const [tab, setTab] = useState('items')
+  useBackAction(tab !== 'items', () => setTab('items'), 2)
   const [recoveryCode, setRecoveryCode] = useState(null) // { code, firstTime } shown once
-  const [mustResetPassword, setMustResetPassword] = useState(false) // after unlocking with the recovery code
   const [openItem, setOpenItem] = useState(null)
   const [editing, setEditing] = useState(null) // item being edited, {} for a new one
   const unlocked = vault.status === 'unlocked'
@@ -185,10 +244,10 @@ function VaultModule({ topbar, vault, appLock }) {
   else if (!unlocked) body = <VaultGate vault={vault} onRecovered={() => setMustResetPassword(true)} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: true })} />
   else if (tab === 'items') body = <VaultItems vault={vault} open={openItem} setOpen={setOpenItem} editing={editing} setEditing={setEditing} />
   else if (tab === 'generator') body = <PasswordGenerator />
-  else body = <VaultSecurity vault={vault} appLock={appLock} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: false })} onOpenItem={(item) => { setTab('items'); setOpenItem(item) }} />
+  else body = <VaultSecurity vault={vault} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: false })} onOpenItem={(item) => { setTab('items'); setOpenItem(item) }} />
 
   return (
-    <div className="app" onPointerDown={vault.touch} onKeyDown={vault.touch}>
+    <div className="app">
       <Topbar {...topbar} right={unlocked && (
         <button className="btn icon lock-btn" aria-label="Lock vault" title="Lock vault" onClick={vault.lockNow}><LockIcon /></button>
       )}>

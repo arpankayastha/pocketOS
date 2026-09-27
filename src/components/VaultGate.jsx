@@ -8,9 +8,9 @@ import { GateSkeleton } from './Skeleton'
 // Shown before the vault is unlocked: first-time setup, or the lock screen.
 // `onRecoveryCode` receives the one-time recovery code after setup; the parent shows it,
 // because setup() unlocks the vault and this gate unmounts immediately.
-export default function VaultGate({ vault, onRecovered, onRecoveryCode }) {
+export default function VaultGate({ vault, onRecovered, onRecoveryCode, title }) {
   if (vault.status === 'setup') return <Setup vault={vault} onRecoveryCode={onRecoveryCode} />
-  return <Unlock vault={vault} onRecovered={onRecovered} />
+  return <Unlock vault={vault} onRecovered={onRecovered} title={title} />
 }
 
 function Setup({ vault, onRecoveryCode }) {
@@ -84,7 +84,7 @@ export function RecoveryCode({ code, onDone, firstTime }) {
   )
 }
 
-function Unlock({ vault, onRecovered }) {
+function Unlock({ vault, onRecovered, title = 'Vault is locked' }) {
   const [mode, setMode] = useState('password') // password | recovery
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
@@ -126,7 +126,7 @@ function Unlock({ vault, onRecovered }) {
   return (
     <form className="card gate" onSubmit={submit}>
       <VaultIcon />
-      <h2>Vault is locked</h2>
+      <h2>{title}</h2>
       {hasFingerprint && canFingerprint && (
         <>
           <button type="button" className="btn primary" disabled={busy} onClick={fingerprint}><FingerprintIcon /> Unlock with fingerprint</button>

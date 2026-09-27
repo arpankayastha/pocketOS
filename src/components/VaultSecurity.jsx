@@ -17,11 +17,11 @@ function deviceName() {
   return 'This device'
 }
 
-export default function VaultSecurity({ vault, appLock, onRecoveryCode, onOpenItem }) {
+export default function VaultSecurity({ vault, onRecoveryCode, onOpenItem }) {
   return (
     <section className="grid2">
       <Fingerprints vault={vault} />
-      <AppLockCard appLock={appLock} />
+      <AppLockCard />
       <ChangePassword vault={vault} />
       <Recovery vault={vault} onRecoveryCode={onRecoveryCode} />
       <Import vault={vault} />
@@ -76,27 +76,14 @@ function Fingerprints({ vault }) {
   )
 }
 
-function AppLockCard({ appLock }) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-
-  async function toggle() {
-    setError(null)
-    if (appLock.enabled) return appLock.disable()
-    setBusy(true)
-    try { await appLock.enable() } catch (err) { setError(describeWebAuthnError(err)) }
-    setBusy(false)
-  }
-
+// With the vault set up, the whole app is behind the vault unlock (see Shell in App.jsx), so
+// there's nothing to toggle — this card just explains how locking works.
+function AppLockCard() {
   return (
     <div className="card">
       <h3>App lock</h3>
-      <p className="muted small">Ask for your fingerprint whenever PocketOS opens or comes back after a minute in the background. Applies to the whole app on this device.</p>
-      <label className="check">
-        <input type="checkbox" checked={appLock.enabled} disabled={busy} onChange={toggle} />
-        {busy ? 'Waiting for fingerprint…' : 'Lock PocketOS with fingerprint'}
-      </label>
-      {error && <div className="alert error">{error}</div>}
+      <p className="muted small">PocketOS always opens with your fingerprint (or master password). That one unlock opens Budget, Vault and everything else — you're never asked twice.</p>
+      <p className="muted small" style={{ margin: 0 }}>It locks again after 5 minutes without use, after a minute in the background, or when you tap the lock button.</p>
     </div>
   )
 }
