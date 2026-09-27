@@ -338,6 +338,17 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hb-saved { text-align: center; color: var(--pos); }
 .hb-sheet .actions .btn { flex: 1; }
 
+/* Settings: collapsible cards */
+.coll { padding: 0; margin-bottom: 0; }
+.coll-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; }
+.coll-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 12px; border: none; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; border-radius: 14px; }
+.coll-toggle .grow { display: grid; gap: 2px; min-width: 0; }
+.coll-title { font-size: 17px; font-weight: 700; }
+.coll-sum { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coll-toggle svg { color: var(--muted); flex: none; transition: transform .2s; }
+.coll.open .coll-toggle svg { transform: rotate(180deg); }
+.coll-body { padding: 0 18px 18px; }
+
 /* Settings → Hisab categories */
 .hc-list { display: grid; }
 .hc-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }

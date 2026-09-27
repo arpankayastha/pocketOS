@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { TrashIcon, PencilIcon, PasskeyIcon, FingerprintIcon } from '../lib/icons'
+import { TrashIcon, PencilIcon, PasskeyIcon, FingerprintIcon, ChevronDownIcon } from '../lib/icons'
 import { generatePin, manageMembers } from '../lib/members'
 import { describeWebAuthnError, platformAuthenticatorAvailable, deviceName } from '../lib/webauthn'
 import { fingerprintHere, MIN_MASTER_PASSWORD } from '../lib/useVault'
@@ -47,6 +47,34 @@ export default function Settings({ accounts, categories, refresh, households, ac
   )
 }
 
+// A Settings card that folds to its title + a one-line summary, so the page stays short.
+// Open/closed is remembered per card on this device.
+const OPEN_KEY = 'pocketos.settingsOpen'
+function Collapsible({ id, title, summary, action, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(OPEN_KEY) || '{}')[id] ?? defaultOpen } catch { return defaultOpen }
+  })
+  function toggle() {
+    setOpen(!open)
+    try { const all = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); all[id] = !open; localStorage.setItem(OPEN_KEY, JSON.stringify(all)) } catch { /* ignore */ }
+  }
+  return (
+    <div className={`card coll ${open ? 'open' : ''}`}>
+      <div className="coll-head">
+        <button type="button" className="coll-toggle" aria-expanded={open} onClick={toggle}>
+          <span className="grow">
+            <span className="coll-title">{title}</span>
+            {!open && summary && <span className="coll-sum">{summary}</span>}
+          </span>
+          <ChevronDownIcon />
+        </button>
+        {open && action}
+      </div>
+      {open && <div className="coll-body">{children}</div>}
+    </div>
+  )
+}
+
 function Passkeys() {
   const dialog = useDialog()
   const [passkeys, setPasskeys] = useState([])
@@ -86,8 +114,7 @@ function Passkeys() {
   }
 
   return (
-    <div className="card">
-      <h3>Passkeys</h3>
+    <Collapsible id="passkeys" title="Passkeys" summary={`${passkeys.length} passkey${passkeys.length === 1 ? '' : 's'}`}>
       <p className="muted small" style={{ marginTop: -6 }}>Sign in to eChopdo with your fingerprint or face instead of Google.</p>
       <div className="pk-list">
         {passkeys.map((p) => (
@@ -107,7 +134,7 @@ function Passkeys() {
         {busy ? 'Waiting for fingerprint…' : '+ Add a passkey for this device'}
       </button>
       {error && <div className="alert error">{error}</div>}
-    </div>
+    </Collapsible>
   )
 }
 
@@ -129,8 +156,7 @@ function SecurityCard({ vault, member }) {
   }
 
   return (
-    <div className="card">
-      <h3>Security</h3>
+    <Collapsible id="security" title="Security" summary={`Fingerprint ${here ? 'on' : 'off'} on this phone`}>
       <div className="sec-row">
         <span className="sec-ico"><FingerprintIcon /></span>
         <div className="grow">
@@ -152,7 +178,7 @@ function SecurityCard({ vault, member }) {
       {error && <div className="alert error">{error}</div>}
       {done && <div className="alert ok">{done}</div>}
       {changing && <ChangeMasterPassword vault={vault} onClose={() => setChanging(false)} onDone={() => { setChanging(false); setDone('Master password changed. Use the new one from now on.') }} />}
-    </div>
+    </Collapsible>
   )
 }
 
@@ -202,8 +228,7 @@ function FingerprintCard({ appLock }) {
     setBusy(false)
   }
   return (
-    <div className="card">
-      <h3>Fingerprint unlock</h3>
+    <Collapsible id="fingerprint" title="Fingerprint unlock" summary={appLock.enabled ? 'On' : 'Off'}>
       <p className="muted small">{appLock.enabled
         ? 'eChopdo asks for your fingerprint when it opens and after a minute in the background. Your PIN still works as a backup.'
         : 'Turn it on so eChopdo opens with your fingerprint instead of your PIN.'}</p>
@@ -211,7 +236,7 @@ function FingerprintCard({ appLock }) {
         ? <button className="btn" onClick={appLock.disable}>Turn off</button>
         : <button className="btn primary" disabled={busy} onClick={enable}><FingerprintIcon /> {busy ? 'Waiting for fingerprint…' : 'Use my fingerprint'}</button>}
       {error && <div className="alert error">{error}</div>}
-    </div>
+    </Collapsible>
   )
 }
 
@@ -304,11 +329,9 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
 
   const open = households.find((h) => h.id === openId)
   return (
-    <div className="card">
-      <div className="card-head">
-        <h3>Households</h3>
-        <button className="btn small primary" onClick={add}>+ Add</button>
-      </div>
+    <Collapsible id="households" title="Households" defaultOpen
+      summary={`${households.length} household${households.length === 1 ? '' : 's'}${members?.length ? ` · ${members.length} login${members.length === 1 ? '' : 's'}` : ''}`}
+      action={<button className="btn small primary" onClick={add}>+ Add</button>}>
       <p className="muted small">Tap a household to rename it or give it its own login. Members see only their household; you see everything.</p>
       <div className="hh-list">
         {households.map((h) => {
@@ -338,7 +361,7 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
       {loginFor && <LoginForm household={loginFor} taken={(members || []).map((x) => x.username)} onClose={() => setLoginFor(null)}
         onCreated={(username, pin) => { setShare({ household: loginFor, username, pin }); setLoginFor(null); loadMembers() }} />}
       {share && <ShareLogin {...share} onClose={() => setShare(null)} />}
-    </div>
+    </Collapsible>
   )
 }
 
@@ -538,8 +561,8 @@ function HisabCategories({ householdId, householdName }) {
   }
 
   return (
-    <div className="card">
-      <h3>Hisab categories</h3>
+    <Collapsible id="hisab-categories" title="Hisab categories"
+      summary={list ? `${list.filter((c) => c.direction === 'out').length} spent · ${list.filter((c) => c.direction === 'in').length} received` : null}>
       <p className="muted small">The icons shown when adding a Hisab entry{householdName ? ` in ${householdName}` : ''}. Tap a name to rename; arrows change the order.</p>
       <div className="seg" style={{ marginBottom: 10 }}>
         <button type="button" className={dir === 'out' ? 'on expense' : ''} onClick={() => setDir('out')}>Spent</button>
@@ -570,7 +593,7 @@ function HisabCategories({ householdId, householdName }) {
         </div>
       </form>
       {error && <div className="alert error">{error}</div>}
-    </div>
+    </Collapsible>
   )
 }
 
@@ -593,8 +616,7 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
   }
 
   return (
-    <div className="card">
-      <h3>Accounts</h3>
+    <Collapsible id="accounts" title="Accounts" summary={`${accounts.length} account${accounts.length === 1 ? '' : 's'}`}>
       {accounts.map((a) => (
         <div className="line" key={a.id}>
           <button type="button" className="line-btn" onClick={() => setEditing(a)}>
@@ -615,7 +637,7 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
       </form>
       {error && <div className="alert error">{error}</div>}
       {editing && <AccountEditor account={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />}
-    </div>
+    </Collapsible>
   )
 }
 
@@ -697,8 +719,7 @@ function Categories({ categories, activeHouseholdId, refresh }) {
   }
 
   return (
-    <div className="card">
-      <h3>Categories</h3>
+    <Collapsible id="categories" title="Categories" summary={`${categories.length} categor${categories.length === 1 ? 'y' : 'ies'}`}>
       <p className="muted small" style={{ marginTop: -6 }}>Tap a category to rename it, change its colour or delete it.</p>
       {['expense', 'income'].map((k) => (
         <div key={k}>
@@ -723,7 +744,7 @@ function Categories({ categories, activeHouseholdId, refresh }) {
       </form>
       {error && <div className="alert error">{error}</div>}
       {editing && <CategoryEditor category={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />}
-    </div>
+    </Collapsible>
   )
 }
 
