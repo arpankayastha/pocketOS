@@ -416,3 +416,48 @@ create index if not exists due_entries_household_id_idx on public.due_entries (h
 create index if not exists due_entries_user_id_idx on public.due_entries (user_id);
 create index if not exists due_entries_transaction_id_idx on public.due_entries (transaction_id);
 create index if not exists recurring_items_due_id_idx on public.recurring_items (due_id);
+
+-- ============================================================================
+-- Hisab (Budget → Hisab): Money Tracker-style cash books that do NOT affect Budget
+-- totals — a "daily" book for day-to-day spends plus one book per occasion
+-- (Diwali, a wedding…). Categories and sources are free text on each entry.
+-- ============================================================================
+create table if not exists public.hisab_books (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  name text not null,
+  kind text not null default 'occasion' check (kind in ('daily','occasion')),
+  target numeric(14,2) check (target is null or target > 0),
+  created_at timestamptz not null default now()
+);
+alter table public.hisab_books enable row level security;
+drop policy if exists "own rows" on public.hisab_books;
+create policy "own rows" on public.hisab_books for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+create table if not exists public.hisab_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  book_id uuid not null references public.hisab_books(id) on delete cascade,
+  direction text not null default 'out' check (direction in ('out','in')),
+  amount numeric(14,2) not null check (amount > 0),
+  occurred_on date not null default current_date,
+  category text,
+  source text,
+  note text,
+  created_at timestamptz not null default now()
+);
+alter table public.hisab_entries enable row level security;
+drop policy if exists "own rows" on public.hisab_entries;
+create policy "own rows" on public.hisab_entries for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+create index if not exists hisab_books_household_id_idx on public.hisab_books (household_id);
+create index if not exists hisab_books_user_id_idx on public.hisab_books (user_id);
+create index if not exists hisab_entries_book_id_idx on public.hisab_entries (book_id, occurred_on);
+create index if not exists hisab_entries_household_id_idx on public.hisab_entries (household_id);
+create index if not exists hisab_entries_user_id_idx on public.hisab_entries (user_id);

@@ -5,7 +5,16 @@ const fmt = new Intl.NumberFormat(locale, { style: 'currency', currency, maximum
 const fmtShort = new Intl.NumberFormat(locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 })
 
 export const money = (n) => fmt.format(Number(n) || 0)
-export const moneyShort = (n) => fmtShort.format(Number(n) || 0)
+// ICU's en-IN compact form writes thousands as "T" (₹40T); use the familiar K / L / Cr instead.
+const fmtPlain = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 })
+const symbol = fmt.formatToParts(0).find((p) => p.type === 'currency')?.value || ''
+export const moneyShort = (n) => {
+  const v = Number(n) || 0
+  if (locale !== 'en-IN') return fmtShort.format(v)
+  const a = Math.abs(v), sign = v < 0 ? '-' : ''
+  const [d, unit] = a >= 1e7 ? [1e7, 'Cr'] : a >= 1e5 ? [1e5, 'L'] : a >= 1e3 ? [1e3, 'K'] : [1, '']
+  return `${sign}${symbol}${fmtPlain.format(a / d)}${unit}`
+}
 
 export const today = () => new Date().toLocaleDateString('en-CA') // YYYY-MM-DD in local time
 

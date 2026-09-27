@@ -8,6 +8,7 @@ import Dashboard from './components/Dashboard'
 import Transactions from './components/Transactions'
 import Plan from './components/Plan'
 import Dues from './components/Dues'
+import Hisab from './components/Hisab'
 import Settings from './components/Settings'
 import TransactionForm from './components/TransactionForm'
 import TransferForm from './components/TransferForm'
@@ -23,7 +24,7 @@ import { MODULES } from './lib/modules'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, HomeIcon, DuesIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
+import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
 
 // PocketOS is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
 const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
@@ -34,6 +35,7 @@ const BUDGET_TABS = [
   { id: 'transactions', label: 'Entries', icon: ListIcon },
   { id: 'plan', label: 'Plan', icon: PlanIcon },
   { id: 'dues', label: 'Dues', icon: DuesIcon },
+  { id: 'hisab', label: 'Hisab', icon: BookIcon },
 ]
 
 const VAULT_TABS = [
@@ -152,6 +154,7 @@ function BudgetModule({ topbar, email }) {
   const [fabOpen, setFabOpen] = useState(false)
   const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
   const [dataVersion, setDataVersion] = useState(0)
+  const [hisabAdd, setHisabAdd] = useState(0) // the + on the Hisab tab adds a Hisab entry instead
   const data = useFinanceData()
   const dialog = useDialog()
 
@@ -182,6 +185,7 @@ function BudgetModule({ topbar, email }) {
             {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
+            {tab === 'hisab' && <Hisab key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
             {tab === 'settings' && <Settings {...data} email={email} />}
           </>
@@ -201,7 +205,8 @@ function BudgetModule({ topbar, email }) {
             <button className="fab-option expense" onClick={() => { setFabOpen(false); setQuickAddKind('expense') }}>Expense</button>
           </div>
         )}
-        <button className={`fab ${fabOpen ? 'open' : ''}`} aria-label="Add transaction" onClick={() => setFabOpen((v) => !v)}><PlusIcon /></button>
+        <button className={`fab ${fabOpen ? 'open' : ''}`} aria-label={tab === 'hisab' ? 'Add Hisab entry' : 'Add transaction'}
+          onClick={() => (tab === 'hisab' ? setHisabAdd((n) => n + 1) : setFabOpen((v) => !v))}><PlusIcon /></button>
       </div>
 
       {quickAddKind === 'transfer' && !data.loading && (
