@@ -12,4 +12,8 @@
             <extra android:name="direction" android:value="in" />
         </intent>
     </shortcut>
+    <shortcut android:shortcutId="phone_settings" android:enabled="true" android:icon="@drawable/ic_shortcut_settings"
+        android:shortcutShortLabel="@string/sc_settings" android:shortcutLongLabel="@string/sc_settings_long">
+        <intent android:action="app.echopdo.SETTINGS" android:targetPackage="app.echopdo" android:targetClass="app.echopdo.PairActivity" />
+    </shortcut>
 </shortcuts>

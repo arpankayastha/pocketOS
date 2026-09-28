@@ -6,6 +6,10 @@
 //   { action: 'config', token }              → pickers + frequent entries
 //   { action: 'add', token, target, ... }    → { id }
 //   { action: 'undo', token, target, id }    → { ok }
+//   { action: 'capture', token, direction, amount, date, account_hint, card, payee, ref, bank }
+//                                            → a bank SMS read on the phone (the SMS itself never
+//                                              leaves it) → { id, suggestion, match } | { duplicate }
+//   { action: 'file' | 'ignore' | 'match', token, capture_id, … } → file / drop a capture
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const cors = {
@@ -35,6 +39,9 @@ function amountOf(v: unknown) {
   const n = Math.round(Number(v) * 100) / 100
   return Number.isFinite(n) && n > 0 && n < 1e10 ? n : null
 }
+const payeeKey = (p: string) => 'payee:' + p.trim().toLowerCase()
+const acctKey = (bank: string | null, hint: string) => `acct:${(bank || '').toLowerCase()}:${hint}`
+
 // "Today" in India, where the family lives (the phone also sends its own date).
 const todayIST = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
 
@@ -82,6 +89,56 @@ Deno.serve(async (req) => {
     return made.id
   }
 
+  // Names the phone needs to show a capture's suggestion ("🍽️ Food", "Bills").
+  async function pickerNames() {
+    const [hc, cats] = await Promise.all([
+      db.from('hisab_categories').select('direction, name, icon').eq('household_id', hid),
+      db.from('categories').select('id, name').eq('household_id', hid),
+    ])
+    const icons = new Map<string, string>([...OUT, ...IN].map(([n, i]) => [n.toLowerCase(), i]))
+    for (const c of hc.data || []) icons.set(c.name.toLowerCase(), c.icon)
+    return { icons, cats: new Map((cats.data || []).map((c) => [c.id, c.name])) }
+  }
+  type Capture = { id: string, direction: string, amount: number, occurred_on: string, account_hint: string | null, card: boolean,
+    payee: string | null, bank: string | null, match_target: string | null, match_entry_id: string | null }
+  async function decorate(list: Capture[]) {
+    if (!list.length) return []
+    const { data: rules } = await db.from('capture_rules').select('key, target, category, category_id, account_id, source, book_id, hits, auto').eq('household_id', hid)
+    const byKey = new Map((rules || []).map((r) => [r.key, r]))
+    const names = await pickerNames()
+    return list.map((c) => {
+      const r = c.payee ? byKey.get(payeeKey(c.payee)) : undefined
+      const a = c.account_hint ? byKey.get(acctKey(c.bank, c.account_hint)) : undefined
+      const suggestion = r?.target ? {
+        target: r.target, category: r.category, category_id: r.category_id, account_id: r.account_id || a?.account_id || null,
+        source: r.source, book_id: r.book_id, auto: r.auto, hits: r.hits,
+        label: r.target === 'budget' ? (names.cats.get(r.category_id) || 'Budget') : r.category || 'Hisab',
+        icon: r.target === 'hisab' && r.category ? names.icons.get(r.category.toLowerCase()) || '🏷️' : null,
+      } : null
+      return { id: c.id, direction: c.direction, amount: Number(c.amount), date: c.occurred_on, account_hint: c.account_hint, card: c.card,
+        payee: c.payee, bank: c.bank, suggestion, account_id: a?.account_id || null, match: c.match_entry_id ? { target: c.match_target } : null }
+    })
+  }
+  const CAPTURE_COLS = 'id, direction, amount, occurred_on, account_hint, card, payee, bank, match_target, match_entry_id'
+  async function pending() {
+    const { data } = await db.from('captures').select(CAPTURE_COLS).eq('household_id', hid).eq('status', 'new').order('created_at', { ascending: false }).limit(10)
+    return decorate((data || []) as Capture[])
+  }
+  async function fileCapture(id: string, f: Record<string, unknown>) {
+    const { data, error } = await db.rpc('file_capture_as', {
+      p_user: dev!.user_id, p_capture: id, p_target: f.target === 'budget' ? 'budget' : 'hisab',
+      p_category: clean(f.category, 60), p_category_id: clean(f.category_id, 64), p_account_id: clean(f.account_id, 64),
+      p_source: clean(f.source, 40), p_book_id: clean(f.book_id, 64), p_note: clean(f.note, 500),
+      p_auto: typeof f.auto === 'boolean' ? f.auto : null,
+    })
+    if (error) throw error
+    return data as { id?: string, target?: string, already?: string }
+  }
+  async function ownCapture(id: unknown) {
+    const { data } = await db.from('captures').select(CAPTURE_COLS + ', status').eq('id', clean(id, 64) || '').eq('household_id', hid).maybeSingle()
+    return data as (Capture & { status: string }) | null
+  }
+
   if (action === 'config') {
     const since = new Date(Date.now() - 60 * 86400_000).toISOString().slice(0, 10)
     const [hh, books, hcats, cats, accts, recent] = await Promise.all([
@@ -125,6 +182,7 @@ Deno.serve(async (req) => {
         accounts: accts.data || [],
       },
       frequent,
+      pending: await pending(),
       today: todayIST(),
     })
   }
@@ -164,6 +222,74 @@ Deno.serve(async (req) => {
     const { data: row } = await db.from(table).select('id, created_at').eq('id', id || '').eq('household_id', hid).eq('user_id', dev.user_id).maybeSingle()
     if (!row || Date.now() - new Date(row.created_at).getTime() > UNDO_MS) return json({ error: 'Too late to undo here — edit it in eChopdo.' }, 400)
     const { error } = await db.from(table).delete().eq('id', row.id)
+    if (error) return json({ error: error.message }, 500)
+    // An undone capture goes back to the "To add" list.
+    await db.from('captures').update({ status: 'new', entry_id: null, target: null, filed_at: null }).eq('household_id', hid).eq('entry_id', row.id)
+    return json({ ok: true })
+  }
+
+  if (action === 'capture') {
+    const amount = amountOf(body.amount)
+    if (!amount) return json({ error: 'No amount.' }, 400)
+    const direction = body.direction === 'in' ? 'in' : 'out'
+    const date = isDate(body.date) ? body.date as string : todayIST()
+    const ref = clean(body.ref, 40)
+    const row = {
+      user_id: dev.user_id, household_id: hid, device_id: dev.id, direction, amount, occurred_on: date,
+      account_hint: clean(body.account_hint, 8), card: body.card === true, payee: clean(body.payee, 80), ref, bank: clean(body.bank, 40),
+    }
+    const ins = ref
+      ? await db.from('captures').upsert(row, { onConflict: 'household_id,ref', ignoreDuplicates: true }).select(CAPTURE_COLS).maybeSingle()
+      : await db.from('captures').insert(row).select(CAPTURE_COLS).single()
+    if (ins.error) return json({ error: ins.error.message }, 500)
+    if (!ins.data) return json({ duplicate: true }) // same UPI ref already captured (e.g. by the other phone)
+    const cap = ins.data as Capture
+
+    // Already added by hand from the widget or the app? Same amount + day, added in the last day, not yet linked.
+    const since = new Date(Date.now() - 24 * 3600_000).toISOString()
+    const [h, t] = await Promise.all([
+      db.from('hisab_entries').select('id').eq('household_id', hid).eq('amount', amount).eq('occurred_on', date).eq('direction', direction).gte('created_at', since).limit(5),
+      db.from('transactions').select('id').eq('household_id', hid).eq('amount', amount).eq('occurred_on', date).eq('kind', direction === 'in' ? 'income' : 'expense').is('transfer_id', null).gte('created_at', since).limit(5),
+    ])
+    const cands = [...(h.data || []).map((x) => ({ target: 'hisab', id: x.id })), ...(t.data || []).map((x) => ({ target: 'budget', id: x.id }))]
+    if (cands.length) {
+      const ids = cands.map((c) => c.id)
+      const [a, b] = await Promise.all([
+        db.from('captures').select('entry_id').eq('household_id', hid).in('entry_id', ids),
+        db.from('captures').select('match_entry_id').eq('household_id', hid).in('match_entry_id', ids).neq('id', cap.id),
+      ])
+      const used = new Set([...(a.data || []).map((x) => x.entry_id), ...(b.data || []).map((x) => x.match_entry_id)])
+      const m = cands.find((c) => !used.has(c.id))
+      if (m) {
+        await db.from('captures').update({ match_target: m.target, match_entry_id: m.id }).eq('id', cap.id)
+        cap.match_target = m.target; cap.match_entry_id = m.id
+      }
+    }
+    const [d] = await decorate([cap])
+    if (d.suggestion?.auto && !d.match) {
+      try {
+        const res = await fileCapture(cap.id, d.suggestion)
+        return json({ ...d, filed: res })
+      } catch { /* leave it in the list */ }
+    }
+    return json(d)
+  }
+
+  if (action === 'file') {
+    const cap = await ownCapture(body.capture_id)
+    if (!cap) return json({ error: 'That payment is no longer in the list.' }, 404)
+    try { return json(await fileCapture(cap.id, body)) } catch (e) { return json({ error: String((e as Error).message || e) }, 500) }
+  }
+
+  if (action === 'ignore' || action === 'match') {
+    const cap = await ownCapture(body.capture_id)
+    if (!cap) return json({ error: 'That payment is no longer in the list.' }, 404)
+    if (cap.status !== 'new') return json({ ok: true, already: cap.status })
+    const upd = action === 'ignore'
+      ? { status: 'ignored', filed_at: new Date().toISOString() }
+      : cap.match_entry_id ? { status: 'matched', target: cap.match_target, entry_id: cap.match_entry_id, filed_at: new Date().toISOString() } : null
+    if (!upd) return json({ error: 'Nothing to match it with.' }, 400)
+    const { error } = await db.from('captures').update(upd).eq('id', cap.id)
     if (error) return json({ error: error.message }, 500)
     return json({ ok: true })
   }

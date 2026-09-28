@@ -9,4 +9,8 @@
     <string name="sc_in">Received</string>
     <string name="sc_in_long">Add money received</string>
     <string name="widget_desc">Add Hisab or Budget entries in a tap</string>
+    <string name="widget_small_label">eChopdo quick add (small)</string>
+    <string name="widget_small_desc">Just − and + to add in a tap</string>
+    <string name="sc_settings">Phone settings</string>
+    <string name="sc_settings_long">Bank SMS &amp; pairing</string>
 </resources>

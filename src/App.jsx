@@ -28,6 +28,7 @@ const Plan = lazy(() => import('./components/Plan'))
 const Dues = lazy(() => import('./components/Dues'))
 const Hisab = lazy(() => import('./components/Hisab'))
 const Settings = lazy(() => import('./components/Settings'))
+const CaptureInbox = lazy(() => import('./components/CaptureInbox'))
 const VaultItems = lazy(() => import('./components/VaultItems'))
 const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
@@ -270,10 +271,14 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
         {data.error && <div className="alert error">Database error: {data.error}. Did you run <code>supabase/schema.sql</code>?</div>}
         {data.loading ? (tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />) : (
           <Suspense fallback={tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />}>
+            {['dashboard', 'transactions', 'hisab'].includes(tab) && data.activeHouseholdId && (
+              <CaptureInbox householdId={data.activeHouseholdId} categories={data.categories} accounts={data.accounts}
+                onFiled={() => { setDataVersion((v) => v + 1); data.refresh() }} />
+            )}
             {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
-            {tab === 'hisab' && <Hisab key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} addSignal={hisabAdd} />}
+            {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
             {tab === 'settings' && <Settings {...data} email={email} member={member} appLock={appLock} vault={vault} />}
           </Suspense>

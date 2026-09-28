@@ -34,7 +34,11 @@ private val CONFIG = """
  "budget":{"expense":[{"id":"c1","name":"Bills","color":"#3987e5"},{"id":"c2","name":"Shopping","color":"#d95926"}],
   "income":[{"id":"c3","name":"Salary","color":"#34d399"}],"accounts":[{"id":"a1","name":"Cash","color":"#8b93a5"}]},
  "frequent":[{"direction":"out","amount":60,"category":"Groceries","source":"Cash","icon":"🥦","n":5},
-  {"direction":"out","amount":500,"category":"Fuel","source":"UPI","icon":"⛽","n":3}],"today":"2026-09-28"}
+  {"direction":"out","amount":500,"category":"Fuel","source":"UPI","icon":"⛽","n":3}],
+ "pending":[{"id":"cap1","direction":"out","amount":270,"date":"2026-09-27","account_hint":"5678","card":false,"payee":"DEMO STORE","bank":"Federal Bank",
+   "suggestion":{"target":"hisab","category":"Food","label":"Food","icon":"🍽️","source":"UPI","auto":false},"account_id":null,"match":null},
+  {"id":"cap2","direction":"in","amount":1500,"date":"2026-09-26","account_hint":"4321","card":false,"payee":"DEMO SENDER","bank":"ICICI","suggestion":null,"account_id":null,"match":null}],
+ "today":"2026-09-28"}
 """
 
 @RunWith(RobolectricTestRunner::class)
@@ -121,23 +125,76 @@ class UiTest {
         assertEquals(0, Store.queue(ctx).length())
     }
 
-    @Test fun widgetShowsButtonsAndFrequent() {
+    private fun host(v: View, wDp: Int, hDp: Int): FrameLayout {
         val host = FrameLayout(ctx)
-        val v = QuickWidget.views(ctx).apply(ctx, host)
-        host.addView(v, FrameLayout.LayoutParams(ctx.dp(340), ctx.dp(150)))
-        host.measure(View.MeasureSpec.makeMeasureSpec(ctx.dp(340), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(ctx.dp(150), View.MeasureSpec.EXACTLY))
-        host.layout(0, 0, ctx.dp(340), ctx.dp(150))
-        assertNotNull(find(v, "eChopdo · Home · Hisab"))
-        assertNotNull(find(v, "−  Spent"))
+        host.addView(v, FrameLayout.LayoutParams(ctx.dp(wDp), ctx.dp(hDp)))
+        host.measure(View.MeasureSpec.makeMeasureSpec(ctx.dp(wDp), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(ctx.dp(hDp), View.MeasureSpec.EXACTLY))
+        host.layout(0, 0, ctx.dp(wDp), ctx.dp(hDp))
+        return host
+    }
+
+    @Test fun widgetShowsButtonsAndFrequent() {
+        val v = QuickWidget.views(ctx).apply(ctx, FrameLayout(ctx))
+        val host = host(v, 340, 110)
+        assertNotNull(find(v, "Home · Hisab"))
+        assertEquals(View.VISIBLE, v.findViewById<View>(R.id.wOut).visibility)
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.p0).visibility)
-        assertEquals("🥦 Groceries ₹60", v.findViewById<TextView>(R.id.p0).text.toString())
+        assertEquals("🥦 60", v.findViewById<TextView>(R.id.p0).text.toString())
+        assertEquals("⛽ 500", v.findViewById<TextView>(R.id.p1).text.toString())
         assertEquals(View.GONE, v.findViewById<View>(R.id.p2).visibility)
+        assertEquals("2 to add", v.findViewById<TextView>(R.id.wBadge).text.toString())
+        assertEquals(View.GONE, v.findViewById<View>(R.id.wCaps).visibility) // short widget: no payment rows
         shot(host, "3-widget")
+
+        // Taller widget: bank payments waiting to be added, with a one-tap ✓ for known payees.
+        val tall = QuickWidget.large(ctx, android.os.Bundle().apply { putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 180) }).apply(ctx, FrameLayout(ctx))
+        val tallHost = host(tall, 340, 190)
+        assertEquals(View.VISIBLE, tall.findViewById<View>(R.id.wCaps).visibility)
+        assertEquals("−₹270  DEMO STORE", tall.findViewById<TextView>(R.id.c0t).text.toString())
+        assertEquals("✓ 🍽️", tall.findViewById<TextView>(R.id.c0a).text.toString())
+        assertEquals("+₹1,500  DEMO SENDER", tall.findViewById<TextView>(R.id.c1t).text.toString())
+        assertEquals("Add", tall.findViewById<TextView>(R.id.c1a).text.toString())
+        shot(tallHost, "3b-widget-tall")
+
+        val small = QuickWidget.small(ctx).apply(ctx, FrameLayout(ctx))
+        val smallHost = host(small, 150, 64)
+        assertEquals("2", small.findViewById<TextView>(R.id.sBadge).text.toString())
+        assertEquals(View.VISIBLE, small.findViewById<View>(R.id.sBadge).visibility)
+        shot(smallHost, "3c-widget-small")
 
         Store.unpair(ctx)
         val u = QuickWidget.views(ctx).apply(ctx, FrameLayout(ctx))
         assertEquals(View.VISIBLE, u.findViewById<View>(R.id.wPair).visibility)
         assertEquals(View.GONE, u.findViewById<View>(R.id.wButtons).visibility)
+    }
+
+    @Test fun captureModeSheet() {
+        val cap = JSONObject(CONFIG).getJSONArray("pending").getJSONObject(0)
+        val act = Robolectric.buildActivity(QuickAddActivity::class.java, Captures.chooseIntent(ctx, cap)).setup().get()
+        val root = act.window.decorView
+        assertNotNull(find(root, "₹270"))
+        assertNotNull(find(root, "Federal Bank ·5678 27 Sep · from bank SMS"))
+        assertNotNull(find(root, "Add")); assertNotNull(find(root, "Ignore"))
+        assertEquals(View.GONE, find(root, "7")!!.let { (it.parent as View).visibility }) // no keypad: the amount is from the SMS
+        assertNotNull(find(root, "Always add DEMO STORE like this"))
+        shot(root, "6-capture")
+        click(root, "Add")
+        waitFor { find(root, "No internet — try again.") != null } // tests have no server
+        assertNotNull(find(root, "No internet — try again."))
+    }
+
+    @Test fun smsIsParsedQueuedOfflineAndNotSentTwice() {
+        val sms = "Debited Rs 270.00 from a/c X5678 on 23Sep26 19:53 via UPI to DEMO STORE D. Ref 315300000003.Bal Rs 342.77. Not you?Call 18004251199 -Federal Bank"
+        assertTrue(Captures.handle(ctx, "AD-FEDBNK-T", sms, System.currentTimeMillis()))
+        val q = Store.queue(ctx)
+        assertEquals(1, q.length())
+        val e = q.getJSONObject(0)
+        assertEquals("capture", e.getString("action")); assertEquals(270.0, e.getDouble("amount"), 0.0)
+        assertEquals("DEMO STORE D", e.getString("payee")); assertEquals("315300000003", e.getString("ref")); assertEquals("2026-09-23", e.getString("date"))
+        assertTrue(!e.has("body") && !e.toString().contains("Bal Rs")) // the SMS text itself is never sent
+        assertTrue(!Captures.handle(ctx, "AD-FEDBNK-T", sms, System.currentTimeMillis())) // same ref again → ignored
+        assertTrue(!Captures.handle(ctx, "+919000000001", "Debited Rs 50 from a/c X1 to you", 0L)) // not a bank sender
+        assertEquals(1, Store.queue(ctx).length())
     }
 
     @Test fun widgetFrequentChipSavesInOneTap() {

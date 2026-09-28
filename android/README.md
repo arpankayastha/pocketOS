@@ -9,8 +9,19 @@ A small native app, installed from https://echopdo.vercel.app/download/ (not the
 - **Quick add** (`QuickAddActivity`): a sheet over the home screen — Hisab (default) or Budget, calculator
   keypad, category / book / source (or account) chips, date, note, Save / Save & next. Opened from the
   widget, the app-icon shortcuts (Spent / Received) and the quick-settings tile "eChopdo +".
-- **Widget** (`QuickWidget`): Spent / Received, plus up to 4 chips of the household's frequent Hisab entries
-  (same category + amount ≥ 2× in 60 days) that save in one tap, with Undo in a notification (15 min).
+- **Widgets** (icons only): `QuickWidget` (large, resizable) — − / + round buttons, up to 3 icon chips of the
+  household's frequent Hisab entries (same category + amount ≥ 2× in 60 days, one tap saves, Undo in a
+  notification for 15 min), a "N to add" badge and, when ≥ 120 dp tall, two rows of bank payments to add with
+  a one-tap ✓. `QuickWidgetSmall` (2×1) — just − / + and the badge.
+- **Bank SMS capture** (`SmsParser`, `Captures`, `SmsReceiver`): off until turned on in Phone settings
+  (`PairActivity`, also an icon shortcut); needs RECEIVE_SMS/READ_SMS — Android 13+ hides these for sideloaded
+  apps until App info → ⋮ → *Allow restricted settings* (the app walks through it). Only DLT bank senders
+  (`XX-BANKID-S`) are read; `SmsParser` knows Bank of Baroda, Federal, ICICI card/account and Kotak card/account
+  formats plus a generic fallback, skips OTP / due / request / offer messages. Only the parsed fields go to
+  the server (`capture` action) — never the SMS text. A notification offers ✓ <remembered category> / Change… /
+  Ignore (or "Same, skip" when it matches an entry added by hand); "Change…" opens the quick-add sheet in
+  capture mode (amount fixed, no keypad, "Always add <payee> like this"). "Look back 3 days" scans the inbox
+  once. Offline captures queue like entries.
 - **Pairing** (`PairActivity`): eChopdo → ⚙ Settings → Phone widget → Pair a phone → "Pair this phone"
   (opens `echopdo://pair?code=…`) or type the code. The phone gets a device token for one household.
 - **Server**: `supabase/functions/quickadd` (verify_jwt off; the device token is the auth) + table

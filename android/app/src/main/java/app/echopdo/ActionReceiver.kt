@@ -14,6 +14,9 @@ class ActionReceiver : BroadcastReceiver() {
     companion object {
         const val PRESET = "app.echopdo.PRESET"
         const val UNDO = "app.echopdo.UNDO"
+        const val CAP_FILE = "app.echopdo.CAP_FILE"     // file a captured payment with its suggestion
+        const val CAP_IGNORE = "app.echopdo.CAP_IGNORE"
+        const val CAP_MATCH = "app.echopdo.CAP_MATCH"   // "same as the one I already added"
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -37,6 +40,32 @@ class ActionReceiver : BroadcastReceiver() {
                         })
                         Notify.saved(app, entry, res)
                         if (res is SaveResult.Failed && res.unpaired) QuickWidget.refreshAll(app)
+                    }
+                    CAP_FILE, CAP_IGNORE, CAP_MATCH -> {
+                        Notify.cancel(app, intent.getIntExtra("nid", 0))
+                        val c = JSONObject(intent.getStringExtra("capture") ?: "{}")
+                        val body = JSONObject().put("capture_id", c.optString("id"))
+                        when (intent.action) {
+                            CAP_FILE -> {
+                                val sug = c.optJSONObject("suggestion") ?: JSONObject()
+                                body.put("action", "file")
+                                listOf("target", "category", "category_id", "account_id", "source", "book_id").forEach { k ->
+                                    sug.optString(k).takeIf { it.isNotEmpty() && it != "null" }?.let { body.put(k, it) }
+                                }
+                            }
+                            CAP_IGNORE -> body.put("action", "ignore")
+                            else -> body.put("action", "match")
+                        }
+                        val msg = try {
+                            val res = Api.call(app, body)
+                            when (intent.action) {
+                                CAP_FILE -> if (res.has("already")) "Already done" else "Added ${Calc.money(c.optDouble("amount"))} · ${c.optJSONObject("suggestion")?.optString("label") ?: ""}"
+                                CAP_IGNORE -> "Ignored"
+                                else -> "Marked as already added"
+                            }
+                        } catch (e: ApiError) { e.message ?: "Could not save." } catch (e: java.io.IOException) { "No internet — open eChopdo to add it later." }
+                        toast(app, msg)
+                        runCatching { Api.refreshConfig(app) }
                     }
                     UNDO -> {
                         Notify.cancel(app, intent.getIntExtra("nid", 0))

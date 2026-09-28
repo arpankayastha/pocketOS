@@ -46,6 +46,18 @@ object Store {
         prefs(ctx).edit().putString("queue", q.toString()).apply()
     }
 
+    // ----- Bank SMS capture -----
+    fun smsEnabled(ctx: Context) = prefs(ctx).getBoolean("sms", false)
+    fun setSmsEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("sms", on).apply() }
+
+    /** Remembers the last few hundred SMS already sent, so a re-scan doesn't send them again. */
+    @Synchronized fun markSeen(ctx: Context, key: String): Boolean {
+        val seen = prefs(ctx).getString("seen", "").orEmpty().split('|').filter { it.isNotEmpty() }
+        if (key in seen) return false
+        prefs(ctx).edit().putString("seen", (seen + key).takeLast(400).joinToString("|")).apply()
+        return true
+    }
+
     // ----- Update check -----
     fun lastUpdateCheck(ctx: Context) = prefs(ctx).getLong("updateCheck", 0)
     fun latestVersion(ctx: Context) = prefs(ctx).getInt("latestVersion", 0)

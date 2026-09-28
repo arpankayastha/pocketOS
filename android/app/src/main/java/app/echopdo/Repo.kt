@@ -51,7 +51,9 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
             val entry = q.getJSONObject(i)
             if (retry) { left.put(entry); continue }
             try {
-                Api.call(applicationContext, JSONObject(entry.toString()).put("action", "add"))
+                val body = JSONObject(entry.toString())
+                if (!body.has("action")) body.put("action", "add") // queued captures carry "capture"
+                Api.call(applicationContext, body)
             } catch (e: IOException) {
                 retry = true; left.put(entry)
             } catch (e: ApiError) {

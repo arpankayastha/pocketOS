@@ -8,7 +8,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const EMAIL_DOMAIN = 'members.echopdo.vercel.app'
-const FINANCE_TABLES = ['accounts', 'categories', 'transactions', 'budgets', 'recurring_items', 'dues', 'due_entries', 'hisab_books', 'hisab_entries', 'hisab_categories']
+const FINANCE_TABLES = ['accounts', 'categories', 'transactions', 'budgets', 'recurring_items', 'dues', 'due_entries', 'hisab_books', 'hisab_entries', 'hisab_categories', 'captures', 'capture_rules']
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',

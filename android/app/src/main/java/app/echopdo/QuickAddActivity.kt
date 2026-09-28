@@ -39,6 +39,8 @@ class QuickAddActivity : Activity() {
     private var accountId: String? = null
     private var date: LocalDate = LocalDate.now()
     private var busy = false
+    private var capture: JSONObject? = null   // a payment read from a bank SMS (fixed amount/date)
+    private var always = false                // file this payee like this automatically from now on
 
     private lateinit var title: TextView
     private lateinit var targetSeg: Segmented
@@ -52,6 +54,8 @@ class QuickAddActivity : Activity() {
     private lateinit var banner: TextView
     private lateinit var saveBtn: TextView
     private lateinit var nextBtn: TextView
+    private lateinit var keypadView: View
+    private lateinit var captureInfo: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,6 +67,7 @@ class QuickAddActivity : Activity() {
         target = Store.defaultTarget(this)
         applyIntent(intent)
         setContentView(build())
+        capture?.let { c -> note.setText(c.optString("payee").takeIf { it.isNotEmpty() && it != "null" } ?: "") }
         render()
         Thread {
             val cfg = runCatching { Api.refreshConfig(this) }
@@ -78,14 +83,32 @@ class QuickAddActivity : Activity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        expr = ""; category = null; categoryName = null; accountId = null; source = null; date = LocalDate.now(); always = false
+        target = Store.defaultTarget(this)
         applyIntent(intent)
-        expr = ""; category = null; categoryName = null
+        note.setText(capture?.optString("payee")?.takeIf { it.isNotEmpty() && it != "null" } ?: "")
         render()
     }
 
     private fun applyIntent(i: Intent?) {
         direction = if (i?.getStringExtra("direction") == "in") "in" else "out"
         i?.getStringExtra("target")?.let { if (it == "hisab" || it == "budget") target = it }
+        capture = i?.getStringExtra("capture")?.let { runCatching { JSONObject(it) }.getOrNull() }
+        capture?.let { c ->
+            direction = if (c.optString("direction") == "in") "in" else "out"
+            expr = c.optDouble("amount").let { if (it == Math.floor(it)) it.toLong().toString() else it.toString() }
+            date = runCatching { LocalDate.parse(c.optString("date")) }.getOrDefault(LocalDate.now())
+            source = if (c.optBoolean("card")) "Card" else "UPI"
+            c.optString("account_id").takeIf { it.isNotEmpty() && it != "null" }?.let { accountId = it }
+            c.optJSONObject("suggestion")?.let { s ->
+                val str = { k: String -> s.optString(k).takeIf { it.isNotEmpty() && it != "null" } }
+                str("target")?.let { target = it }
+                if (target == "budget") { category = str("category_id"); categoryName = str("label") } else { category = str("category"); categoryName = category }
+                str("account_id")?.let { accountId = it }
+                str("source")?.let { source = it }
+                str("book_id")?.let { bookId = it }
+            }
+        }
     }
 
     // ----- Layout -----
@@ -132,6 +155,8 @@ class QuickAddActivity : Activity() {
         exprView = label("", 13f, C.muted).apply { gravity = Gravity.END; typeface = Typeface.MONOSPACE }
         sheet.addView(amountView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
         sheet.addView(exprView)
+        captureInfo = label("", 13f, C.muted).apply { gravity = Gravity.END; visibility = View.GONE }
+        sheet.addView(captureInfo)
 
         pickers = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll = ScrollView(this).apply { addView(pickers); isVerticalScrollBarEnabled = false }
@@ -148,7 +173,8 @@ class QuickAddActivity : Activity() {
             maxLines = 1
         }
 
-        sheet.addView(keypad(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
+        keypadView = keypad()
+        sheet.addView(keypadView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
 
         status = label("", 13f, C.neg).apply { visibility = View.GONE; setPadding(dp(4), dp(6), dp(4), 0) }
         sheet.addView(status)
@@ -157,7 +183,7 @@ class QuickAddActivity : Activity() {
         nextBtn = label("Save & next", 15f, C.text, true).apply {
             gravity = Gravity.CENTER
             background = rounded(C.card2, dp(14).toFloat(), C.line, dp(1))
-            setOnClickListener { save(keepOpen = true) }
+            setOnClickListener { if (capture != null) ignoreCapture() else save(keepOpen = true) }
         }
         saveBtn = label("Save", 16f, C.bg, true).apply {
             gravity = Gravity.CENTER
@@ -217,6 +243,13 @@ class QuickAddActivity : Activity() {
         val labels = if (target == "budget") listOf("Expense", "Income") else listOf("Spent", "Received")
         (dirSeg.getChildAt(0) as TextView).text = labels[0]
         (dirSeg.getChildAt(1) as TextView).text = labels[1]
+        val cap = capture
+        dirSeg.visibility = if (cap != null) View.GONE else View.VISIBLE
+        keypadView.visibility = if (cap != null) View.GONE else View.VISIBLE
+        captureInfo.visibility = if (cap != null) View.VISIBLE else View.GONE
+        if (cap != null) captureInfo.text = listOf(Captures.subtitle(cap), "from bank SMS").filter { it.isNotEmpty() }.joinToString(" · ")
+        nextBtn.text = if (cap != null) "Ignore" else "Save & next"
+        saveBtn.text = if (cap != null) "Add" else "Save"
         renderAmount()
         renderPickers(c)
     }
@@ -315,11 +348,51 @@ class QuickAddActivity : Activity() {
         })
         (note.parent as? ViewGroup)?.removeView(note)
         pickers.addView(note, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
+        val payee = capture?.optString("payee")?.takeIf { it.isNotEmpty() && it != "null" }
+        if (payee != null) {
+            pickers.addView(chip((if (always) "✓  " else "") + "Always add $payee like this", always) { always = !always; render() },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
+        }
         pickers.addView(View(this), LinearLayout.LayoutParams(1, dp(8)))
     }
 
     // ----- Save -----
+    // ----- Captured payment: file it (or ignore it) -----
+    private fun fileCapture() {
+        val cap = capture ?: return
+        val body = JSONObject().put("action", "file").put("capture_id", cap.optString("id")).put("target", target)
+        note.text.toString().trim().takeIf { it.isNotEmpty() }?.let { body.put("note", it) }
+        if (target == "budget") { category?.let { body.put("category_id", it) }; accountId?.let { body.put("account_id", it) } }
+        else { category?.let { body.put("category", it) }; source?.let { body.put("source", it) }; bookId?.let { body.put("book_id", it) } }
+        if (always) body.put("auto", true)
+        send(body, "Added ${Calc.money(cap.optDouble("amount"))}${categoryName?.let { " · $it" } ?: ""}")
+    }
+
+    private fun ignoreCapture() {
+        val cap = capture ?: return
+        send(JSONObject().put("action", "ignore").put("capture_id", cap.optString("id")), "Ignored")
+    }
+
+    private fun send(body: JSONObject, done: String) {
+        if (busy) return
+        busy = true; saveBtn.alpha = 0.5f; nextBtn.alpha = 0.5f
+        val nid = capture?.let { Captures.nid(it) }
+        Thread {
+            val err = try { Api.call(applicationContext, body); null }
+                catch (e: ApiError) { e.message ?: "Could not save." } catch (e: java.io.IOException) { "No internet — try again." }
+            runOnUiThread {
+                busy = false; saveBtn.alpha = 1f; nextBtn.alpha = 1f
+                if (err != null) showError(err) else {
+                    nid?.let { Notify.cancel(this, it) }
+                    Toast.makeText(this, done, Toast.LENGTH_SHORT).show(); finish()
+                }
+            }
+            if (err == null) runCatching { Api.refreshConfig(applicationContext) }
+        }.start()
+    }
+
     private fun save(keepOpen: Boolean) {
+        if (capture != null) { fileCapture(); return }
         if (busy) return
         val amount = Calc.evaluate(expr)
         if (amount == null || amount <= 0) { showError("Enter an amount."); return }

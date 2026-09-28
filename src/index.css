@@ -728,3 +728,22 @@ details.section[open] .chev { transform: rotate(90deg); }
 .pw-pair .btn.primary { min-width: 200px; text-decoration: none; text-align: center; }
 .pw-actions .btn { text-decoration: none; }
 @media (max-width: 420px) { .pw-row { flex-wrap: wrap; } .pw-seg { width: 100%; order: 3; } }
+
+/* Bank payments read from SMS, waiting to be added (CaptureInbox.jsx) */
+.capture-banner { display: flex; align-items: center; gap: 10px; width: 100%; margin-bottom: 12px; padding: 10px 12px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  color: var(--text); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.capture-banner .grow { flex: 1; min-width: 0; }
+.capture-banner .muted { font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.capture-dot { min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: var(--accent); color: var(--bg); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.capture-list { display: flex; flex-direction: column; gap: 10px; }
+.capture-item { border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: grid; gap: 10px; }
+.capture-item.busy { opacity: .5; pointer-events: none; }
+.capture-row { display: flex; align-items: flex-start; gap: 10px; }
+.capture-row .grow { flex: 1; min-width: 0; }
+.capture-payee { font-weight: 600; overflow-wrap: anywhere; }
+.capture-amt { font-family: var(--font-mono); font-weight: 700; white-space: nowrap; }
+.capture-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.capture-form { display: grid; gap: 10px; }
+.check-line { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
+.check-line input { width: auto; }

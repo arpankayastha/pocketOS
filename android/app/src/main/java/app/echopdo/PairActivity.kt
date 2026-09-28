@@ -24,6 +24,7 @@ import org.json.JSONObject
 // Pairs this phone with a household: eChopdo → Settings → Phone widget → "Pair this phone"
 // opens echopdo://pair?code=…, or the code is typed here. Also shows the paired state.
 class PairActivity : Activity() {
+    private companion object { const val SMS_REQUEST = 2 }
     private lateinit var body: LinearLayout
     private var busy = false
 
@@ -39,7 +40,8 @@ class PairActivity : Activity() {
             setPadding(dp(20), dp(20), dp(20), dp(24))
             isClickable = true
         }
-        root.addView(body, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        val scroll = android.widget.ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(body) }
+        root.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         setContentView(root)
         handle(intent)
     }
@@ -114,18 +116,19 @@ class PairActivity : Activity() {
         val hh = Store.household(this)
         val target = if (Store.defaultTarget(this) == "budget") "Budget" else "Hisab"
         add(heading(if (justPaired != null) "✓ Paired with ${justPaired.ifEmpty { "eChopdo" }}" else "Paired with ${hh.ifEmpty { "eChopdo" }}"))
-        add(para("Quick add saves to $target (change it in eChopdo → Settings → Phone widget). Add the widget to your home screen, or long-press the eChopdo icon for Spent / Received."))
+        add(para("Quick add saves to $target (change it in eChopdo → Settings → Phone widget). Add a widget to your home screen, or long-press the eChopdo icon for Spent / Received."))
         val mgr = getSystemService(AppWidgetManager::class.java)
         if (mgr.isRequestPinAppWidgetSupported) {
-            add(button("Add widget to home screen", true) {
-                mgr.requestPinAppWidget(ComponentName(this, QuickWidget::class.java), null, null)
-            }, 0, dp(52))
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            row.addView(button("+ Widget", true) { mgr.requestPinAppWidget(ComponentName(this, QuickWidget::class.java), null, null) },
+                LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(5) })
+            row.addView(button("+ Small widget", false) { mgr.requestPinAppWidget(ComponentName(this, QuickWidgetSmall::class.java), null, null) },
+                LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(5) })
+            add(row)
         } else {
             add(para("Long-press the home screen → Widgets → eChopdo."))
         }
-        add(button("Try quick add", false) {
-            startActivity(QuickWidget.quickIntent(this, "out")); finish()
-        }, 10, dp(48))
+        smsSection()
         if (justPaired == null) {
             add(button("Pair with a new code", false) { showForm(null) }, 10, dp(48))
             add(label("Unpair this phone", 14f, C.neg).apply {
@@ -134,6 +137,61 @@ class PairActivity : Activity() {
                 setOnClickListener { Store.unpair(this@PairActivity); QuickWidget.refreshAll(this@PairActivity); showForm(null) }
             })
         }
+    }
+
+    // ----- Bank SMS capture -----
+    private fun smsSection() {
+        add(label("BANK SMS", 11f, C.muted, true).apply { letterSpacing = 0.08f; setPadding(0, dp(22), 0, dp(6)) })
+        if (Captures.active(this)) {
+            add(para("On. When a bank SMS says money went out or came in, you get a notification to add it in one tap. Only the amount, date, last digits, payee and reference are sent — the SMS stays on this phone."))
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            row.addView(button("Look back 3 days", false) { scan(3) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(5) })
+            row.addView(button("Turn off", false) { Store.setSmsEnabled(this, false); showPaired(null) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(5) })
+            add(row)
+        } else {
+            add(para("Read bank SMS on this phone so UPI and card payments show up ready to add — no typing. The SMS itself never leaves the phone."))
+            add(button("Turn on bank SMS", true) {
+                val perms = mutableListOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS)
+                if (Build.VERSION.SDK_INT >= 33) perms += Manifest.permission.POST_NOTIFICATIONS
+                requestPermissions(perms.toTypedArray(), SMS_REQUEST)
+            }, 0, dp(50))
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != SMS_REQUEST) return
+        if (Captures.smsPermitted(this)) {
+            Store.setSmsEnabled(this, true)
+            showPaired(null)
+            scan(3)
+        } else showRestricted()
+    }
+
+    // Android 13+ hides SMS access from apps installed outside the Play Store until allowed.
+    private fun showRestricted() {
+        body.removeAllViews()
+        add(heading("One more step"))
+        add(para("Android blocks SMS access for apps installed from outside the Play Store. To allow it once:\n\n" +
+            "1. Tap “Open app settings” below.\n2. Tap ⋮ (top right) → “Allow restricted settings”, confirm with your fingerprint.\n" +
+            "3. Come back here and tap “Try again”, then Allow."))
+        add(button("Open app settings", true) {
+            startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        }, 0, dp(50))
+        add(button("Try again", false) {
+            requestPermissions(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS), SMS_REQUEST)
+        }, 10, dp(48))
+        add(button("Back", false) { showPaired(null) }, 10, dp(48))
+    }
+
+    private fun scan(days: Int) {
+        android.widget.Toast.makeText(this, "Looking through the last $days days…", android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val n = runCatching { Captures.scanInbox(applicationContext, days) }.getOrDefault(0)
+            runOnUiThread {
+                android.widget.Toast.makeText(this, if (n == 0) "No new bank payments found" else "Found $n payment${if (n == 1) "" else "s"} — see the widget or eChopdo to add them", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }.start()
     }
 
     private fun askNotifications() {
