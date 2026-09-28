@@ -98,6 +98,12 @@ class SmsParserTest {
         assertEquals("demo@paytm", pt.payee); assertEquals("426800000014", pt.ref)
     }
 
+    @Test fun iciciCardSpentUsingFormat() {
+        val t = p("JD-ICICIT-S", "INR 768.00 spent using ICICI Bank Card XX1234 on 25-Sep-26 on IND*DEMO FUELS. Avl Limit: INR 1,00,000. If not you, call 1800 2662/SMS BLOCK 1234 to 9215676766")
+        assertEquals("out", t.direction); assertEquals(768.0, t.amount, 0.0); assertEquals("1234", t.accountHint); assertTrue(t.card)
+        assertEquals("IND*DEMO FUELS", t.payee); assertEquals(LocalDate.of(2026, 9, 25), t.date)
+    }
+
     @Test fun balanceIsNotTheAmount() {
         val t = p("AD-CANBNK", "Avl Bal Rs 10,000.00. Rs 450.00 debited from a/c XX7777 on 27-09-26 towards DEMO MEDICAL. -Canara Bank")
         assertEquals(450.0, t.amount, 0.0); assertEquals("DEMO MEDICAL", t.payee)

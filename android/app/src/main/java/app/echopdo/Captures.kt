@@ -37,7 +37,8 @@ object Captures {
     fun handle(ctx: Context, sender: String?, text: String, smsTime: Long, notify: Boolean = true, refresh: Boolean = true): Boolean {
         if (!SmsParser.fromBank(sender)) return false
         val t = SmsParser.parse(sender, text) ?: return false
-        if (!Store.markSeen(ctx, t.ref ?: "${sender}|${text.hashCode()}")) return false
+        // Key without "|" (the list separator): a reference, else a hash of sender + text.
+        if (!Store.markSeen(ctx, t.ref ?: "h" + Integer.toHexString("$sender $text".hashCode()))) return false
         val req = body(t, smsTime)
         try {
             val res = Api.call(ctx, JSONObject(req.toString()))

@@ -204,7 +204,11 @@ class UiTest {
         assertTrue(!e.has("body") && !e.toString().contains("Bal Rs")) // the SMS text itself is never sent
         assertTrue(!Captures.handle(ctx, "AD-FEDBNK-T", sms, System.currentTimeMillis())) // same ref again → ignored
         assertTrue(!Captures.handle(ctx, "+919000000001", "Debited Rs 50 from a/c X1 to you", 0L)) // not a bank sender
-        assertEquals(1, Store.queue(ctx).length())
+        // A card SMS with no reference is also remembered (it used to be re-sent on every look-back).
+        val card = "INR 768.00 spent using ICICI Bank Card XX1234 on 25-Sep-26 on IND*DEMO FUELS. Avl Limit: INR 1,00,000."
+        assertTrue(Captures.handle(ctx, "JD-ICICIT-S", card, 0L))
+        assertTrue(!Captures.handle(ctx, "JD-ICICIT-S", card, 0L))
+        assertEquals(2, Store.queue(ctx).length())
     }
 
     @Test fun widgetFrequentChipSavesInOneTap() {

@@ -300,6 +300,15 @@ Deno.serve(async (req) => {
       user_id: dev.user_id, household_id: hid, device_id: dev.id, direction, amount, occurred_on: date,
       account_hint: clean(body.account_hint, 8), card: body.card === true, payee: clean(body.payee, 80), ref, bank: clean(body.bank, 40),
     }
+    // No reference (some card SMS): the same amount / day / card / payee already captured is the same SMS
+    // read twice (look-back again, or the other phone).
+    if (!ref) {
+      let q = db.from('captures').select('id').eq('household_id', hid).eq('amount', amount).eq('occurred_on', date).eq('direction', direction)
+      q = row.account_hint ? q.eq('account_hint', row.account_hint) : q.is('account_hint', null)
+      q = row.payee ? q.eq('payee', row.payee) : q.is('payee', null)
+      const { data: same } = await q.limit(1)
+      if (same?.length) return json({ duplicate: true })
+    }
     const ins = ref
       ? await db.from('captures').upsert(row, { onConflict: 'household_id,ref', ignoreDuplicates: true }).select(CAPTURE_COLS).maybeSingle()
       : await db.from('captures').insert(row).select(CAPTURE_COLS).single()

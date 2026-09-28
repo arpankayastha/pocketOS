@@ -154,6 +154,7 @@ object SmsParser {
         Regex("(?i)UPI[-/](?:[A-Z]-)?\\d{6,}[-/]([^./]+?)(?:\\.|/|\\s+Not\\b|\\s+To\\b|$)"),          // UPI-4265…-NAME
         Regex("(?i)UPI/(?:P2[AM]|[A-Z]{2,4})/\\d{6,}/([^/.]+?)(?:/|\\s+Not\\b|\\.|$)"),                    // UPI/P2M/4265…/NAME
         Regex("(?i);\\s*([A-Za-z][A-Za-z0-9 &.'-]{1,40}?)\\s+credited"),                                    // ; NAME credited
+        Regex("(?i)\\bon\\s+(?:\\d{1,2}[-/. ][A-Za-z0-9]{2,3}[-/. ]\\d{2,4}|\\d{1,2}[A-Za-z]{3}\\d{2})\\s+(?:on|at)\\s+([A-Za-z0-9*][A-Za-z0-9 &.'*/_-]{1,40}?)(?=\\.\\s|\\s+Avl|\\s+Not\\b|,|\\.$|$)"), // … on 25-Sep-26 on SHOP
         Regex("(?i)(?:\\b(?:trf to|towards|to|at|from|by)\\b|\\binfo[:-])\\s*(?!your\\b|a/?c\\b|ac\\b|acct\\b|account\\b|rs\\b|inr\\b|the\\b|\\d)([A-Za-z0-9][A-Za-z0-9 &.'/_-]{1,40}?)(?=\\s+on\\b|\\s+via\\b|\\.\\s|\\s+Ref|\\s+UPI|\\s+Avl|\\s+Bal|\\s+Not\\b|\\s+from\\b|\\s*\\(|;|,|\\.$|$)"),
     )
 
@@ -174,7 +175,7 @@ object SmsParser {
         val card = Regex("(?i)\\bcard\\b").containsMatchIn(t)
         val ref = REF.firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) }
         val vpa = Regex("[A-Za-z0-9._-]{2,}@[A-Za-z]{2,}").find(t)?.value
-        val payee = (PAYEE.take(3).firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) } ?: vpa ?: PAYEE[3].find(t)?.groupValues?.get(1))
+        val payee = (PAYEE.take(4).firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) } ?: vpa ?: PAYEE[4].find(t)?.groupValues?.get(1))
             ?.trim()?.trimEnd('.')?.trim()?.takeUnless { it.isEmpty() || Regex("^[Xx*\\d\\s]+$").matches(it) }
         return BankTxn(direction, money(amount), findDate(t), acct, card, payee, ref, bank)
     }
