@@ -2,6 +2,7 @@ package app.echopdo
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -114,6 +115,19 @@ class SmsParserTest {
         assertNull(SmsParser.parse("AD-AMAZON", "Refund of Rs 499 has been processed for your order. It will be credited in 3-5 days."))
         assertNull(SmsParser.parse("AD-HDFCBK", "Your a/c XX1234 balance is Rs 5000 as on 26-09-26."))
         assertNull(SmsParser.parse("AD-HDFCBK", "Rs 1500 will be debited from a/c XX1234 on 05-10-26 towards autopay DEMO."))
+    }
+
+    @Test fun creditCardBillPaymentsAreSkipped() {
+        // Card side: the bill payment arriving on the card.
+        assertNull(SmsParser.parse("AX-ICICIT-S", "Payment of Rs 12,345.67 has been received on your ICICI Bank Credit Card XX1234 through Bharat Bill Payment System on 08-SEP-26."))
+        assertNull(SmsParser.parse("VM-HDFCBK", "Thank you for your payment of Rs 5,000.00 towards your HDFC Bank Credit Card ending 1234."))
+        // Bank side: money leaving the account to pay the card.
+        assertNull(SmsParser.parse("AD-SBIUPI", "Dear UPI user A/C X4321 debited by 5000.0 on date 08Sep26 trf to CRED Club Refno 426500000099. -SBI"))
+        assertNull(SmsParser.parse("JK-BOBSMS-S", "Rs.5000.00 Dr. from A/C XXXXXX1234 and Cr. to demo.cc@cred.club. Ref:111122229999. AvlBal:Rs900.00(2026:09:08 10:00:00). Not you? Call 18005700/5000-BOB"))
+        assertNull(SmsParser.parse("AD-HDFCBK", "Rs 5000 debited from a/c XX1234 on 08-09-26 towards ICICI Credit Card bill payment via BBPS."))
+        // …but card purchases and card refunds still count.
+        assertNotNull(SmsParser.parse("JD-ICICIT-S", "ICICI Bank Credit Card XX4321 debited for INR 70.00 on 08-Sep-26 for UPI-625100000011-DEMO. To dispute call 18001080/SMS BLOCK 4321 to 9215676766"))
+        assertNotNull(SmsParser.parse("AD-HDFCBK", "Rs 499.00 credited to your HDFC Bank Credit Card XX1234 as refund from DEMO MART on 08-09-26."))
     }
 
     @Test fun genericFallback() {

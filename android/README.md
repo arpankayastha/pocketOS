@@ -28,8 +28,13 @@ A small native app, installed from https://echopdo.vercel.app/download/ (not the
 - **Server**: `supabase/functions/quickadd` (verify_jwt off; the device token is the auth) + table
   `quick_devices`. The token can only add entries, undo its own for 15 min, and read picker names.
 - **Offline**: entries wait in SharedPreferences and a WorkManager job sends them when back online.
-- **Updates**: once a day the app reads `/download/version.json`; if `versionCode` is higher it shows a
-  banner linking to the download page.
+- **Updates** (self-update, since 1.12, `Updates.kt`): a WorkManager job every 6 hours (and on app open)
+  reads `/download/version.json`; if `versionCode` is higher it downloads the APK, checks its SHA-256
+  against `version.json` and that it's this package signed with the same key, and installs it with
+  `PackageInstaller`. Needs "Install unknown apps" for eChopdo once (Phone settings → Updates). The first
+  self-update asks the user to tap Update; after that eChopdo is the installer of record and Android 12+
+  installs silently (`USER_ACTION_NOT_REQUIRED`). `UpdatedReceiver` redraws widgets and posts
+  "eChopdo updated — tap to open".
 
 ## Build
 Needs JDK 17+ and the Android SDK (platform 36, build-tools 36). Maven Central rate-limits some build

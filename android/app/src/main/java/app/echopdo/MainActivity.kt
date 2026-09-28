@@ -36,6 +36,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(build())
+        Updates.schedule(this, now = true)
         val crash = Crash.last(this)
         if (crash != null) {
             Crash.clear(this)

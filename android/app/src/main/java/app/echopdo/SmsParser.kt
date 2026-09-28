@@ -25,6 +25,15 @@ object SmsParser {
             "request(ed)? (money|payment)|collect request|has requested|mandate|autopay (set|registered|created)|" +
             "offer|cashback|reward points?|pre-?approved|loan|failed|declined|reversed|refund initiated"
     )
+    // Paying a credit card bill moves money, it isn't spending (each card purchase is already
+    // counted): the card's "payment received" SMS and the bank's "paid towards credit card" one.
+    private val CARD_BILL = Regex(
+        "(?i)(payment|amount|rs\\.?|inr).{0,40}(has been )?received.{0,50}credit card|" +
+            "received.{0,40}towards.{0,30}(credit )?card|thank you for (the |your )?payment.{0,60}card|" +
+            "credit card.{0,30}(bill|payment|dues?)\\b|card (bill|dues) (paid|payment)|towards.{0,30}credit card|" +
+            "\\bbbps\\b.{0,80}credit card|credit card.{0,80}\\bbbps\\b|cred\\.club|@cred\\b|\\bcred club\\b"
+    )
+    fun isCardBillPayment(text: String) = CARD_BILL.containsMatchIn(text) && !Regex("(?i)refund|reversal").containsMatchIn(text)
     private val AMOUNT = Regex("(?i)(?:rs\\.?|inr|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)")
 
     /** True for business (DLT) sender ids like "JK-BOBSMS-S", "AD-FEDBNK-T", "VM-HDFCBK" — any bank. */
@@ -57,7 +66,7 @@ object SmsParser {
 
     fun parse(sender: String?, body: String): BankTxn? {
         val text = body.replace(Regex("\\s+"), " ").trim()
-        if (SKIP.containsMatchIn(text)) return null
+        if (SKIP.containsMatchIn(text) || isCardBillPayment(text)) return null
         val bank = bankName(sender)
         val bankish = BANKISH.containsMatchIn(sender?.uppercase(Locale.ROOT).orEmpty())
         return icici(text) ?: bob(text) ?: federal(text) ?: kotak(text) ?: generic(text, bank, bankish)

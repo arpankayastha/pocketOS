@@ -966,3 +966,9 @@ drop trigger if exists transactions_learn on public.transactions;
 create trigger transactions_learn after update of category_id, account_id on public.transactions
   for each row when (old.category_id is distinct from new.category_id or old.account_id is distinct from new.account_id)
   execute function private.learn_from_entry();
+
+-- Transfers between the family's own accounts aren't spending: a capture that pairs with an opposite one
+-- (same amount, ±1 day, another account) or whose payee is marked "My account" (is_self) gets status 'transfer'.
+alter table public.captures drop constraint if exists captures_status_check;
+alter table public.captures add constraint captures_status_check check (status in ('new','filed','ignored','matched','transfer'));
+alter table public.capture_rules add column if not exists is_self boolean not null default false;

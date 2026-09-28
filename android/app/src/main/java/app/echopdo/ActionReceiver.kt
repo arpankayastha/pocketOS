@@ -18,6 +18,7 @@ class ActionReceiver : BroadcastReceiver() {
         const val CAP_IGNORE = "app.echopdo.CAP_IGNORE"
         const val CAP_MATCH = "app.echopdo.CAP_MATCH"   // "same as the one I already added"
         const val CAP_UNFILE = "app.echopdo.CAP_UNFILE" // take an automatically added payment out again
+        const val CAP_SELF = "app.echopdo.CAP_SELF"     // "My account": a transfer; skip this payee from now on
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -42,7 +43,7 @@ class ActionReceiver : BroadcastReceiver() {
                         Notify.saved(app, entry, res)
                         if (res is SaveResult.Failed && res.unpaired) QuickWidget.refreshAll(app)
                     }
-                    CAP_FILE, CAP_IGNORE, CAP_MATCH, CAP_UNFILE -> {
+                    CAP_FILE, CAP_IGNORE, CAP_MATCH, CAP_UNFILE, CAP_SELF -> {
                         Notify.cancel(app, intent.getIntExtra("nid", 0))
                         val c = JSONObject(intent.getStringExtra("capture") ?: "{}")
                         val body = JSONObject().put("capture_id", c.optString("id"))
@@ -56,6 +57,7 @@ class ActionReceiver : BroadcastReceiver() {
                             }
                             CAP_IGNORE -> body.put("action", "ignore")
                             CAP_UNFILE -> body.put("action", "unfile")
+                            CAP_SELF -> body.put("action", "self")
                             else -> body.put("action", "match")
                         }
                         val msg = try {
@@ -64,6 +66,7 @@ class ActionReceiver : BroadcastReceiver() {
                                 CAP_FILE -> if (res.has("already")) "Already done" else "Added ${Calc.money(c.optDouble("amount"))} · ${(c.optJSONObject("suggestion") ?: c.optJSONObject("guess"))?.optString("label") ?: ""}"
                                 CAP_IGNORE -> "Ignored"
                                 CAP_UNFILE -> "Removed"
+                                CAP_SELF -> "Marked as your own account — it won't be added again"
                                 else -> "Marked as already added"
                             }
                         } catch (e: ApiError) { e.message ?: "Could not save." } catch (e: java.io.IOException) { "No internet — open eChopdo to add it later." }

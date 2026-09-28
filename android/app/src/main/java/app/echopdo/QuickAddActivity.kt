@@ -72,6 +72,7 @@ class QuickAddActivity : Activity() {
         Thread {
             val cfg = runCatching { Api.refreshConfig(this) }
             val update = Updates.check(this)
+            if (update) Updates.schedule(this, now = true)
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 cfg.exceptionOrNull()?.let { e -> if (e is ApiError && e.unpaired) { startActivity(Intent(this, PairActivity::class.java)); finish(); return@runOnUiThread } }
@@ -138,11 +139,18 @@ class QuickAddActivity : Activity() {
         head.addView(targetSeg, LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT))
         sheet.addView(head)
 
-        banner = label("⬆  A new version of eChopdo is ready — tap to download", 13f, C.accent).apply {
+        banner = label("⬆  A new version of eChopdo is ready — tap to update", 13f, C.accent).apply {
             background = rounded(C.accent2, dp(10).toFloat())
             setPadding(dp(12), dp(8), dp(12), dp(8))
             visibility = View.GONE
-            setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updates.PAGE))) }
+            setOnClickListener {
+                // Allowed to update itself: download and install now; otherwise ask for that once.
+                if (Updates.canInstall(this@QuickAddActivity)) {
+                    text = "⬆  Downloading the update…"
+                    Thread { runCatching { Updates.run(applicationContext, force = true) }.onFailure {
+                        runOnUiThread { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updates.PAGE))) } } }.start()
+                } else startActivity(Updates.allowIntent(this@QuickAddActivity))
+            }
         }
         sheet.addView(banner, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
 

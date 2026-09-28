@@ -19,6 +19,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import org.json.JSONObject
 
 // Pairs this phone with a household: eChopdo → Settings → Phone widget → "Pair this phone"
@@ -27,6 +28,7 @@ class PairActivity : Activity() {
     private companion object { const val SMS_REQUEST = 2 }
     private lateinit var body: LinearLayout
     private var busy = false
+    private var onPaired = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +69,7 @@ class PairActivity : Activity() {
         body.addView(v, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h).apply { topMargin = dp(top) })
 
     private fun showForm(error: String?) {
-        body.removeAllViews()
+        body.removeAllViews(); onPaired = false
         add(heading("Pair with eChopdo"))
         add(para("In eChopdo open ⚙ Settings → Phone widget → Pair a phone, then tap “Pair this phone” — or type the 8-character code here."))
         val input = EditText(this).apply {
@@ -91,7 +93,7 @@ class PairActivity : Activity() {
     private fun pair(code: String) {
         if (busy) return
         busy = true
-        body.removeAllViews()
+        body.removeAllViews(); onPaired = false
         add(heading("Pairing…"))
         add(para("Checking the code with eChopdo."))
         Thread {
@@ -112,7 +114,7 @@ class PairActivity : Activity() {
     }
 
     private fun showPaired(justPaired: String?) {
-        body.removeAllViews()
+        body.removeAllViews(); onPaired = false
         val hh = Store.household(this)
         val target = if (Store.defaultTarget(this) == "budget") "Budget" else "Hisab"
         add(heading(if (justPaired != null) "✓ Paired with ${justPaired.ifEmpty { "eChopdo" }}" else "Paired with ${hh.ifEmpty { "eChopdo" }}"))
@@ -129,6 +131,8 @@ class PairActivity : Activity() {
             add(para("Long-press the home screen → Widgets → eChopdo."))
         }
         smsSection()
+        updateSection()
+        onPaired = true
         if (justPaired == null) {
             add(button("Pair with a new code", false) { showForm(null) }, 10, dp(48))
             add(label("Unpair this phone", 14f, C.neg).apply {
@@ -160,6 +164,32 @@ class PairActivity : Activity() {
         }
     }
 
+    // ----- Self-update -----
+    private fun updateSection() {
+        add(label("UPDATES", 11f, C.muted, true).apply { letterSpacing = 0.08f; setPadding(0, dp(22), 0, dp(6)) })
+        if (Updates.canInstall(this)) {
+            add(para("Automatic. eChopdo downloads new versions in the background and installs them itself (the first time Android asks you to tap Update). This is v${BuildConfig.VERSION_NAME}."))
+            Store.updateError(this)?.let { add(label("Last update failed: $it", 12f, C.neg).apply { setPadding(0, 0, 0, dp(10)) }) }
+            add(button("Check for update now", false) {
+                Toast.makeText(this, "Checking…", Toast.LENGTH_SHORT).show()
+                Thread {
+                    val newer = runCatching { Updates.check(applicationContext, force = true) }.getOrDefault(false)
+                    runOnUiThread { Toast.makeText(this, if (newer) "Downloading eChopdo ${Store.latestName(this)}…" else "You have the latest version", Toast.LENGTH_SHORT).show() }
+                    if (newer) runCatching { Updates.run(applicationContext, force = true) }
+                }.start()
+            }, 0, dp(46))
+        } else {
+            add(para("Let eChopdo update itself, so new versions arrive without the download page. Tap below and switch on “Allow from this source”."))
+            add(button("Turn on automatic updates", true) { startActivity(Updates.allowIntent(this)) }, 0, dp(50))
+        }
+    }
+
+    // Back from Android's "Install unknown apps" screen: show the new state.
+    override fun onRestart() {
+        super.onRestart()
+        if (onPaired && !busy) showPaired(null)
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != SMS_REQUEST) return
@@ -172,7 +202,7 @@ class PairActivity : Activity() {
 
     // Android 13+ hides SMS access from apps installed outside the Play Store until allowed.
     private fun showRestricted() {
-        body.removeAllViews()
+        body.removeAllViews(); onPaired = false
         add(heading("One more step"))
         add(para("Android blocks SMS access for apps installed from outside the Play Store. To allow it once:\n\n" +
             "1. Tap “Open app settings” below.\n2. Tap ⋮ (top right) → “Allow restricted settings”, confirm with your fingerprint.\n" +

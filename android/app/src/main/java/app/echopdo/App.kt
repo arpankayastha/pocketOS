@@ -14,6 +14,7 @@ class App : Application() {
             runCatching { Crash.save(this, e) }
             previous?.uncaughtException(t, e)
         }
+        runCatching { Updates.schedule(this) } // background self-update every 6 hours
     }
 }
 

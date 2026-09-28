@@ -12,6 +12,10 @@
 //   { action: 'file' | 'ignore' | 'match', token, capture_id, … } → file / drop a capture
 //   { action: 'refile', token, capture_id, target, … } → change an auto-added capture (learns the payee)
 //   { action: 'unfile', token, capture_id }  → remove an auto-added entry (capture ignored)
+//   { action: 'self', token, capture_id }    → "My account": a transfer between the family's own
+//                                              accounts; not added, and that payee is skipped from now on
+// Transfers are not spending: a capture whose payee is marked is_self, or one that pairs with an
+// opposite capture of the same amount (±1 day) on a different account, becomes status 'transfer'.
 // With the phone's auto_capture on (default), a capture is filed on arrival: the payee's
 // remembered category, else a guess from the payee's name, else "Other"; note = UPI id / name.
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -316,6 +320,26 @@ Deno.serve(async (req) => {
     if (!ins.data) return json({ duplicate: true }) // same UPI ref already captured (e.g. by the other phone)
     const cap = ins.data as Capture
 
+    // Money between the family's own accounts isn't spending.
+    const toTransfer = (id: string) => db.from('captures').update({ status: 'transfer', filed_at: new Date().toISOString() }).eq('id', id)
+    if (row.payee) {
+      const { data: self } = await db.from('capture_rules').select('id').eq('household_id', hid).eq('key', payeeKey(row.payee)).eq('is_self', true).maybeSingle()
+      if (self) { await toTransfer(cap.id); return json({ ...cap, date, transfer: true, self: true }) }
+    }
+    if (!row.card) {
+      const d0 = new Date(date + 'T00:00:00Z')
+      const day = (n: number) => new Date(d0.getTime() + n * 86400_000).toISOString().slice(0, 10)
+      const { data: pairs } = await db.from('captures').select('id, status, account_hint, bank')
+        .eq('household_id', hid).eq('amount', amount).eq('direction', direction === 'in' ? 'out' : 'in').eq('card', false)
+        .in('status', ['new', 'filed']).gte('occurred_on', day(-1)).lte('occurred_on', day(1)).neq('id', cap.id).limit(5)
+      const other = (pairs || []).find((p) => p.account_hint !== row.account_hint || p.bank !== row.bank)
+      if (other) {
+        await resetCapture({ ...cap, id: other.id, status: other.status })
+        await Promise.all([toTransfer(other.id), toTransfer(cap.id)])
+        return json({ ...cap, date, transfer: true, paired: other.id })
+      }
+    }
+
     // Already added by hand from the widget or the app? Same amount + day, added in the last day, not yet linked.
     const since = new Date(Date.now() - 24 * 3600_000).toISOString()
     const [h, t] = await Promise.all([
@@ -353,6 +377,18 @@ Deno.serve(async (req) => {
     const cap = await ownCapture(body.capture_id)
     if (!cap) return json({ error: 'That payment is no longer in the list.' }, 404)
     try { return json(await fileCapture(cap.id, body)) } catch (e) { return json({ error: String((e as Error).message || e) }, 500) }
+  }
+
+  if (action === 'self') {
+    const cap = await ownCapture(body.capture_id)
+    if (!cap) return json({ error: 'That payment is no longer in eChopdo.' }, 404)
+    await resetCapture(cap)
+    await db.from('captures').update({ status: 'transfer', filed_at: new Date().toISOString() }).eq('id', cap.id)
+    if (cap.payee) {
+      await db.from('capture_rules').upsert({ user_id: dev.user_id, household_id: hid, key: payeeKey(cap.payee), is_self: true, updated_at: new Date().toISOString() },
+        { onConflict: 'household_id,key' })
+    }
+    return json({ ok: true })
   }
 
   if (action === 'refile' || action === 'unfile') {

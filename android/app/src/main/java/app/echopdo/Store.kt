@@ -67,7 +67,12 @@ object Store {
     // ----- Update check -----
     fun lastUpdateCheck(ctx: Context) = prefs(ctx).getLong("updateCheck", 0)
     fun latestVersion(ctx: Context) = prefs(ctx).getInt("latestVersion", 0)
-    fun saveUpdateCheck(ctx: Context, latest: Int) {
-        prefs(ctx).edit().putLong("updateCheck", System.currentTimeMillis()).putInt("latestVersion", latest).apply()
+    fun latestName(ctx: Context) = prefs(ctx).getString("latestName", "").orEmpty()
+    fun latestSha(ctx: Context) = prefs(ctx).getString("latestSha", "").orEmpty()
+    fun saveUpdateCheck(ctx: Context, latest: Int, name: String = "", sha: String = "") {
+        prefs(ctx).edit().putLong("updateCheck", System.currentTimeMillis()).putInt("latestVersion", latest)
+            .putString("latestName", name).putString("latestSha", sha.lowercase()).remove("updateError").apply()
     }
+    fun updateError(ctx: Context) = prefs(ctx).getString("updateError", null)
+    fun setUpdateError(ctx: Context, msg: String) { prefs(ctx).edit().putString("updateError", msg).apply() }
 }

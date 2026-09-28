@@ -132,6 +132,12 @@ object Captures {
                     .setContentIntent(PendingIntent.getActivity(ctx, id, chooseIntent(ctx, c.put("refile", true)), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
                     .addAction(Notification.Action.Builder(null, "Change…", PendingIntent.getActivity(ctx, id + 5, chooseIntent(ctx, c.put("refile", true)), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)).build())
                     .addAction(Notification.Action.Builder(null, "Remove", actionIntent(ctx, ActionReceiver.CAP_UNFILE, c, id + 6)).build())
+                    .addAction(Notification.Action.Builder(null, "My account", actionIntent(ctx, ActionReceiver.CAP_SELF, c, id + 8)).build())
+            }
+            c.optBoolean("transfer") -> {
+                // Between the family's own accounts (paired, or a payee marked "My account"): not added.
+                b.setContentTitle(title(c)).setContentText("Transfer between your own accounts — not added")
+                    .addAction(Notification.Action.Builder(null, "Add anyway", PendingIntent.getActivity(ctx, id + 9, chooseIntent(ctx, c.put("refile", true)), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)).build())
             }
             c.optBoolean("matched") -> {
                 b.setContentTitle(title(c)).setContentText("Already added by you — not added again")
