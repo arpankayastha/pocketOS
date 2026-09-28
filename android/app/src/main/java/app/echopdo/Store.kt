@@ -53,11 +53,14 @@ object Store {
     fun setSmsStatus(ctx: Context, s: String) { prefs(ctx).edit().putString("smsStatus", s).apply() }
     fun setSmsEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("sms", on).apply() }
 
+    /** Forget which SMS were sent (for "Resync"; the server still refuses real duplicates). */
+    fun clearSeen(ctx: Context) { prefs(ctx).edit().remove("seen").apply() }
+
     /** Remembers the last few hundred SMS already sent, so a re-scan doesn't send them again. */
     @Synchronized fun markSeen(ctx: Context, key: String): Boolean {
         val seen = prefs(ctx).getString("seen", "").orEmpty().split('|').filter { it.isNotEmpty() }
         if (key in seen) return false
-        prefs(ctx).edit().putString("seen", (seen + key).takeLast(400).joinToString("|")).apply()
+        prefs(ctx).edit().putString("seen", (seen + key).takeLast(1500).joinToString("|")).apply()
         return true
     }
 

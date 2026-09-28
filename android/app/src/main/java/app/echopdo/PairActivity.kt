@@ -149,6 +149,7 @@ class PairActivity : Activity() {
             row.addView(button("Look back 7 days", false) { scan(7) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(5) })
             row.addView(button("Turn off", false) { Store.setSmsEnabled(this, false); showPaired(null) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(5) })
             add(row)
+            add(button("Resync last 30 days", false) { Store.clearSeen(this); scan(30) }, 10, dp(46))
         } else {
             add(para("Read bank SMS on this phone so UPI and card payments show up ready to add — no typing. The SMS itself never leaves the phone."))
             add(button("Turn on bank SMS", true) {
