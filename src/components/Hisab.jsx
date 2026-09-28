@@ -3,7 +3,7 @@ import { DonutChart } from './LazyCharts'
 import { currentMonth, money, moneyShort, monthLabel, shiftMonth, today } from '../lib/format'
 import { SOURCES, loadCategories, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
 import { useBackAction } from '../lib/backNav'
-import { useMonthSwipe } from '../lib/useSwipe'
+import { useMonthSwipe, useSwipe } from '../lib/useSwipe'
 import { useDialog } from '../lib/dialog'
 import { BookIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { MonthPicker } from './Transactions'
@@ -50,7 +50,7 @@ export default function Hisab({ activeHouseholdId, addSignal }) {
   if (!book) return <section>{error ? <div className="alert error">{error}</div> : <div className="card"><SkeletonRows rows={4} /></div>}</section>
   return (
     <>
-      <BookView key={book.id} book={book} categories={categories} addReq={addReq} occasions={occasions}
+      <BookView key={book.id} book={book} books={books} categories={categories} addReq={addReq} occasions={occasions}
         onOccasions={() => setShowOccasions(true)} onOpenBook={open}
         onBack={() => setBookId(null)} onChanged={load} onEdit={() => setEditingBook(book)} />
       {showOccasions && <OccasionsSheet occasions={occasions} onOpen={open} onClose={() => setShowOccasions(false)}
@@ -110,7 +110,7 @@ function TargetBar({ spent, target }) {
   )
 }
 
-function BookView({ book, categories, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit }) {
+function BookView({ book, books, categories, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit }) {
   const [entries, setEntries] = useState(null)
   const [view, setView] = useState('daily') // daily | calendar | summary
   const [month, setMonth] = useState(currentMonth)
@@ -136,7 +136,13 @@ function BookView({ book, categories, addReq, occasions, onOccasions, onOpenBook
     const count = (key) => Object.entries((entries || []).reduce((m, e) => (e[key] ? { ...m, [e[key]]: (m[e[key]] || 0) + 1 } : m), {})).sort((a, b) => b[1] - a[1]).map(([k]) => k)
     return { categories: count('category'), sources: count('source') }
   }, [entries])
+  // Swipe the month card to change month; swipe anywhere below to go Daily ↔ Calendar ↔ Summary.
   const swipe = useMonthSwipe(month, setMonth)
+  const VIEWS = ['daily', 'calendar', 'summary']
+  const viewSwipe = useSwipe({
+    onLeft: () => setView((v) => VIEWS[Math.min(VIEWS.length - 1, VIEWS.indexOf(v) + 1)]),
+    onRight: () => setView((v) => VIEWS[Math.max(0, VIEWS.indexOf(v) - 1)]),
+  })
   const cal = isDaily ? month : calMonth || (entries?.[0]?.occurred_on.slice(0, 7) ?? currentMonth())
   // Daily's summary line: today (this month only) and the average per day so far.
   const now = currentMonth()
@@ -146,9 +152,9 @@ function BookView({ book, categories, addReq, occasions, onOccasions, onOpenBook
   const recent = (occasions || []).filter(isRecent)
 
   return (
-    <section {...(isDaily ? swipe : {})}>
+    <section>
       {isDaily ? (
-        <div className="card hb-hero">
+        <div className="card hb-hero" {...swipe}>
           <div className="hb-hero-top">
             <MonthPicker month={month} setMonth={setMonth} />
             <button className="chip chip-btn hb-occ-btn" onClick={onOccasions}>📒 Occasions{occasions?.length ? <span className="hb-occ-count">{occasions.length}</span> : null}</button>
@@ -184,6 +190,7 @@ function BookView({ book, categories, addReq, occasions, onOccasions, onOpenBook
         </div>
       )}
 
+      <div className="hb-swipe" {...viewSwipe}>
       <div className="seg seg3 hb-views">
         {[['daily', 'Daily'], ['calendar', 'Calendar'], ['summary', 'Summary']].map(([id, label]) => (
           <button key={id} className={view === id ? 'on' : ''} onClick={() => setView(id)}>{label}</button>
@@ -197,8 +204,9 @@ function BookView({ book, categories, addReq, occasions, onOccasions, onOpenBook
       ) : view === 'calendar' ? (
         <CalendarView month={cal} setMonth={isDaily ? setMonth : setCalMonth} entries={entries} onOpen={setSheet} />
       ) : <SummaryView entries={shown} />}
+      </div>
 
-      {sheet && <EntrySheet book={book} categories={categories} entry={sheet.id ? sheet : null} used={used}
+      {sheet && <EntrySheet book={book} books={books} categories={categories} entry={sheet.id ? sheet : null} used={used}
         defaultDate={isDaily && month !== currentMonth() ? `${month}-01` : today()}
         onClose={() => setSheet(null)} onSaved={changed} />}
     </section>
@@ -335,8 +343,9 @@ function SummaryView({ entries }) {
 
 const KEYS = ['7', '8', '9', '⌫', '4', '5', '6', '+', '1', '2', '3', '−', '.', '0', '00', '×']
 
-function EntrySheet({ book, categories, entry, used, defaultDate, onClose, onSaved }) {
+function EntrySheet({ book, books, categories, entry, used, defaultDate, onClose, onSaved }) {
   const dialog = useDialog()
+  const [target, setTarget] = useState(book) // the book it's saved in; changing it moves the entry
   const [dir, setDir] = useState(entry?.direction || 'out')
   const [expr, setExpr] = useState(entry ? String(Number(entry.amount)) : '')
   const [category, setCategory] = useState(entry?.category || '')
@@ -386,9 +395,9 @@ function EntrySheet({ book, categories, entry, used, defaultDate, onClose, onSav
     if (!amount || amount <= 0) return setError('Enter an amount.')
     setBusy(true); setError(null)
     try {
-      await saveEntry(book, { id: entry?.id, direction: dir, amount, occurredOn: date, category: category || 'Other', source, note: note.trim() })
+      await saveEntry(target, { id: entry?.id, direction: dir, amount, occurredOn: date, category: category || 'Other', source, note: note.trim() })
       onSaved()
-      if (next) { setSaved(`${money(amount)} · ${category || 'Other'}`); setExpr(''); setNote(''); setBusy(false) }
+      if (next) { setSaved(`${money(amount)} · ${category || 'Other'}${target.id !== book.id ? ` → ${target.name}` : ''}`); setExpr(''); setNote(''); setBusy(false) }
       else onClose()
     } catch (err) { setError(err.message); setBusy(false) }
   }
@@ -408,6 +417,16 @@ function EntrySheet({ book, categories, entry, used, defaultDate, onClose, onSav
           </div>
           {entry && <button type="button" className="btn icon" aria-label="Delete entry" onClick={remove}><TrashIcon /></button>}
         </div>
+
+        {books?.length > 1 && (
+          <div className="hb-books" role="radiogroup" aria-label="Book">
+            {books.map((b) => (
+              <button type="button" key={b.id} role="radio" aria-checked={target.id === b.id} className={`chip chip-btn ${target.id === b.id ? 'on' : ''}`}
+                onClick={() => setTarget(b)}>{b.kind === 'daily' ? '🗓️' : '📒'} {b.name}</button>
+            ))}
+          </div>
+        )}
+        {entry && target.id !== book.id && <div className="muted small">Moves this entry to <b>{target.name}</b></div>}
 
         <div className={`hb-display ${dir === 'out' ? 'neg' : 'pos'}`} aria-live="polite">
           <span className="hb-expr">{expr ? `₹${expr}` : <span className="muted">₹0</span>}</span>

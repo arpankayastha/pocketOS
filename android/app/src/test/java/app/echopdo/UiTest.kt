@@ -81,7 +81,7 @@ class UiTest {
         assertNotNull(find(root, "₹165"))
         click(root, "🥦  Groceries")
         click(root, "UPI")
-        click(root, "🎉 Diwali")
+        click(root, "📒 Diwali")
         shot(root, "1-quickadd-hisab")
         click(root, "Save")
         waitFor { Store.queue(ctx).length() == 1 }

@@ -291,6 +291,9 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hb-hero-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .hb-hero-stats > div { display: grid; gap: 2px; min-width: 0; }
 .hb-hero-stats b { font-family: var(--font-mono); font-size: 14px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-swipe { min-height: 55vh; }
+.hb-books { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.hb-books .chip-btn { flex: none; white-space: nowrap; }
 .hb-recent { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 0 12px; }
 .hb-recent .chip-btn { flex: none; white-space: nowrap; }
 .hb-recent .amt { font-family: var(--font-mono); color: var(--neg); font-size: 12px; }

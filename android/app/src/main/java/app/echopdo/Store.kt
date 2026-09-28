@@ -64,6 +64,10 @@ object Store {
         return true
     }
 
+    // ----- Occasion book picked in the quick-add sheet (kept 3 hours) -----
+    fun recentBook(ctx: Context): String? = prefs(ctx).takeIf { System.currentTimeMillis() - it.getLong("bookAt", 0) < 3 * 3600_000L }?.getString("book", null)
+    fun setRecentBook(ctx: Context, id: String?) { prefs(ctx).edit().putString("book", id).putLong("bookAt", System.currentTimeMillis()).apply() }
+
     // ----- Update check -----
     fun lastUpdateCheck(ctx: Context) = prefs(ctx).getLong("updateCheck", 0)
     fun latestVersion(ctx: Context) = prefs(ctx).getInt("latestVersion", 0)

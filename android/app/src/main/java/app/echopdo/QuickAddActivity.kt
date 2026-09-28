@@ -84,7 +84,7 @@ class QuickAddActivity : Activity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        expr = ""; category = null; categoryName = null; accountId = null; source = null; date = LocalDate.now(); always = false
+        expr = ""; category = null; categoryName = null; accountId = null; source = null; bookId = null; date = LocalDate.now(); always = false
         target = Store.defaultTarget(this)
         applyIntent(intent)
         note.setText(capture?.optString("payee")?.takeIf { it.isNotEmpty() && it != "null" } ?: "")
@@ -287,6 +287,22 @@ class QuickAddActivity : Activity() {
 
     private fun hisabPickers(h: JSONObject) {
         val cats = h.optJSONArray(if (direction == "in") "in" else "out") ?: JSONArray()
+        // Book first: out shopping for an occasion, pick it once — it stays picked for 3 hours.
+        val books = h.optJSONArray("books") ?: JSONArray()
+        val ids = (0 until books.length()).map { books.getJSONObject(it).optString("id") }
+        if (bookId == null || bookId !in ids) bookId = Store.recentBook(this)?.takeIf { it in ids && capture == null } ?: ids.firstOrNull()
+        if (books.length() > 1) {
+            pickers.addView(section("Book"))
+            val fb = flow()
+            for (i in 0 until books.length()) {
+                val b = books.getJSONObject(i)
+                val id = b.optString("id")
+                val daily = b.optString("kind") == "daily"
+                fb.addView(chip((if (daily) "🗓️ " else "📒 ") + b.optString("name"), bookId == id) {
+                    bookId = id; Store.setRecentBook(this, if (daily) null else id); render()
+                })
+            }
+        }
         pickers.addView(section("Category"))
         val f = flow()
         for (i in 0 until cats.length()) {
@@ -297,17 +313,6 @@ class QuickAddActivity : Activity() {
                 render()
             })
         }
-        val books = h.optJSONArray("books") ?: JSONArray()
-        if (books.length() > 1) {
-            pickers.addView(section("Book"))
-            val fb = flow()
-            if (bookId == null) bookId = books.getJSONObject(0).optString("id")
-            for (i in 0 until books.length()) {
-                val b = books.getJSONObject(i)
-                val id = b.optString("id")
-                fb.addView(chip((if (b.optString("kind") == "daily") "📒 " else "🎉 ") + b.optString("name"), bookId == id) { bookId = id; render() })
-            }
-        } else bookId = books.optJSONObject(0)?.optString("id")
         val sources = h.optJSONArray("sources") ?: JSONArray()
         pickers.addView(section(if (direction == "in") "Received in" else "Paid by"))
         val fs = flow()

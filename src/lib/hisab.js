@@ -91,11 +91,12 @@ export async function deleteBook(id) {
   if (error) throw error
 }
 
+// `book` is where the entry goes: saving an existing entry with another book moves it there.
 export async function saveEntry(book, { id, direction, amount, occurredOn, category, source, note }) {
-  const fields = { direction, amount, occurred_on: occurredOn, category: category || null, source: source || null, note: note || null }
+  const fields = { direction, amount, occurred_on: occurredOn, category: category || null, source: source || null, note: note || null, book_id: book.id }
   const { error } = id
     ? await supabase.from('hisab_entries').update(fields).eq('id', id)
-    : await supabase.from('hisab_entries').insert({ ...fields, book_id: book.id, household_id: book.household_id })
+    : await supabase.from('hisab_entries').insert({ ...fields, household_id: book.household_id })
   if (error) throw error
 }
 

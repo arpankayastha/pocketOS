@@ -972,3 +972,16 @@ create trigger transactions_learn after update of category_id, account_id on pub
 alter table public.captures drop constraint if exists captures_status_check;
 alter table public.captures add constraint captures_status_check check (status in ('new','filed','ignored','matched','transfer'));
 alter table public.capture_rules add column if not exists is_self boolean not null default false;
+
+-- Occasion books are short-lived: a payee's rule only ever remembers the Daily book, so moving one
+-- payment into "Diwali" doesn't send every later payment to that payee there too.
+create or replace function private.rule_book_daily_only() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.book_id is not null and not exists (select 1 from public.hisab_books where id = new.book_id and kind = 'daily') then
+    new.book_id := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists capture_rules_book_daily on public.capture_rules;
+create trigger capture_rules_book_daily before insert or update of book_id on public.capture_rules
+  for each row execute function private.rule_book_daily_only();
