@@ -91,6 +91,13 @@
 
         <receiver android:name=".ActionReceiver" android:exported="false" />
 
+        <!-- After an update, redraw the widgets with the new layout. -->
+        <receiver android:name=".UpdatedReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"
