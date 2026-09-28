@@ -57,7 +57,12 @@ open class QuickWidget : AppWidgetProvider() {
         }
 
         fun large(ctx: Context, options: Bundle? = null): RemoteViews {
-            val v = RemoteViews(ctx.packageName, R.layout.widget_quick)
+            // Small placements (3×1, or under ~320 dp wide) get the compact layout: the roomy one's icons and
+            // labels don't fit there. Portrait width = MIN_WIDTH, height = MAX_HEIGHT.
+            val w = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: 0
+            val h = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT) ?: 0
+            val compact = (w in 1 until 320) || (h in 1 until 110)
+            val v = RemoteViews(ctx.packageName, if (compact) R.layout.widget_quick_compact else R.layout.widget_quick)
             v.setOnClickPendingIntent(R.id.wHeader, activity(ctx, 1, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
             if (!Store.paired(ctx)) {
                 v.setTextViewText(R.id.wTitle, "eChopdo")

@@ -167,6 +167,21 @@ class UiTest {
         assertEquals(View.GONE, u.findViewById<View>(R.id.wButtons).visibility)
     }
 
+    // The large widget at the sizes it's actually used at (3×1 on the owner's phone is ~240×90 dp),
+    // with a bigger font like a custom phone font: labels must fit and icons stay inside the buttons.
+    @Test fun widgetSizes() {
+        org.robolectric.RuntimeEnvironment.setFontScale(1.15f)
+        for ((w, h) in listOf(240 to 90, 300 to 110, 340 to 150)) {
+            val opts = android.os.Bundle().apply {
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, w); putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, h)
+            }
+            val v = QuickWidget.large(ctx, opts).apply(ctx, FrameLayout(ctx))
+            val host = host(v, w, h)
+            shot(host, "7-widget-${w}x$h")
+        }
+        org.robolectric.RuntimeEnvironment.setFontScale(1f)
+    }
+
     @Test fun captureModeSheet() {
         val cap = JSONObject(CONFIG).getJSONArray("pending").getJSONObject(0)
         val act = Robolectric.buildActivity(QuickAddActivity::class.java, Captures.chooseIntent(ctx, cap)).setup().get()

@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Compact variant of widget_quick (under ~320×110 dp, e.g. 3×1): smaller header, icons and padding.
+     Same ids, so QuickWidget.large fills either. Large widget: two wide − / + buttons (icons), frequent Hisab entries as icon chips, and payments
+     read from bank SMS waiting to be added (rows only when the widget is tall). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <LinearLayout
+        android:id="@+id/wHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <FrameLayout
+            android:layout_width="20dp"
+            android:layout_height="20dp">
+            <ImageView
+                android:id="@+id/wAvatarBg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:alpha="0.9"
+                android:src="@drawable/widget_avatar" />
+            <TextView
+                android:id="@+id/wAvatar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="H"
+                android:textColor="@color/bg"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+        <TextView
+            android:id="@+id/wTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:maxLines="1"
+            android:text="Home"
+            android:textColor="@color/text"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/wSub"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="· Hisab"
+            android:textColor="@color/muted"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/wBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:background="@drawable/widget_badge"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="3 to add"
+            android:textColor="@color/bg"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/wButtons"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp"
+        android:minHeight="36dp"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:id="@+id/wOut"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="5dp"
+            android:background="@drawable/widget_btn_out"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp">
+            <ImageView
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:background="@drawable/widget_icon_out"
+                android:contentDescription="Spent"
+                android:padding="5dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_w_out" />
+            <TextView
+                android:id="@+id/wOutLabel"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:maxLines="1"
+                android:text="Spent"
+                android:textColor="@color/neg"
+                android:textSize="16sp"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="10sp"
+                android:autoSizeMaxTextSize="15sp"
+                android:gravity="center"
+                android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/wIn"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="5dp"
+            android:background="@drawable/widget_btn_in"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp">
+            <ImageView
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:background="@drawable/widget_icon_in"
+                android:contentDescription="Received"
+                android:padding="5dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_w_in" />
+            <TextView
+                android:id="@+id/wInLabel"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:maxLines="1"
+                android:text="Received"
+                android:textColor="@color/pos"
+                android:textSize="16sp"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="10sp"
+                android:autoSizeMaxTextSize="15sp"
+                android:gravity="center"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/wPresets"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <TextView android:id="@+id/p0" style="@style/WidgetChip" />
+        <TextView android:id="@+id/p1" style="@style/WidgetChip" />
+        <TextView android:id="@+id/p2" style="@style/WidgetChip" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/wCaps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <LinearLayout android:id="@+id/c0" style="@style/WidgetCapRow">
+            <TextView android:id="@+id/c0t" style="@style/WidgetCapText" />
+            <TextView android:id="@+id/c0a" style="@style/WidgetCapAction" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/c1" style="@style/WidgetCapRow">
+            <TextView android:id="@+id/c1t" style="@style/WidgetCapText" />
+            <TextView android:id="@+id/c1a" style="@style/WidgetCapAction" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/wPair"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_chip"
+        android:gravity="center"
+        android:text="Tap to pair with eChopdo"
+        android:textColor="@color/accent"
+        android:textSize="14sp"
+        android:visibility="gone" />
+</LinearLayout>
