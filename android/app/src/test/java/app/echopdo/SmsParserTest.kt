@@ -64,6 +64,52 @@ class SmsParserTest {
         assertEquals("DEMO SENDER NAME", rcv.payee); assertEquals("623800000010", rcv.ref); assertEquals(LocalDate.of(2026, 8, 26), rcv.date)
     }
 
+    // ----- Any other bank (made-up messages in each bank's usual wording) -----
+    @Test fun hdfcUpiAndCard() {
+        val u = p("VM-HDFCBK", "Sent Rs.250.00\nFrom HDFC Bank A/C *1234\nTo DEMO SHOP\nOn 20/09/26\nRef 426312345678\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808")
+        assertEquals("out", u.direction); assertEquals(250.0, u.amount, 0.0); assertEquals("1234", u.accountHint)
+        assertEquals("DEMO SHOP", u.payee); assertEquals("426312345678", u.ref); assertEquals(LocalDate.of(2026, 9, 20), u.date); assertEquals("HDFC", u.bank)
+        val c = p("AD-HDFCBK", "Spent Rs.1499 On HDFC Bank Card 9876 At DEMO ELECTRONICS On 2026-09-21:18:22:10 Not You? To Block+Reissue Call 18002586161/SMS BLOCK CC 9876 to 7308080808")
+        assertEquals("out", c.direction); assertEquals(1499.0, c.amount, 0.0); assertEquals("9876", c.accountHint); assertTrue(c.card)
+        assertEquals("DEMO ELECTRONICS", c.payee); assertEquals(LocalDate.of(2026, 9, 21), c.date)
+    }
+
+    @Test fun sbiDebitAndCredit() {
+        val d = p("AD-SBIUPI", "Dear UPI user A/C X4321 debited by 150.0 on date 22Sep26 trf to DEMO KIRANA Refno 426500000011. If not u? call 1800111109. -SBI")
+        assertEquals("out", d.direction); assertEquals(150.0, d.amount, 0.0); assertEquals("4321", d.accountHint)
+        assertEquals("DEMO KIRANA", d.payee); assertEquals("426500000011", d.ref); assertEquals(LocalDate.of(2026, 9, 22), d.date); assertEquals("SBI", d.bank)
+        val c = p("JD-SBIINB", "Dear SBI UPI User, ur A/cX4321 credited by Rs500 on 23Sep26 by (Ref no 426600000012)")
+        assertEquals("in", c.direction); assertEquals(500.0, c.amount, 0.0); assertEquals("4321", c.accountHint); assertEquals("426600000012", c.ref)
+    }
+
+    @Test fun axisIdfcAtmYesPaytm() {
+        val a = p("VK-AXISBK", "Debit INR 2000.00 A/c no. XX5555 24-09-26, 10:15:01 UPI/P2M/426700000013/DEMO FOODS Not you? SMS BLOCKALL to 919951860002")
+        assertEquals("out", a.direction); assertEquals(2000.0, a.amount, 0.0); assertEquals("5555", a.accountHint)
+        assertEquals("DEMO FOODS", a.payee); assertEquals("426700000013", a.ref); assertEquals(LocalDate.of(2026, 9, 24), a.date); assertEquals("Axis", a.bank)
+        val s = p("JM-IDFCFB", "Your A/C XXXXX6789 has been credited with INR 45,000.00 on 01/10/2026. Info: NEFT-DEMO EMPLOYER PVT LTD. Avl Bal: INR 60,000.00")
+        assertEquals("in", s.direction); assertEquals(45000.0, s.amount, 0.0); assertEquals("6789", s.accountHint)
+        assertEquals("NEFT-DEMO EMPLOYER PVT LTD", s.payee); assertEquals(LocalDate.of(2026, 10, 1), s.date)
+        val atm = p("BZ-PNBSMS", "Rs 2000 withdrawn at ATM DEMO BRANCH from A/c XX1111 on 25-Sep-26. Avl bal Rs 5000")
+        assertEquals("out", atm.direction); assertEquals(2000.0, atm.amount, 0.0); assertEquals("1111", atm.accountHint); assertEquals("ATM DEMO BRANCH", atm.payee)
+        val y = p("AX-YESBNK", "INR 349.00 spent on YES BANK Credit Card XX2222 at DEMO OTT on 26-09-2026. Avl Lmt INR 90,000")
+        assertEquals("out", y.direction); assertEquals(349.0, y.amount, 0.0); assertEquals("2222", y.accountHint); assertTrue(y.card); assertEquals("DEMO OTT", y.payee)
+        val pt = p("BZ-PAYTMB", "Rs.99 sent to demo@paytm from Paytm Payments Bank a/c 3333. UPI Ref: 426800000014")
+        assertEquals("out", pt.direction); assertEquals(99.0, pt.amount, 0.0); assertEquals("3333", pt.accountHint)
+        assertEquals("demo@paytm", pt.payee); assertEquals("426800000014", pt.ref)
+    }
+
+    @Test fun balanceIsNotTheAmount() {
+        val t = p("AD-CANBNK", "Avl Bal Rs 10,000.00. Rs 450.00 debited from a/c XX7777 on 27-09-26 towards DEMO MEDICAL. -Canara Bank")
+        assertEquals(450.0, t.amount, 0.0); assertEquals("DEMO MEDICAL", t.payee)
+    }
+
+    @Test fun shopAndAppMessagesAreSkipped() {
+        assertNull(SmsParser.parse("VM-SWIGGY", "Your order of Rs 250 is confirmed and paid via UPI. Track it in the app."))
+        assertNull(SmsParser.parse("AD-AMAZON", "Refund of Rs 499 has been processed for your order. It will be credited in 3-5 days."))
+        assertNull(SmsParser.parse("AD-HDFCBK", "Your a/c XX1234 balance is Rs 5000 as on 26-09-26."))
+        assertNull(SmsParser.parse("AD-HDFCBK", "Rs 1500 will be debited from a/c XX1234 on 05-10-26 towards autopay DEMO."))
+    }
+
     @Test fun genericFallback() {
         val t = p("VM-HDFCBK", "Rs.499.00 spent on HDFC Bank Card x1111 at DEMO MART on 2026-09-20. Not you? Call 18002586161")
         assertEquals("out", t.direction); assertEquals(499.0, t.amount, 0.0); assertEquals("1111", t.accountHint); assertTrue(t.card); assertEquals(LocalDate.of(2026, 9, 20), t.date)
@@ -78,6 +124,7 @@ class SmsParserTest {
 
     @Test fun senderFilter() {
         assertTrue(SmsParser.fromBank("JK-BOBSMS-S")); assertTrue(SmsParser.fromBank("AD-FEDBNK-T")); assertTrue(SmsParser.fromBank("JD-ICICIT-S"))
-        assertFalse(SmsParser.fromBank("+919000000001")); assertFalse(SmsParser.fromBank("VM-SWIGGY")); assertFalse(SmsParser.fromBank(null))
+        assertTrue(SmsParser.fromBank("VM-HDFCBK")); assertTrue(SmsParser.fromBank("BZ-PAYTMB"))
+        assertFalse(SmsParser.fromBank("+919000000001")); assertFalse(SmsParser.fromBank("Mom")); assertFalse(SmsParser.fromBank(null))
     }
 }

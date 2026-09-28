@@ -26,35 +26,37 @@ object SmsParser {
             "offer|cashback|reward points?|pre-?approved|loan|failed|declined|reversed|refund initiated"
     )
     private val AMOUNT = Regex("(?i)(?:rs\\.?|inr|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)")
-    private val DEBIT = Regex("(?i)\\b(debited|dr\\.?|spent|paid|sent|withdrawn|purchase)\\b")
-    private val CREDIT = Regex("(?i)\\b(credited|cr\\.?|received|deposited)\\b")
 
-    /** True for DLT sender ids of banks, e.g. "JK-BOBSMS-S", "AD-FEDBNK-T", "JD-ICICIT-S". */
+    /** True for business (DLT) sender ids like "JK-BOBSMS-S", "AD-FEDBNK-T", "VM-HDFCBK" — any bank. */
     fun fromBank(sender: String?): Boolean {
-        val s = sender?.uppercase(Locale.ROOT) ?: return false
-        return Regex("^[A-Z]{2}-[A-Z0-9]{3,8}(-[A-Z])?$").matches(s) &&
-            Regex("BOB|BARODA|FEDBNK|FEDERAL|ICICI|HDFC|SBI|AXIS|KOTAK|YES|IDFC|PNB|CANARA|UNION|INDUS|BOI|AUBANK|RBL|PAYTM|PYTM|SLICE|ONECARD|CITI|AMEX|SCB|DBS|HSBC|KVB|SIB|IDBI|BANK|BNK|CARD").containsMatchIn(s)
+        val s = sender?.uppercase(Locale.ROOT)?.trim() ?: return false
+        return Regex("^[A-Z]{2}-[A-Z0-9]{3,9}(-[A-Z])?$").matches(s)
     }
 
+    // Header ids that are banks / cards / payment banks (a message from these may skip the
+    // "must mention an account or card number" check).
+    private val BANKISH = Regex("BOB|BARODA|FEDBNK|FEDRL|ICICI|HDFC|SBI|AXIS|KOTAK|YESB|IDFC|PNB|CANBNK|CANARA|UNION|INDUS|BOI|AUBANK|AUSFB|RBL|PAYTMB|PYTMB|SLICE|ONECRD|CITI|AMEX|SCBANK|DBS|HSBC|KVB|SIB|IDBI|IOB|CENTBK|UCO|IPB|AIRBNK|JIOPBK|FINO|EQUTAS|UJJIV|BANK|BNK|CARD")
+
+    private val NAMES = listOf(
+        "BOB|BARODA" to "Bank of Baroda", "FED" to "Federal Bank", "ICICI" to "ICICI", "HDFC" to "HDFC", "SBI" to "SBI",
+        "AXIS" to "Axis", "KOTAK" to "Kotak", "YESB" to "Yes Bank", "IDFC" to "IDFC First", "PNB" to "PNB", "CANBNK|CANARA" to "Canara",
+        "UNION" to "Union Bank", "INDUS" to "IndusInd", "BOIIND|BOISMS|^BOI" to "Bank of India", "AUBANK|AUSFB" to "AU Bank", "RBL" to "RBL",
+        "PAYTM|PYTM" to "Paytm", "SLICE" to "Slice", "ONECRD" to "OneCard", "CITI" to "Citi", "AMEX" to "Amex", "SCB" to "Standard Chartered",
+        "DBS" to "DBS", "HSBC" to "HSBC", "KVB" to "KVB", "SIB" to "South Indian Bank", "IDBI" to "IDBI", "IOB" to "IOB", "CENTBK" to "Central Bank",
+        "UCO" to "UCO", "IPB" to "India Post", "AIRBNK" to "Airtel Payments", "JIOPB" to "Jio Payments", "EQUTAS" to "Equitas",
+    )
+
     fun bankName(sender: String?): String {
-        val s = sender?.uppercase(Locale.ROOT).orEmpty()
-        return when {
-            "BOB" in s || "BARODA" in s -> "Bank of Baroda"
-            "FED" in s -> "Federal Bank"
-            "ICICI" in s -> "ICICI"
-            "HDFC" in s -> "HDFC"
-            "SBI" in s -> "SBI"
-            "AXIS" in s -> "Axis"
-            "KOTAK" in s -> "Kotak"
-            else -> s.substringAfter('-').substringBefore('-').ifEmpty { "Bank" }
-        }
+        val id = sender?.uppercase(Locale.ROOT)?.split('-')?.getOrNull(1).orEmpty()
+        return NAMES.firstOrNull { (k, _) -> Regex(k).containsMatchIn(id) }?.second ?: id.ifEmpty { "Bank" }
     }
 
     fun parse(sender: String?, body: String): BankTxn? {
         val text = body.replace(Regex("\\s+"), " ").trim()
         if (SKIP.containsMatchIn(text)) return null
         val bank = bankName(sender)
-        return icici(text) ?: bob(text) ?: federal(text) ?: kotak(text) ?: generic(text, bank)
+        val bankish = BANKISH.containsMatchIn(sender?.uppercase(Locale.ROOT).orEmpty())
+        return icici(text) ?: bob(text) ?: federal(text) ?: kotak(text) ?: generic(text, bank, bankish)
     }
 
     // ----- Known formats -----
@@ -128,31 +130,62 @@ object SmsParser {
         return null
     }
 
-    // ----- Anything else that clearly says an amount was debited / credited -----
-    private fun generic(t: String, bank: String): BankTxn? {
-        val amt = AMOUNT.find(t) ?: return null
-        val debit = DEBIT.find(t)
-        val credit = CREDIT.find(t)
+    // ----- Any other bank -----
+    // Needs an amount, a debit/credit word and (unless the sender is clearly a bank) a masked
+    // account or card number, so shop / app messages ("your order of Rs 250 is paid") are skipped.
+    private val ACCT = listOf(
+        Regex("(?i)\\b(?:account|acct|card|a/?c)[^0-9\\n]{0,20}?[xX*]+\\s?(\\d{3,6})"),   // A/c XX1234, Card *1234, A/cX4321
+        Regex("(?i)\\b(?:ending|ends)\\s*(?:with|in)?\\s*[xX*]*(\\d{3,6})"),                        // card ending 1234
+        Regex("(?i)\\b(?:card|a/?c|acct|account)\\s+(?:no\\.?\\s*)?(\\d{4})\\b"),                // Card 1234, a/c 3333
+    )
+    private val OUT_WORDS = Regex("(?i)\\b(debited|debit|dr|spent|paid|sent|withdrawn|withdrawal|purchase|transferred|deducted|charged|used)\\b")
+    private val IN_WORDS = Regex("(?i)\\b(credited|cr|received|deposited|refunded|added)\\b")
+    private val AMOUNT_WORD = Regex("(?i)(?:debited|credited|withdrawn|deposited)\\s+(?:by|with|for)\\s+(?:rs\\.?|inr|₹)?\\s*([0-9][0-9,]*(?:\\.\\d{1,2})?)")
+    private val NOT_AMOUNT = Regex("(?i)(bal|balance|limit|lmt|avl|available|outstanding|due|total)[^0-9]{0,6}$")
+    private val REF = listOf(
+        Regex("(?i)UPI[-/:](?:[A-Z]-|P2[AM]/)?(\\d{9,})"),
+        Regex("(?i)(?:UPI\\s*Ref(?:\\s*No)?|IMPS\\s*Ref(?:\\s*No)?|Ref(?:erence)?(?:\\s*No\\.?)?|RRN|UTR(?:\\s*No)?|Txn\\s*(?:ID|No)?|Transaction\\s*ID)[\\s:#.-]*([A-Z0-9]*\\d{8,}[A-Z0-9]*)"),
+    )
+    private val PAYEE = listOf(
+        Regex("(?i)UPI[-/](?:[A-Z]-)?\\d{6,}[-/]([^./]+?)(?:\\.|/|\\s+Not\\b|\\s+To\\b|$)"),          // UPI-4265…-NAME
+        Regex("(?i)UPI/(?:P2[AM]|[A-Z]{2,4})/\\d{6,}/([^/.]+?)(?:/|\\s+Not\\b|\\.|$)"),                    // UPI/P2M/4265…/NAME
+        Regex("(?i);\\s*([A-Za-z][A-Za-z0-9 &.'-]{1,40}?)\\s+credited"),                                    // ; NAME credited
+        Regex("(?i)(?:\\b(?:trf to|towards|to|at|from|by)\\b|\\binfo[:-])\\s*(?!your\\b|a/?c\\b|ac\\b|acct\\b|account\\b|rs\\b|inr\\b|the\\b|\\d)([A-Za-z0-9][A-Za-z0-9 &.'/_-]{1,40}?)(?=\\s+on\\b|\\s+via\\b|\\.\\s|\\s+Ref|\\s+UPI|\\s+Avl|\\s+Bal|\\s+Not\\b|\\s+from\\b|\\s*\\(|;|,|\\.$|$)"),
+    )
+
+    private fun generic(t: String, bank: String, bankish: Boolean): BankTxn? {
+        val acct = ACCT.firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) }?.takeLast(4)
+        if (acct == null && !bankish) return null
+        // "credit card" / "debit card" are not directions.
+        val plain = t.replace(Regex("(?i)(credit|debit)\\s+card"), "card")
+        val out = OUT_WORDS.find(plain); val inn = IN_WORDS.find(plain)
         val direction = when {
-            debit != null && (credit == null || debit.range.first < credit.range.first) -> "out"
-            credit != null -> "in"
+            out != null && (inn == null || out.range.first < inn.range.first) -> "out"
+            inn != null -> "in"
             else -> return null
         }
-        val card = Regex("(?i)credit card|card (ending|no\\.?)?\\s*(xx|x|\\*)").containsMatchIn(t)
-        val acct = Regex("(?i)(?:a/c|acct|account|card)(?: no\\.?| ending| ending with)?\\s*(?:[Xx*]+)(\\d{3,6})").find(t)?.groupValues?.get(1)?.takeLast(4)
-        val ref = Regex("(?i)(?:UPI[: -]|Ref(?:erence)?(?: No\\.?)?[: ]*|RRN[: ]*|txn(?: id)?[: ]*)(\\d{8,})").find(t)?.groupValues?.get(1)
+        val amount = AMOUNT_WORD.find(t)?.groupValues?.get(1)
+            ?: AMOUNT.findAll(t).firstOrNull { !NOT_AMOUNT.containsMatchIn(t.substring(maxOf(0, it.range.first - 24), it.range.first)) }?.groupValues?.get(1)
+            ?: return null
+        val card = Regex("(?i)\\bcard\\b").containsMatchIn(t)
+        val ref = REF.firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) }
         val vpa = Regex("[A-Za-z0-9._-]{2,}@[A-Za-z]{2,}").find(t)?.value
-        val name = vpa ?: Regex("(?i)(?:to|at|from|towards|for) ([A-Z][A-Za-z0-9 &.'-]{2,40}?)(?:\\.| on | Ref| UPI|;|$)").find(t)?.groupValues?.get(1)?.trim()
-        val date = Regex("(\\d{1,2}-[A-Za-z]{3}-\\d{2,4})").find(t)?.let { dmy(it.value) }
-            ?: Regex("(\\d{1,2}[A-Za-z]{3}\\d{2})").find(t)?.let { dMonY(it.value) }
-            ?: Regex("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b").find(t)?.let { m ->
+        val payee = (PAYEE.take(3).firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) } ?: vpa ?: PAYEE[3].find(t)?.groupValues?.get(1))
+            ?.trim()?.trimEnd('.')?.trim()?.takeUnless { it.isEmpty() || Regex("^[Xx*\\d\\s]+$").matches(it) }
+        return BankTxn(direction, money(amount), findDate(t), acct, card, payee, ref, bank)
+    }
+
+    private fun findDate(t: String): LocalDate? =
+        Regex("(\\d{1,2})[- ]([A-Za-z]{3})[a-z]*[- ,]+(\\d{2,4})\\b").find(t)?.let { m ->          // 26-Sep-26, 26 Sep 2026
+            runCatching { LocalDate.of(year(m.groupValues[3]), month(m.groupValues[2]), m.groupValues[1].toInt()) }.getOrNull()
+        }
+            ?: Regex("\\b(\\d{1,2}[A-Za-z]{3}\\d{2})\\b").find(t)?.let { dMonY(it.value) }                  // 23Aug26
+            ?: Regex("\\b(\\d{4})[-:/](\\d{2})[-:/](\\d{2})").find(t)?.let { m ->                                // 2026-09-21, 2026:09:09
                 runCatching { LocalDate.of(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt()) }.getOrNull()
             }
-            ?: Regex("\\b(\\d{1,2})[-/](\\d{1,2})[-/](\\d{2,4})\\b").find(t)?.let { m ->
+            ?: Regex("\\b(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{2,4})\\b").find(t)?.let { m ->                   // 20/09/26, 24-09-2026
                 runCatching { LocalDate.of(year(m.groupValues[3]), m.groupValues[2].toInt(), m.groupValues[1].toInt()) }.getOrNull()
             }
-        return BankTxn(direction, money(amt.groupValues[1]), date, acct, card, name, ref, bank)
-    }
 
     // ----- helpers -----
     private fun money(s: String) = s.replace(",", "").toDouble()

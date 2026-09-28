@@ -15,9 +15,11 @@ A small native app, installed from https://echopdo.vercel.app/download/ (not the
   a one-tap ✓. `QuickWidgetSmall` (2×1) — just − / + and the badge.
 - **Bank SMS capture** (`SmsParser`, `Captures`, `SmsReceiver`): off until turned on in Phone settings
   (`PairActivity`, also an icon shortcut); needs RECEIVE_SMS/READ_SMS — Android 13+ hides these for sideloaded
-  apps until App info → ⋮ → *Allow restricted settings* (the app walks through it). Only DLT bank senders
-  (`XX-BANKID-S`) are read; `SmsParser` knows Bank of Baroda, Federal, ICICI card/account and Kotak card/account
-  formats plus a generic fallback, skips OTP / due / request / offer messages. Only the parsed fields go to
+  apps until App info → ⋮ → *Allow restricted settings* (the app walks through it). Any business (DLT) sender
+  (`XX-HEADER[-S]`) is read, for any bank: a generic reader needs an amount, a debit/credit word and a masked
+  account/card number (or a bank-looking header), skips balance/limit amounts, OTP / due / request / offer
+  messages, and pulls payee (VPA, `UPI-…-NAME`, `UPI/P2M/…/NAME`, to/at/from/towards/Info:), UPI ref/RRN/UTR and
+  the date in any common format. Exact rules for BoB, Federal, ICICI and Kotak run first. Only the parsed fields go to
   the server (`capture` action) — never the SMS text. A notification offers ✓ <remembered category> / Change… /
   Ignore (or "Same, skip" when it matches an entry added by hand); "Change…" opens the quick-add sheet in
   capture mode (amount fixed, no keypad, "Always add <payee> like this"). "Look back 3 days" scans the inbox
