@@ -62,6 +62,9 @@ open class QuickWidget : AppWidgetProvider() {
             v.setOnClickPendingIntent(R.id.wHeader, activity(ctx, 1, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
             if (!Store.paired(ctx)) {
                 v.setTextViewText(R.id.wTitle, "eChopdo")
+                v.setTextViewText(R.id.wSub, "")
+                v.setTextViewText(R.id.wAvatar, "e")
+                v.setInt(R.id.wAvatarBg, "setColorFilter", C.accent)
                 v.setViewVisibility(R.id.wButtons, View.GONE)
                 v.setViewVisibility(R.id.wCaps, View.GONE)
                 v.setViewVisibility(R.id.wPair, View.VISIBLE)
@@ -69,7 +72,14 @@ open class QuickWidget : AppWidgetProvider() {
                 return v
             }
             val budget = Store.defaultTarget(ctx) == "budget"
-            v.setTextViewText(R.id.wTitle, listOf(Store.household(ctx), if (budget) "Budget" else "Hisab").filter { it.isNotEmpty() }.joinToString(" · "))
+            // Household: coloured initial + name, then where entries go.
+            val hh = Store.household(ctx).ifEmpty { "eChopdo" }
+            val hhColor = Store.config(ctx)?.optJSONObject("household")?.optString("color")
+                ?.let { runCatching { android.graphics.Color.parseColor(it) }.getOrNull() } ?: C.accent
+            v.setTextViewText(R.id.wTitle, hh)
+            v.setTextViewText(R.id.wAvatar, hh.take(1).uppercase())
+            v.setInt(R.id.wAvatarBg, "setColorFilter", hhColor)
+            v.setTextViewText(R.id.wSub, "· " + if (budget) "Budget" else "Hisab")
             v.setViewVisibility(R.id.wPair, View.GONE)
             v.setViewVisibility(R.id.wButtons, View.VISIBLE)
             v.setTextViewText(R.id.wOutLabel, if (budget) "Expense" else "Spent")

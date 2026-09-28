@@ -27,7 +27,7 @@ import java.io.File
 
 // Made-up household data only.
 private val CONFIG = """
-{"device":{"name":"Test phone","default_target":"hisab"},"household":{"name":"Home","color":null},
+{"device":{"name":"Test phone","default_target":"hisab"},"household":{"name":"Home","color":"#34d399"},
  "hisab":{"books":[{"id":"b1","name":"Daily","kind":"daily"},{"id":"b2","name":"Diwali","kind":"occasion"}],
   "out":[{"name":"Groceries","icon":"🥦"},{"name":"Food","icon":"🍽️"},{"name":"Fuel","icon":"⛽"},{"name":"Medical","icon":"💊"},{"name":"Other","icon":"📦"}],
   "in":[{"name":"Shagun","icon":"🧧"},{"name":"Refund","icon":"↩️"}],"sources":["Cash","UPI","Card"]},
@@ -136,7 +136,7 @@ class UiTest {
     @Test fun widgetShowsButtonsAndFrequent() {
         val v = QuickWidget.views(ctx).apply(ctx, FrameLayout(ctx))
         val host = host(v, 340, 150)
-        assertNotNull(find(v, "Home · Hisab"))
+        assertNotNull(find(v, "Home")); assertNotNull(find(v, "· Hisab")); assertNotNull(find(v, "H"))
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.wOut).visibility)
         assertEquals("Spent", v.findViewById<TextView>(R.id.wOutLabel).text.toString())
         assertEquals("Received", v.findViewById<TextView>(R.id.wInLabel).text.toString())

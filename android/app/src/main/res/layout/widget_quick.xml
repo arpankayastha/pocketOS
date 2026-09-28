@@ -15,19 +15,44 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal">
-        <ImageView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:src="@drawable/splash" />
+        <FrameLayout
+            android:layout_width="24dp"
+            android:layout_height="24dp">
+            <ImageView
+                android:id="@+id/wAvatarBg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:alpha="0.9"
+                android:src="@drawable/widget_avatar" />
+            <TextView
+                android:id="@+id/wAvatar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="H"
+                android:textColor="@color/bg"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </FrameLayout>
         <TextView
             android:id="@+id/wTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:maxLines="1"
+            android:text="Home"
+            android:textColor="@color/text"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/wSub"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="6dp"
-            android:maxLines="1"
             android:ellipsize="end"
-            android:text="Hisab"
+            android:maxLines="1"
+            android:text="· Hisab"
             android:textColor="@color/muted"
             android:textSize="12sp" />
         <TextView
