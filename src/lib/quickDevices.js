@@ -19,3 +19,9 @@ export function pairIntentUrl(code) {
   const fallback = encodeURIComponent(`${location.origin}/download/`)
   return `intent://pair?code=${code}#Intent;scheme=echopdo;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`
 }
+
+// Opens the Android app's own Phone settings (pairing, widgets, bank SMS).
+export function phoneSettingsUrl() {
+  const fallback = encodeURIComponent(`${location.origin}/download/`)
+  return `intent://pair#Intent;scheme=echopdo;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`
+}

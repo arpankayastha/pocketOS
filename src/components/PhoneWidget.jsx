@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useDialog } from '../lib/dialog'
 import { householdColor } from '../lib/colors'
 import { TrashIcon } from '../lib/icons'
-import { newPairCode, pairCodeHash, pairIntentUrl } from '../lib/quickDevices'
+import { newPairCode, pairCodeHash, pairIntentUrl, phoneSettingsUrl } from '../lib/quickDevices'
 
 // Settings → Phone widget: pair the eChopdo Android app (home-screen quick add) with a
 // household, choose what its quick-add form saves by default, and unpair phones.
@@ -90,6 +90,8 @@ export default function PhoneWidget({ Collapsible, households, activeHouseholdId
             </div>
           ))}
           <p className="muted small">Hisab / Budget is what the quick-add form opens on; it can be switched there for one entry.</p>
+          <a className="btn" href={phoneSettingsUrl()}>📱 Phone settings · Bank SMS &amp; widgets</a>
+          <p className="muted small">Opens the eChopdo app's settings on this phone: turn on reading bank SMS, add the widgets.</p>
         </div>
       )}
 
