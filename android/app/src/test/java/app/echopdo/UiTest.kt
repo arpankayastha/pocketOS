@@ -135,7 +135,7 @@ class UiTest {
 
     @Test fun widgetShowsButtonsAndFrequent() {
         val v = QuickWidget.views(ctx).apply(ctx, FrameLayout(ctx))
-        val host = host(v, 340, 110)
+        val host = host(v, 340, 150)
         assertNotNull(find(v, "Home · Hisab"))
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.wOut).visibility)
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.p0).visibility)
@@ -147,8 +147,8 @@ class UiTest {
         shot(host, "3-widget")
 
         // Taller widget: bank payments waiting to be added, with a one-tap ✓ for known payees.
-        val tall = QuickWidget.large(ctx, android.os.Bundle().apply { putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 180) }).apply(ctx, FrameLayout(ctx))
-        val tallHost = host(tall, 340, 190)
+        val tall = QuickWidget.large(ctx, android.os.Bundle().apply { putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 230) }).apply(ctx, FrameLayout(ctx))
+        val tallHost = host(tall, 340, 240)
         assertEquals(View.VISIBLE, tall.findViewById<View>(R.id.wCaps).visibility)
         assertEquals("−₹270  DEMO STORE", tall.findViewById<TextView>(R.id.c0t).text.toString())
         assertEquals("✓ 🍽️", tall.findViewById<TextView>(R.id.c0a).text.toString())

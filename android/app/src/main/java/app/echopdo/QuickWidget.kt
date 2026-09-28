@@ -98,7 +98,7 @@ open class QuickWidget : AppWidgetProvider() {
             v.setViewVisibility(R.id.wBadge, if (count > 0) View.VISIBLE else View.GONE)
             v.setTextViewText(R.id.wBadge, "$count to add")
             if (count > 0) v.setOnClickPendingIntent(R.id.wBadge, activity(ctx, 5, Captures.chooseIntent(ctx, caps!!.getJSONObject(0))))
-            val tall = (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0) >= 120
+            val tall = (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0) >= 170
             v.setViewVisibility(R.id.wCaps, if (tall && count > 0) View.VISIBLE else View.GONE)
             CAPS.forEachIndexed { i, (row, text, act) ->
                 if (!tall || i >= count) { v.setViewVisibility(row, View.GONE); return@forEachIndexed }

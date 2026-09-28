@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Large widget: − / + icon buttons, frequent Hisab entries as icon chips, and payments read
-     from bank SMS waiting to be added (rows hidden when the widget is short). -->
+<!-- Large widget: two wide − / + buttons (icons), frequent Hisab entries as icon chips, and payments
+     read from bank SMS waiting to be added (rows only when the widget is tall). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/wRoot"
     android:layout_width="match_parent"
@@ -50,39 +50,41 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="6dp"
-        android:gravity="center_vertical"
-        android:minHeight="52dp"
+        android:layout_marginTop="8dp"
+        android:minHeight="44dp"
         android:orientation="horizontal">
         <ImageView
             android:id="@+id/wOut"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:background="@drawable/widget_circle_out"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_btn_out"
             android:contentDescription="Spent"
-            android:padding="13dp"
+            android:scaleType="center"
             android:src="@drawable/ic_w_out" />
         <ImageView
             android:id="@+id/wIn"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/widget_circle_in"
-            android:contentDescription="Received"
-            android:padding="13dp"
-            android:src="@drawable/ic_w_in" />
-        <LinearLayout
-            android:id="@+id/wPresets"
             android:layout_width="0dp"
-            android:layout_height="44dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
             android:layout_marginStart="6dp"
-            android:orientation="horizontal"
-            android:visibility="gone">
-            <TextView android:id="@+id/p0" style="@style/WidgetChip" />
-            <TextView android:id="@+id/p1" style="@style/WidgetChip" />
-            <TextView android:id="@+id/p2" style="@style/WidgetChip" />
-        </LinearLayout>
+            android:background="@drawable/widget_btn_in"
+            android:contentDescription="Received"
+            android:scaleType="center"
+            android:src="@drawable/ic_w_in" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/wPresets"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <TextView android:id="@+id/p0" style="@style/WidgetChip" />
+        <TextView android:id="@+id/p1" style="@style/WidgetChip" />
+        <TextView android:id="@+id/p2" style="@style/WidgetChip" />
     </LinearLayout>
 
     <LinearLayout
