@@ -11,9 +11,9 @@ import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
 
-// Home-screen widgets (icons only): − / + open the quick-add sheet. The large one also shows
-// the household's frequent Hisab entries as one-tap icon chips (Undo in a notification) and,
-// when tall enough, payments read from bank SMS with a one-tap ✓. The small one is just − / +
+// Home-screen widgets: − Spent / + Received open the quick-add sheet (manual entry only). The
+// large one has a household header and, when tall enough, payments read from bank SMS with a
+// one-tap ✓. The small one is just − / +
 // with a badge counting payments waiting to be added.
 open class QuickWidget : AppWidgetProvider() {
     override fun onUpdate(ctx: Context, mgr: AppWidgetManager, ids: IntArray) {
@@ -28,7 +28,6 @@ open class QuickWidget : AppWidgetProvider() {
     open fun views(ctx: Context, options: Bundle?): RemoteViews = large(ctx, options)
 
     companion object {
-        private val CHIPS = intArrayOf(R.id.p0, R.id.p1, R.id.p2)
         private val CAPS = listOf(Triple(R.id.c0, R.id.c0t, R.id.c0a), Triple(R.id.c1, R.id.c1t, R.id.c1a))
 
         fun refreshAll(ctx: Context) {
@@ -87,22 +86,8 @@ open class QuickWidget : AppWidgetProvider() {
             v.setOnClickPendingIntent(R.id.wOut, activity(ctx, 3, quickIntent(ctx, "out")))
             v.setOnClickPendingIntent(R.id.wIn, activity(ctx, 4, quickIntent(ctx, "in")))
 
-            // Frequent Hisab entries: icon + amount, one tap saves.
-            val frequent = if (budget) null else Store.config(ctx)?.optJSONArray("frequent")
-            val n = minOf(frequent?.length() ?: 0, CHIPS.size)
-            v.setViewVisibility(R.id.wPresets, if (n > 0) View.VISIBLE else View.GONE)
-            CHIPS.forEachIndexed { i, id ->
-                if (i >= n) { v.setViewVisibility(id, View.GONE); return@forEachIndexed }
-                val f = frequent!!.getJSONObject(i)
-                val sign = if (f.optString("direction") == "in") "+" else ""
-                v.setViewVisibility(id, View.VISIBLE)
-                v.setTextViewText(id, "${f.optString("icon")} $sign${short(f.optDouble("amount"))}")
-                v.setContentDescription(id, "${f.optString("category")} ${Calc.money(f.optDouble("amount"))}")
-                val tap = Intent(ctx, ActionReceiver::class.java).setAction(ActionReceiver.PRESET)
-                    .putExtra("direction", f.optString("direction", "out")).putExtra("amount", f.optDouble("amount"))
-                    .putExtra("category", f.optString("category")).putExtra("source", f.optString("source"))
-                v.setOnClickPendingIntent(id, PendingIntent.getBroadcast(ctx, 10 + i, tap, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
-            }
+            // Manual only (the user's choice): no suggestion chips.
+            v.setViewVisibility(R.id.wPresets, View.GONE)
 
             // Payments read from bank SMS, waiting to be added.
             val caps = pending(ctx)

@@ -140,10 +140,7 @@ class UiTest {
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.wOut).visibility)
         assertEquals("Spent", v.findViewById<TextView>(R.id.wOutLabel).text.toString())
         assertEquals("Received", v.findViewById<TextView>(R.id.wInLabel).text.toString())
-        assertEquals(View.VISIBLE, v.findViewById<View>(R.id.p0).visibility)
-        assertEquals("🥦 60", v.findViewById<TextView>(R.id.p0).text.toString())
-        assertEquals("⛽ 500", v.findViewById<TextView>(R.id.p1).text.toString())
-        assertEquals(View.GONE, v.findViewById<View>(R.id.p2).visibility)
+        assertEquals(View.GONE, v.findViewById<View>(R.id.wPresets).visibility) // manual only: no suggestion chips
         assertEquals("2 to add", v.findViewById<TextView>(R.id.wBadge).text.toString())
         assertEquals(View.GONE, v.findViewById<View>(R.id.wCaps).visibility) // short widget: no payment rows
         shot(host, "3-widget")
