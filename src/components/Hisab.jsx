@@ -13,13 +13,15 @@ const dayHead = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { w
 const shortDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 const sum = (rows, dir) => rows.filter((e) => e.direction === dir).reduce((s, e) => s + Number(e.amount), 0)
 
-// Budget → Hisab: cash books that don't touch Budget totals. `addSignal` bumps when the
-// floating + is tapped on this tab: it adds to the open book, or to Daily from the list.
+// Budget → Hisab: cash books that don't touch Budget totals. The tab opens straight on the Daily
+// book (what's used every day); occasion books (Diwali, a wedding…) sit behind the "Occasions"
+// button, with recently used ones as chips under the month total. `addSignal` bumps when the
+// floating + is tapped on this tab: it adds to the open book.
 export default function Hisab({ activeHouseholdId, addSignal }) {
   const [books, setBooks] = useState(null)
-  const [bookId, setBookId] = useState(null)
+  const [bookId, setBookId] = useState(null) // an occasion book; null = Daily
   const [addReq, setAddReq] = useState(0)
-  const [openAdd, setOpenAdd] = useState(false)
+  const [showOccasions, setShowOccasions] = useState(false)
   const [editingBook, setEditingBook] = useState(null) // {} new, or a book
   const [error, setError] = useState(null)
   const [categories, setCategories] = useState([])
@@ -35,68 +37,66 @@ export default function Hisab({ activeHouseholdId, addSignal }) {
   useEffect(() => {
     if (addSignal === lastSignal.current || !books) return
     lastSignal.current = addSignal
-    // From the book list: open Daily with the entry sheet already up (BookView reads openAdd on
-    // mount); inside a book: bump addReq so the open BookView shows the sheet.
-    if (!bookId) { setBookId(books.find((b) => b.kind === 'daily')?.id); setOpenAdd(true) }
-    else setAddReq((n) => n + 1)
-  }, [addSignal, books, bookId])
+    setShowOccasions(false)
+    setAddReq((n) => n + 1)
+  }, [addSignal, books])
 
   useBackAction(!!bookId, () => setBookId(null), 3)
-  const book = books?.find((b) => b.id === bookId)
-
-  if (book) return <BookView book={book} categories={categories} addReq={addReq} openAdd={openAdd} onAddOpened={() => setOpenAdd(false)} onBack={() => setBookId(null)} onChanged={load} onEdit={() => setEditingBook(book)} editor={editingBook && (
-    <BookForm book={editingBook} householdId={activeHouseholdId} onClose={() => setEditingBook(null)}
-      onSaved={() => { setEditingBook(null); load() }} onDeleted={() => { setEditingBook(null); setBookId(null); load() }} />
-  )} />
-
   const daily = books?.find((b) => b.kind === 'daily')
   const occasions = books?.filter((b) => b.kind !== 'daily') || []
-  return (
-    <section>
-      {error && <div className="alert error">{error}</div>}
-      {!books ? <div className="card"><SkeletonRows rows={3} /></div> : (
-        <>
-          <button className="card hb-daily" onClick={() => setBookId(daily.id)}>
-            <span className="hb-icon">🗓️</span>
-            <div className="grow">
-              <div className="hb-name">Daily</div>
-              <div className="muted small">Everyday spends · {monthLabel(currentMonth())}</div>
-            </div>
-            <div className="hb-amt"><b className="amt neg">{money(daily.monthOut)}</b><span className="muted small">this month</span></div>
-          </button>
+  const book = books?.find((b) => b.id === bookId) || daily
+  const open = (id) => { setShowOccasions(false); setBookId(id) }
 
-          <div className="hb-section">
-            <h3>Occasions</h3>
-            <button className="btn primary small" onClick={() => setEditingBook({})}>+ New book</button>
-          </div>
-          {occasions.length === 0 ? (
-            <div className="card empty-module">
-              <BookIcon />
-              <b>No occasion books yet</b>
-              <p className="muted small">Make one for Diwali, a wedding or a trip, and log every bill of that shopping into it — cash, card, whoever paid. It stays out of your Budget totals.</p>
-            </div>
-          ) : (
-            <div className="hb-list">
-              {occasions.map((b) => (
-                <button key={b.id} className="card hb-card" onClick={() => setBookId(b.id)}>
-                  <div className="hb-top">
-                    <span className="hb-icon">📒</span>
-                    <div className="grow">
-                      <div className="hb-name">{b.name}</div>
-                      <div className="muted small">{b.first ? `${shortDate(b.first)}${b.last !== b.first ? ` – ${shortDate(b.last)}` : ''}` : 'no entries yet'} · {b.count} entr{b.count === 1 ? 'y' : 'ies'}</div>
-                    </div>
-                    <div className="hb-amt"><b className="amt neg">{money(b.out)}</b>{b.in > 0 && <span className="small pos">+{money(b.in)} in</span>}</div>
-                  </div>
-                  {b.target && <TargetBar spent={b.out} target={b.target} />}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      )}
+  if (!book) return <section>{error ? <div className="alert error">{error}</div> : <div className="card"><SkeletonRows rows={4} /></div>}</section>
+  return (
+    <>
+      <BookView key={book.id} book={book} categories={categories} addReq={addReq} occasions={occasions}
+        onOccasions={() => setShowOccasions(true)} onOpenBook={open}
+        onBack={() => setBookId(null)} onChanged={load} onEdit={() => setEditingBook(book)} />
+      {showOccasions && <OccasionsSheet occasions={occasions} onOpen={open} onClose={() => setShowOccasions(false)}
+        onNew={() => { setShowOccasions(false); setEditingBook({}) }} />}
       {editingBook && <BookForm book={editingBook.id ? editingBook : null} householdId={activeHouseholdId} onClose={() => setEditingBook(null)}
-        onSaved={(b) => { setEditingBook(null); load(); setBookId(b.id) }} onDeleted={() => { setEditingBook(null); load() }} />}
-    </section>
+        onSaved={(b) => { setEditingBook(null); load(); setBookId(b.id) }} onDeleted={() => { setEditingBook(null); setBookId(null); load() }} />}
+    </>
+  )
+}
+
+// Occasions used in the last 30 days (or just made) show as chips under Daily's total.
+const RECENT_MS = 30 * 86400_000
+const isRecent = (b) => Date.now() - new Date(b.last ? `${b.last}T00:00:00` : b.created_at).getTime() < RECENT_MS
+
+function OccasionCard({ b, onOpen }) {
+  return (
+    <button className="card hb-card" onClick={() => onOpen(b.id)}>
+      <div className="hb-top">
+        <span className="hb-icon">📒</span>
+        <div className="grow">
+          <div className="hb-name">{b.name}</div>
+          <div className="muted small">{b.first ? `${shortDate(b.first)}${b.last !== b.first ? ` – ${shortDate(b.last)}` : ''}` : 'no entries yet'} · {b.count} entr{b.count === 1 ? 'y' : 'ies'}</div>
+        </div>
+        <div className="hb-amt"><b className="amt neg">{money(b.out)}</b>{b.in > 0 && <span className="small pos">+{money(b.in)} in</span>}</div>
+      </div>
+      {b.target && <TargetBar spent={b.out} target={b.target} />}
+    </button>
+  )
+}
+
+function OccasionsSheet({ occasions, onOpen, onClose, onNew }) {
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <div className="card modal hb-occ-sheet" onMouseDown={(e) => e.stopPropagation()}>
+        <h3>Occasions</h3>
+        <p className="muted small">A separate book for Diwali, a wedding or a trip — every bill of it in one place, outside Daily and your Budget totals.</p>
+        {occasions.length === 0
+          ? <div className="hb-occ-empty muted small"><BookIcon /> No occasion books yet</div>
+          : <div className="hb-list">{occasions.map((b) => <OccasionCard key={b.id} b={b} onOpen={onOpen} />)}</div>}
+        <div className="actions">
+          <button type="button" className="btn" onClick={onClose}>Close</button>
+          <div className="spacer" />
+          <button type="button" className="btn primary" onClick={onNew}>+ New book</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -110,7 +110,7 @@ function TargetBar({ spent, target }) {
   )
 }
 
-function BookView({ book, categories, addReq, openAdd, onAddOpened, onBack, onChanged, onEdit, editor }) {
+function BookView({ book, categories, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit }) {
   const [entries, setEntries] = useState(null)
   const [view, setView] = useState('daily') // daily | calendar | summary
   const [month, setMonth] = useState(currentMonth)
@@ -127,7 +127,6 @@ function BookView({ book, categories, addReq, openAdd, onAddOpened, onBack, onCh
   useEffect(() => {
     if (addReq !== lastAdd.current) { lastAdd.current = addReq; setSheet({}) }
   }, [addReq])
-  useEffect(() => { if (openAdd) { setSheet({}); onAddOpened() } }, [openAdd, onAddOpened])
 
   const changed = () => { load(); onChanged() }
   const shown = useMemo(() => (entries || []).filter((e) => !isDaily || e.occurred_on.startsWith(month)), [entries, isDaily, month])
@@ -139,22 +138,51 @@ function BookView({ book, categories, addReq, openAdd, onAddOpened, onBack, onCh
   }, [entries])
   const swipe = useMonthSwipe(month, setMonth)
   const cal = isDaily ? month : calMonth || (entries?.[0]?.occurred_on.slice(0, 7) ?? currentMonth())
+  // Daily's summary line: today (this month only) and the average per day so far.
+  const now = currentMonth()
+  const todayOut = month === now ? sum(shown.filter((e) => e.occurred_on === today()), 'out') : null
+  const [y, m] = month.split('-').map(Number)
+  const days = month === now ? Number(today().slice(8, 10)) : month < now ? new Date(y, m, 0).getDate() : 0
+  const recent = (occasions || []).filter(isRecent)
 
   return (
     <section {...(isDaily ? swipe : {})}>
-      <div className="hb-head">
-        <button className="btn icon" aria-label="All books" onClick={onBack}>‹</button>
-        <h2 className="grow">{book.name}</h2>
-        {!isDaily && <button className="btn icon" aria-label="Edit book" onClick={onEdit}><PencilIcon /></button>}
-      </div>
-      {isDaily && <div className="toolbar"><MonthPicker month={month} setMonth={setMonth} /></div>}
+      {isDaily ? (
+        <div className="card hb-hero">
+          <div className="hb-hero-top">
+            <MonthPicker month={month} setMonth={setMonth} />
+            <button className="chip chip-btn hb-occ-btn" onClick={onOccasions}>📒 Occasions{occasions?.length ? <span className="hb-occ-count">{occasions.length}</span> : null}</button>
+          </div>
+          <div className="muted small">Spent</div>
+          {entries ? <div className="hb-hero-num neg">{money(out)}</div> : <div className="skel" style={{ height: 34, width: '60%' }} />}
+          <div className="hb-hero-stats">
+            {todayOut !== null && <div><span className="muted small">Today</span><b>{money(todayOut)}</b></div>}
+            {days > 0 && <div><span className="muted small">Per day</span><b>{money(Math.round(out / days))}</b></div>}
+            <div><span className="muted small">Received</span><b className="pos">{money(inn)}</b></div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="hb-head">
+            <button className="btn icon" aria-label="Back to Daily" onClick={onBack}>‹</button>
+            <h2 className="grow">📒 {book.name}</h2>
+            <button className="btn icon" aria-label="Edit book" onClick={onEdit}><PencilIcon /></button>
+          </div>
+          <div className="tiles hb-tiles">
+            <div className="card tile"><div className="muted small">Spent</div>{entries ? <div className="big-num neg">{money(out)}</div> : <div className="skel" style={{ height: 22 }} />}</div>
+            <div className="card tile"><div className="muted small">Received</div>{entries ? <div className="big-num pos">{money(inn)}</div> : <div className="skel" style={{ height: 22 }} />}</div>
+          </div>
+          {book.target && entries && <div className="card"><TargetBar spent={out} target={book.target} /></div>}
+        </>
+      )}
       {error && <div className="alert error">{error}</div>}
-
-      <div className="tiles hb-tiles">
-        <div className="card tile"><div className="muted small">Spent</div>{entries ? <div className="big-num neg">{money(out)}</div> : <div className="skel" style={{ height: 22 }} />}</div>
-        <div className="card tile"><div className="muted small">Received</div>{entries ? <div className="big-num pos">{money(inn)}</div> : <div className="skel" style={{ height: 22 }} />}</div>
-      </div>
-      {book.target && entries && <div className="card"><TargetBar spent={out} target={book.target} /></div>}
+      {isDaily && recent.length > 0 && (
+        <div className="hb-recent">
+          {recent.map((b) => (
+            <button key={b.id} className="chip chip-btn" onClick={() => onOpenBook(b.id)}>📒 {b.name} <b className="amt">{moneyShort(b.out)}</b> ›</button>
+          ))}
+        </div>
+      )}
 
       <div className="seg seg3 hb-views">
         {[['daily', 'Daily'], ['calendar', 'Calendar'], ['summary', 'Summary']].map(([id, label]) => (
@@ -173,7 +201,6 @@ function BookView({ book, categories, addReq, openAdd, onAddOpened, onBack, onCh
       {sheet && <EntrySheet book={book} categories={categories} entry={sheet.id ? sheet : null} used={used}
         defaultDate={isDaily && month !== currentMonth() ? `${month}-01` : today()}
         onClose={() => setSheet(null)} onSaved={changed} />}
-      {editor}
     </section>
   )
 }
