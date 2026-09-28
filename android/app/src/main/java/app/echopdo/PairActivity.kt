@@ -144,8 +144,9 @@ class PairActivity : Activity() {
         add(label("BANK SMS", 11f, C.muted, true).apply { letterSpacing = 0.08f; setPadding(0, dp(22), 0, dp(6)) })
         if (Captures.active(this)) {
             add(para("On. When a bank SMS says money went out or came in, you get a notification to add it in one tap. Only the amount, date, last digits, payee and reference are sent — the SMS stays on this phone."))
+            Store.smsStatus(this)?.let { add(label(it, 12f, C.accent).apply { setPadding(0, 0, 0, dp(10)) }) }
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            row.addView(button("Look back 3 days", false) { scan(3) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(5) })
+            row.addView(button("Look back 7 days", false) { scan(7) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(5) })
             row.addView(button("Turn off", false) { Store.setSmsEnabled(this, false); showPaired(null) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(5) })
             add(row)
         } else {
@@ -164,7 +165,7 @@ class PairActivity : Activity() {
         if (Captures.smsPermitted(this)) {
             Store.setSmsEnabled(this, true)
             showPaired(null)
-            scan(3)
+            scan(7)
         } else showRestricted()
     }
 
@@ -187,11 +188,20 @@ class PairActivity : Activity() {
     private fun scan(days: Int) {
         android.widget.Toast.makeText(this, "Looking through the last $days days…", android.widget.Toast.LENGTH_SHORT).show()
         Thread {
-            val n = runCatching { Captures.scanInbox(applicationContext, days) }.getOrDefault(0)
+            val summary = runCatching { Captures.scanInbox(applicationContext, days) }.getOrElse { "Look-back failed: ${it.javaClass.simpleName} ${it.message.orEmpty()}".also { m -> Store.setSmsStatus(applicationContext, m) } }
             runOnUiThread {
-                android.widget.Toast.makeText(this, if (n == 0) "No new bank payments found" else "Found $n payment${if (n == 1) "" else "s"} — see the widget or eChopdo to add them", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(this, summary, android.widget.Toast.LENGTH_LONG).show()
+                if (!isFinishing) showPaired(null)
             }
         }.start()
+    }
+
+    // Coming back from Android settings (SMS allowed there): start capturing and look back once.
+    override fun onResume() {
+        super.onResume()
+        if (Store.paired(this) && Captures.smsPermitted(this) && Store.smsStatus(this) == null && Store.smsEnabled(this)) {
+            showPaired(null); scan(7)
+        }
     }
 
     private fun askNotifications() {

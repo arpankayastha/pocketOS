@@ -28,9 +28,12 @@ object SmsParser {
     private val AMOUNT = Regex("(?i)(?:rs\\.?|inr|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)")
 
     /** True for business (DLT) sender ids like "JK-BOBSMS-S", "AD-FEDBNK-T", "VM-HDFCBK" — any bank. */
+    // Phones store these differently ("JK-BOBSMS-S", "JKBOBSMS", "BOBSMS"), so: any sender name
+    // with letters that isn't a phone number. The message itself is checked strictly in parse().
     fun fromBank(sender: String?): Boolean {
         val s = sender?.uppercase(Locale.ROOT)?.trim() ?: return false
-        return Regex("^[A-Z]{2}-[A-Z0-9]{3,9}(-[A-Z])?$").matches(s)
+        if (Regex("^\\+?[0-9 ()-]{6,}$").matches(s)) return false
+        return Regex("^[A-Z0-9-]{3,20}$").matches(s) && s.count { it.isLetter() } >= 3
     }
 
     // Header ids that are banks / cards / payment banks (a message from these may skip the
@@ -47,7 +50,8 @@ object SmsParser {
     )
 
     fun bankName(sender: String?): String {
-        val id = sender?.uppercase(Locale.ROOT)?.split('-')?.getOrNull(1).orEmpty()
+        val parts = sender?.uppercase(Locale.ROOT)?.split('-').orEmpty()
+        val id = (if (parts.size >= 2 && parts[0].length == 2) parts[1] else parts.maxByOrNull { it.length }).orEmpty()
         return NAMES.firstOrNull { (k, _) -> Regex(k).containsMatchIn(id) }?.second ?: id.ifEmpty { "Bank" }
     }
 

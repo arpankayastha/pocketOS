@@ -32,7 +32,9 @@ object Captures {
         .put("account_hint", t.accountHint).put("card", t.card).put("payee", t.payee).put("ref", t.ref).put("bank", t.bank)
 
     /** Blocking. Sends one parsed SMS; shows the notification. Returns false if it was already sent. */
-    fun handle(ctx: Context, sender: String?, text: String, smsTime: Long, notify: Boolean = true): Boolean {
+    var lastError: String? = null
+
+    fun handle(ctx: Context, sender: String?, text: String, smsTime: Long, notify: Boolean = true, refresh: Boolean = true): Boolean {
         if (!SmsParser.fromBank(sender)) return false
         val t = SmsParser.parse(sender, text) ?: return false
         if (!Store.markSeen(ctx, t.ref ?: "${sender}|${text.hashCode()}")) return false
@@ -41,26 +43,39 @@ object Captures {
             val res = Api.call(ctx, JSONObject(req.toString()))
             if (notify && !res.optBoolean("duplicate")) show(ctx, res)
         } catch (e: IOException) {
-            Store.enqueue(ctx, req); SyncWorker.schedule(ctx)
+            Store.enqueue(ctx, req); SyncWorker.schedule(ctx); lastError = "offline — queued"
         } catch (e: ApiError) {
+            lastError = e.message
             if (e.unpaired) QuickWidget.refreshAll(ctx)
         }
-        runCatching { Api.refreshConfig(ctx) }
+        if (refresh) runCatching { Api.refreshConfig(ctx) }
+        if (notify) Store.setSmsStatus(ctx, "Last payment read ${java.time.LocalTime.now().withNano(0).withSecond(0)} · ${Calc.money(t.amount)} ${t.bank}")
         return true
     }
 
     /** Blocking. Reads bank SMS from the last [days] days (after turning capture on). */
-    fun scanInbox(ctx: Context, days: Int): Int {
-        if (ctx.checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) return 0
+    /** Blocking. Reads bank SMS from the last [days] days. Returns a one-line summary (also kept as the status). */
+    fun scanInbox(ctx: Context, days: Int): String {
+        if (ctx.checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) return "SMS reading isn't allowed yet".also { Store.setSmsStatus(ctx, it) }
         val since = System.currentTimeMillis() - days * 86_400_000L
-        var n = 0
+        var total = 0; var fromBanks = 0; var payments = 0; var sent = 0
+        lastError = null
         ctx.contentResolver.query(Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
             "${Telephony.Sms.DATE} >= ?", arrayOf(since.toString()), "${Telephony.Sms.DATE} ASC")?.use { c ->
             while (c.moveToNext()) {
-                if (handle(ctx, c.getString(0), c.getString(1) ?: "", c.getLong(2), notify = false)) n++
+                total++
+                val sender = c.getString(0); val text = c.getString(1) ?: ""
+                if (!SmsParser.fromBank(sender)) continue
+                fromBanks++
+                if (SmsParser.parse(sender, text) != null) payments++
+                if (handle(ctx, sender, text, c.getLong(2), notify = false, refresh = false)) sent++
             }
         }
-        return n
+        runCatching { Api.refreshConfig(ctx) }
+        val summary = "Looked back $days days: $total SMS, $fromBanks from banks/services, $payments payments" +
+            (if (sent < payments) ", ${payments - sent} already sent" else "") + (lastError?.let { " · $it" } ?: "")
+        Store.setSmsStatus(ctx, summary)
+        return summary
     }
 
     // ----- Notification with one-tap actions -----

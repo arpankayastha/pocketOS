@@ -47,7 +47,10 @@ object Store {
     }
 
     // ----- Bank SMS capture -----
-    fun smsEnabled(ctx: Context) = prefs(ctx).getBoolean("sms", false)
+    // On unless turned off in the app (allowing SMS in Android settings is enough to start).
+    fun smsEnabled(ctx: Context) = prefs(ctx).getBoolean("sms", true)
+    fun smsStatus(ctx: Context): String? = prefs(ctx).getString("smsStatus", null)
+    fun setSmsStatus(ctx: Context, s: String) { prefs(ctx).edit().putString("smsStatus", s).apply() }
     fun setSmsEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("sms", on).apply() }
 
     /** Remembers the last few hundred SMS already sent, so a re-scan doesn't send them again. */

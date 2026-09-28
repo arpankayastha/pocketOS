@@ -125,6 +125,7 @@ class SmsParserTest {
     @Test fun senderFilter() {
         assertTrue(SmsParser.fromBank("JK-BOBSMS-S")); assertTrue(SmsParser.fromBank("AD-FEDBNK-T")); assertTrue(SmsParser.fromBank("JD-ICICIT-S"))
         assertTrue(SmsParser.fromBank("VM-HDFCBK")); assertTrue(SmsParser.fromBank("BZ-PAYTMB"))
-        assertFalse(SmsParser.fromBank("+919000000001")); assertFalse(SmsParser.fromBank("Mom")); assertFalse(SmsParser.fromBank(null))
+        assertTrue(SmsParser.fromBank("JKBOBSMS")); assertTrue(SmsParser.fromBank("BOBSMS"))
+        assertFalse(SmsParser.fromBank("+919000000001")); assertFalse(SmsParser.fromBank("90000 00001")); assertFalse(SmsParser.fromBank(null))
     }
 }
