@@ -183,6 +183,16 @@ class UiTest {
         assertNotNull(find(root, "No internet — try again."))
     }
 
+    @Test fun autoAddedPaymentCanBeChangedOrRemoved() {
+        val cap = JSONObject(CONFIG).getJSONArray("pending").getJSONObject(1)
+            .put("guess", JSONObject().put("target", "hisab").put("category", "Shagun").put("label", "Shagun")).put("refile", true)
+        val act = Robolectric.buildActivity(QuickAddActivity::class.java, Captures.chooseIntent(ctx, cap)).setup().get()
+        val root = act.window.decorView
+        assertNotNull(find(root, "Save")); assertNotNull(find(root, "Remove"))
+        assertNotNull(find(root, "DEMO SENDER")) // note = the payee / UPI id
+        assertNotNull(find(root, "🧧  Shagun"))
+    }
+
     @Test fun smsIsParsedQueuedOfflineAndNotSentTwice() {
         val sms = "Debited Rs 270.00 from a/c X5678 on 23Sep26 19:53 via UPI to DEMO STORE D. Ref 315300000003.Bal Rs 342.77. Not you?Call 18004251199 -Federal Bank"
         assertTrue(Captures.handle(ctx, "AD-FEDBNK-T", sms, System.currentTimeMillis()))

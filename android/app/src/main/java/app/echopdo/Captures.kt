@@ -120,19 +120,21 @@ object Captures {
         val b = Notification.Builder(ctx, CHANNEL).setSmallIcon(R.drawable.ic_stat).setColor(0xFF60A5FA.toInt())
             .setAutoCancel(true).setContentIntent(choose).setSubText(subtitle(c))
         val filed = c.optJSONObject("filed")
-        val sug = c.optJSONObject("suggestion")
+        val sug = c.optJSONObject("suggestion") ?: c.optJSONObject("guess")
+        val icon = c.optString("icon").takeIf { it.isNotEmpty() && it != "null" }?.let { "$it " } ?: ""
+        val label = c.optString("label").takeIf { it.isNotEmpty() && it != "null" }
+        val where = if (filed?.optString("target") == "budget") "Budget" else "Hisab"
         when {
-            filed != null -> {
-                val undo = Intent(ctx, ActionReceiver::class.java).setAction(ActionReceiver.UNDO)
-                    .putExtra("id", filed.optString("id")).putExtra("target", filed.optString("target")).putExtra("nid", id)
-                b.setContentTitle(title(c)).setContentText("Added to ${sug?.optString("label") ?: "Hisab"} automatically")
-                    .setTimeoutAfter(15 * 60_000L)
-                    .addAction(Notification.Action.Builder(null, "Undo", PendingIntent.getBroadcast(ctx, id + 1, undo, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)).build())
+            filed != null && !filed.has("already") -> {
+                // Added automatically: Change… reopens it in the sheet, Remove takes it out.
+                b.setContentTitle("Added ${title(c)}").setContentText("$icon${label ?: where} · $where")
+                    .setContentIntent(PendingIntent.getActivity(ctx, id, chooseIntent(ctx, c.put("refile", true)), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                    .addAction(Notification.Action.Builder(null, "Change…", PendingIntent.getActivity(ctx, id + 5, chooseIntent(ctx, c.put("refile", true)), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)).build())
+                    .addAction(Notification.Action.Builder(null, "Remove", actionIntent(ctx, ActionReceiver.CAP_UNFILE, c, id + 6)).build())
             }
-            c.optJSONObject("match") != null -> {
-                b.setContentTitle(title(c)).setContentText("Looks like one you already added. Same payment?")
-                    .addAction(Notification.Action.Builder(null, "Same, skip", actionIntent(ctx, ActionReceiver.CAP_MATCH, c, id + 2)).build())
-                    .addAction(Notification.Action.Builder(null, "Add new…", choose).build())
+            c.optBoolean("matched") -> {
+                b.setContentTitle(title(c)).setContentText("Already added by you — not added again")
+                    .addAction(Notification.Action.Builder(null, "Add anyway", PendingIntent.getActivity(ctx, id + 7, chooseIntent(ctx, c.put("refile", true)), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)).build())
             }
             else -> {
                 b.setContentTitle(title(c)).setContentText(if (sug != null) "Tap ✓ to add it as ${sug.optString("label")}" else "Tap to add it to eChopdo")

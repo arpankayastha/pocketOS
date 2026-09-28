@@ -17,7 +17,7 @@ export default function PhoneWidget({ Collapsible, households, activeHouseholdId
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('quick_devices')
-      .select('id, household_id, name, default_target, paired_at, last_used_at, pair_expires, created_at').order('created_at')
+      .select('id, household_id, name, default_target, auto_capture, paired_at, last_used_at, pair_expires, created_at').order('created_at')
     if (error) return setError(error.message)
     setDevices(data)
   }, [])
@@ -57,6 +57,11 @@ export default function PhoneWidget({ Collapsible, households, activeHouseholdId
     const { error } = await supabase.from('quick_devices').update({ default_target: target }).eq('id', d.id)
     if (error) { setError(error.message); load() }
   }
+  async function setAuto(d, auto) {
+    setDevices((list) => list.map((x) => (x.id === d.id ? { ...x, auto_capture: auto } : x)))
+    const { error } = await supabase.from('quick_devices').update({ auto_capture: auto }).eq('id', d.id)
+    if (error) { setError(error.message); load() }
+  }
   async function remove(d) {
     if (!await dialog.confirm({ title: `Unpair "${d.name}"?`, message: 'Its widget stops adding entries until the phone is paired again. Entries already added stay.', confirmLabel: 'Unpair' })) return
     const { error } = await supabase.from('quick_devices').delete().eq('id', d.id)
@@ -87,6 +92,8 @@ export default function PhoneWidget({ Collapsible, households, activeHouseholdId
                 <button type="button" className={d.default_target === 'budget' ? 'on' : ''} onClick={() => setTarget(d, 'budget')}>Budget</button>
               </div>
               <button type="button" className="btn icon" aria-label={`Unpair ${d.name}`} onClick={() => remove(d)}><TrashIcon /></button>
+              <label className="check-line pw-auto"><input type="checkbox" checked={d.auto_capture !== false} onChange={(e) => setAuto(d, e.target.checked)} />
+                Bank SMS: add payments automatically {d.auto_capture === false && <span className="muted">(off — they wait in “Bank payments to add”)</span>}</label>
             </div>
           ))}
           <p className="muted small">Hisab / Budget is what the quick-add form opens on; it can be switched there for one entry.</p>

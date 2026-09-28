@@ -10,6 +10,10 @@
 //                                            → a bank SMS read on the phone (the SMS itself never
 //                                              leaves it) → { id, suggestion, match } | { duplicate }
 //   { action: 'file' | 'ignore' | 'match', token, capture_id, … } → file / drop a capture
+//   { action: 'refile', token, capture_id, target, … } → change an auto-added capture (learns the payee)
+//   { action: 'unfile', token, capture_id }  → remove an auto-added entry (capture ignored)
+// With the phone's auto_capture on (default), a capture is filed on arrival: the payee's
+// remembered category, else a guess from the payee's name, else "Other"; note = UPI id / name.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const cors = {
@@ -39,6 +43,27 @@ function amountOf(v: unknown) {
   const n = Math.round(Number(v) * 100) / 100
   return Number.isFinite(n) && n > 0 && n < 1e10 ? n : null
 }
+// Payee name → Hisab category, for payees seen for the first time (only names the household has).
+const GUESS: [RegExp, string][] = [
+  [/swiggy|zomato|restaurant|resto|cafe|caf[eé]|dhaba|pizza|burger|kfc|mcdonald|domino|bakery|bakers|sweets?\b|mithai|food|eats|chai|tea ?stall|juice|canteen|mess\b/i, 'Food'],
+  [/blinkit|zepto|instamart|bigbasket|big basket|dmart|d-mart|jiomart|grocer|kirana|provision|supermarket|super market|\bmart\b|dairy|milk|vegetable|sabji|fruit/i, 'Groceries'],
+  [/petrol|fuel|hpcl|iocl|bpcl|indian ?oil|bharat ?petro|hindustan ?petro|nayara|filling ?st|service ?st/i, 'Fuel'],
+  [/pharma|medical|medicos|chemist|apollo|medplus|hospital|clinic|diagnostic|patholog|\blab\b|netmeds|1mg|pharmeasy|doctor|dr\.? /i, 'Medical'],
+  [/irctc|railw|uber|\bola\b|rapido|redbus|metro|makemytrip|goibibo|indigo|air ?india|airline|travels?\b|\bcab\b|taxi|toll|fastag|parking/i, 'Travel'],
+  [/amazon|flipkart|myntra|ajio|meesho|nykaa|snapdeal|\bshop\b|shopping|\bstores?\b|\bmall\b|retail|electronics|mobile/i, 'Shopping'],
+  [/cloth|garment|fashion|textile|saree|sari|boutique|tailor/i, 'Clothes'],
+  [/salon|parlou?r|beauty|\bspa\b|cosmetic/i, 'Beauty'],
+  [/flower|florist|phool/i, 'Flowers'],
+  [/pooja|puja|temple|mandir|trust/i, 'Puja'],
+  [/gift/i, 'Gifts'],
+  [/electric|torrent|power|\bgas\b|water|broadband|airtel|\bjio\b|vodafone|\bvi\b|recharge|\bbill|society|maintenance|rent\b/i, 'Home'],
+]
+function guessName(payee: string | null, direction: string) {
+  const p = payee || ''
+  if (direction === 'in') return /refund|reversal|cashback/i.test(p) ? 'Refund' : 'Cash in'
+  return GUESS.find(([re]) => re.test(p))?.[1] || 'Other'
+}
+
 const payeeKey = (p: string) => 'payee:' + p.trim().toLowerCase()
 const acctKey = (bank: string | null, hint: string) => `acct:${(bank || '').toLowerCase()}:${hint}`
 
@@ -75,7 +100,7 @@ Deno.serve(async (req) => {
   // Every other action needs a paired device.
   const token = String(body.token || '')
   if (!token) return json({ error: 'This phone is not paired.' }, 401)
-  const { data: dev } = await db.from('quick_devices').select('id, user_id, household_id, default_target, name')
+  const { data: dev } = await db.from('quick_devices').select('id, user_id, household_id, default_target, name, auto_capture')
     .eq('token_hash', await sha256(token)).maybeSingle()
   if (!dev) return json({ error: 'This phone was removed from eChopdo. Pair it again.', unpaired: true }, 401)
   const hid = dev.household_id
@@ -93,11 +118,14 @@ Deno.serve(async (req) => {
   async function pickerNames() {
     const [hc, cats] = await Promise.all([
       db.from('hisab_categories').select('direction, name, icon').eq('household_id', hid),
-      db.from('categories').select('id, name').eq('household_id', hid),
+      db.from('categories').select('id, name, kind').eq('household_id', hid),
     ])
     const icons = new Map<string, string>([...OUT, ...IN].map(([n, i]) => [n.toLowerCase(), i]))
     for (const c of hc.data || []) icons.set(c.name.toLowerCase(), c.icon)
-    return { icons, cats: new Map((cats.data || []).map((c) => [c.id, c.name])) }
+    const hisab = { out: (hc.data || []).filter((c) => c.direction === 'out').map((c) => c.name), in: (hc.data || []).filter((c) => c.direction === 'in').map((c) => c.name) }
+    if (!hisab.out.length) hisab.out = OUT.map(([n]) => n)
+    if (!hisab.in.length) hisab.in = IN.map(([n]) => n)
+    return { icons, cats: new Map((cats.data || []).map((c) => [c.id, c.name])), hisab, budget: cats.data || [] }
   }
   type Capture = { id: string, direction: string, amount: number, occurred_on: string, account_hint: string | null, card: boolean,
     payee: string | null, bank: string | null, match_target: string | null, match_entry_id: string | null }
@@ -115,8 +143,18 @@ Deno.serve(async (req) => {
         label: r.target === 'budget' ? (names.cats.get(r.category_id) || 'Budget') : r.category || 'Hisab',
         icon: r.target === 'hisab' && r.category ? names.icons.get(r.category.toLowerCase()) || '🏷️' : null,
       } : null
+      // No rule for this payee yet: guess from the name (only categories the household has).
+      const target = dev!.default_target === 'budget' ? 'budget' : 'hisab'
+      const name = guessName(c.payee, c.direction)
+      const list = c.direction === 'in' ? names.hisab.in : names.hisab.out
+      const hisabCat = list.find((n) => n.toLowerCase() === name.toLowerCase()) || list.find((n) => n.toLowerCase() === 'other') || null
+      const budgetCat = names.budget.find((b) => b.kind === (c.direction === 'in' ? 'income' : 'expense') && b.name.toLowerCase() === name.toLowerCase())
+      const guess = target === 'budget'
+        ? { target, category: null, category_id: budgetCat?.id || null, account_id: a?.account_id || null, label: budgetCat?.name || 'Budget', icon: null }
+        : { target, category: hisabCat, category_id: null, account_id: null, label: hisabCat || 'Hisab', icon: hisabCat ? names.icons.get(hisabCat.toLowerCase()) || '🏷️' : null }
       return { id: c.id, direction: c.direction, amount: Number(c.amount), date: c.occurred_on, account_hint: c.account_hint, card: c.card,
-        payee: c.payee, bank: c.bank, suggestion, account_id: a?.account_id || null, match: c.match_entry_id ? { target: c.match_target } : null }
+        payee: c.payee, bank: c.bank, suggestion, guess: suggestion ? null : guess, account_id: a?.account_id || null,
+        match: c.match_entry_id ? { target: c.match_target } : null }
     })
   }
   const CAPTURE_COLS = 'id, direction, amount, occurred_on, account_hint, card, payee, bank, match_target, match_entry_id'
@@ -124,16 +162,36 @@ Deno.serve(async (req) => {
     const { data } = await db.from('captures').select(CAPTURE_COLS).eq('household_id', hid).eq('status', 'new').order('created_at', { ascending: false }).limit(10)
     return decorate((data || []) as Capture[])
   }
-  async function fileCapture(id: string, f: Record<string, unknown>) {
+  async function fileCapture(id: string, f: Record<string, unknown>, learn = true) {
     const { data, error } = await db.rpc('file_capture_as', {
       p_user: dev!.user_id, p_capture: id, p_target: f.target === 'budget' ? 'budget' : 'hisab',
       p_category: clean(f.category, 60), p_category_id: clean(f.category_id, 64), p_account_id: clean(f.account_id, 64),
       p_source: clean(f.source, 40), p_book_id: clean(f.book_id, 64), p_note: clean(f.note, 500),
-      p_auto: typeof f.auto === 'boolean' ? f.auto : null,
+      p_auto: typeof f.auto === 'boolean' ? f.auto : null, p_learn: learn,
     })
     if (error) throw error
     return data as { id?: string, target?: string, already?: string }
   }
+  type Decorated = Awaited<ReturnType<typeof decorate>>[number]
+  // Auto mode: file on arrival with the payee's rule or the guess; skip ones already added by hand.
+  async function autoFile(d: Decorated) {
+    if (d.match) {
+      const cap = await ownCapture(d.id)
+      if (cap?.match_entry_id) await db.from('captures').update({ status: 'matched', target: cap.match_target, entry_id: cap.match_entry_id, filed_at: new Date().toISOString() }).eq('id', d.id).eq('status', 'new')
+      return { ...d, matched: true }
+    }
+    const pick = (d.suggestion || d.guess)!
+    const res = await fileCapture(d.id, { ...pick, note: d.payee }, false)
+    return { ...d, filed: res, label: pick.label, icon: pick.icon, guessed: !d.suggestion }
+  }
+  async function resetCapture(cap: Capture & { status: string, entry_id?: string | null, target?: string | null }) {
+    const { data: full } = await db.from('captures').select('status, entry_id, target').eq('id', cap.id).single()
+    if (full?.status === 'filed' && full.entry_id) {
+      await db.from(full.target === 'budget' ? 'transactions' : 'hisab_entries').delete().eq('id', full.entry_id).eq('household_id', hid)
+    }
+    await db.from('captures').update({ status: 'new', entry_id: null, target: null, filed_at: null }).eq('id', cap.id)
+  }
+
   async function ownCapture(id: unknown) {
     const { data } = await db.from('captures').select(CAPTURE_COLS + ', status').eq('id', clean(id, 64) || '').eq('household_id', hid).maybeSingle()
     return data as (Capture & { status: string }) | null
@@ -182,7 +240,11 @@ Deno.serve(async (req) => {
         accounts: accts.data || [],
       },
       frequent,
-      pending: await pending(),
+      pending: await (async () => {
+        if (!dev.auto_capture) return pending()
+        for (const d of await pending()) { try { await autoFile(d) } catch { /* stays in the list */ } }
+        return pending()
+      })(),
       today: todayIST(),
     })
   }
@@ -266,6 +328,9 @@ Deno.serve(async (req) => {
       }
     }
     const [d] = await decorate([cap])
+    if (dev.auto_capture) {
+      try { return json(await autoFile(d)) } catch { /* fall back to the list */ }
+    }
     if (d.suggestion?.auto && !d.match) {
       try {
         const res = await fileCapture(cap.id, d.suggestion)
@@ -279,6 +344,17 @@ Deno.serve(async (req) => {
     const cap = await ownCapture(body.capture_id)
     if (!cap) return json({ error: 'That payment is no longer in the list.' }, 404)
     try { return json(await fileCapture(cap.id, body)) } catch (e) { return json({ error: String((e as Error).message || e) }, 500) }
+  }
+
+  if (action === 'refile' || action === 'unfile') {
+    const cap = await ownCapture(body.capture_id)
+    if (!cap) return json({ error: 'That payment is no longer in eChopdo.' }, 404)
+    await resetCapture(cap)
+    if (action === 'unfile') {
+      await db.from('captures').update({ status: 'ignored', filed_at: new Date().toISOString() }).eq('id', cap.id)
+      return json({ ok: true })
+    }
+    try { return json(await fileCapture(cap.id, body, true)) } catch (e) { return json({ error: String((e as Error).message || e) }, 500) }
   }
 
   if (action === 'ignore' || action === 'match') {

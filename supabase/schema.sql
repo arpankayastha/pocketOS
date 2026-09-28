@@ -852,3 +852,117 @@ begin
 end $$;
 revoke execute on function public.file_capture(uuid, text, text, uuid, uuid, text, uuid, text, boolean) from public, anon;
 grant execute on function public.file_capture(uuid, text, text, uuid, uuid, text, uuid, text, boolean) to authenticated;
+
+-- Automatic bank SMS filing (replaces file_capture/_as above with a p_learn flag).
+drop function if exists public.file_capture(uuid, text, text, uuid, uuid, text, uuid, text, boolean);
+drop function if exists public.file_capture_as(uuid, uuid, text, text, uuid, uuid, text, uuid, text, boolean);
+
+-- Files a capture as a Hisab or Budget entry and (unless p_learn is false, e.g. an automatic guess)
+-- remembers the choice for the payee. Used by the quickadd
+-- Edge Function (service role, acting as the paired phone's user) and, through file_capture
+-- below, by the web app. Returns { id, target } or { already: status }.
+create or replace function public.file_capture_as(
+  p_user uuid, p_capture uuid, p_target text, p_category text default null, p_category_id uuid default null,
+  p_account_id uuid default null, p_source text default null, p_book_id uuid default null, p_note text default null,
+  p_auto boolean default null, p_learn boolean default true
+) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  c public.captures;
+  v_target text := case when p_target = 'budget' then 'budget' else 'hisab' end;
+  v_cat_id uuid; v_acct uuid; v_book uuid; v_entry uuid; v_source text;
+begin
+  select * into c from public.captures where id = p_capture for update;
+  if not found then raise exception 'Capture not found'; end if;
+  if c.status <> 'new' then return jsonb_build_object('already', c.status, 'id', c.entry_id, 'target', c.target); end if;
+
+  if v_target = 'budget' then
+    select id into v_cat_id from public.categories where id = p_category_id and household_id = c.household_id
+      and kind = case when c.direction = 'in' then 'income' else 'expense' end;
+    select id into v_acct from public.accounts where id = p_account_id and household_id = c.household_id;
+    insert into public.transactions (user_id, household_id, kind, amount, occurred_on, note, category_id, account_id)
+    values (p_user, c.household_id, case when c.direction = 'in' then 'income' else 'expense' end, c.amount, c.occurred_on,
+            coalesce(nullif(trim(p_note), ''), c.payee), v_cat_id, v_acct)
+    returning id into v_entry;
+  else
+    select id into v_book from public.hisab_books where id = p_book_id and household_id = c.household_id;
+    if v_book is null then
+      select id into v_book from public.hisab_books where household_id = c.household_id and kind = 'daily' order by created_at limit 1;
+    end if;
+    if v_book is null then
+      insert into public.hisab_books (user_id, household_id, name, kind) values (p_user, c.household_id, 'Daily', 'daily') returning id into v_book;
+    end if;
+    v_source := coalesce(nullif(trim(p_source), ''), case when c.card then 'Card' else 'UPI' end);
+    insert into public.hisab_entries (user_id, household_id, book_id, direction, amount, occurred_on, category, source, note)
+    values (p_user, c.household_id, v_book, c.direction, c.amount, c.occurred_on, nullif(trim(p_category), ''), v_source,
+            coalesce(nullif(trim(p_note), ''), c.payee))
+    returning id into v_entry;
+  end if;
+
+  update public.captures set status = 'filed', target = v_target, entry_id = v_entry, filed_at = now() where id = c.id;
+
+  if p_learn and c.payee is not null and trim(c.payee) <> '' then
+    insert into public.capture_rules as r (user_id, household_id, key, target, category, category_id, account_id, source, book_id, hits, auto)
+    values (p_user, c.household_id, 'payee:' || lower(trim(c.payee)), v_target, nullif(trim(p_category), ''), v_cat_id, v_acct,
+            case when v_target = 'hisab' then v_source end, v_book, 1, coalesce(p_auto, false))
+    on conflict (household_id, key) do update set
+      hits = case when r.target is not distinct from excluded.target and r.category is not distinct from excluded.category
+                   and r.category_id is not distinct from excluded.category_id then r.hits + 1 else 1 end,
+      target = excluded.target, category = excluded.category, category_id = excluded.category_id,
+      account_id = coalesce(excluded.account_id, r.account_id), source = coalesce(excluded.source, r.source),
+      book_id = excluded.book_id, auto = coalesce(p_auto, r.auto), updated_at = now();
+  end if;
+  if p_learn and c.account_hint is not null and v_target = 'budget' and v_acct is not null then
+    insert into public.capture_rules as r (user_id, household_id, key, target, account_id, hits)
+    values (p_user, c.household_id, 'acct:' || coalesce(lower(c.bank), '') || ':' || c.account_hint, 'budget', v_acct, 1)
+    on conflict (household_id, key) do update set account_id = excluded.account_id, hits = r.hits + 1, updated_at = now();
+  end if;
+  return jsonb_build_object('id', v_entry, 'target', v_target);
+end $$;
+revoke execute on function public.file_capture_as(uuid, uuid, text, text, uuid, uuid, text, uuid, text, boolean, boolean) from public, anon, authenticated;
+grant execute on function public.file_capture_as(uuid, uuid, text, text, uuid, uuid, text, uuid, text, boolean, boolean) to service_role;
+
+-- Web app: file a capture of one of my households as myself.
+create or replace function public.file_capture(
+  p_capture uuid, p_target text, p_category text default null, p_category_id uuid default null,
+  p_account_id uuid default null, p_source text default null, p_book_id uuid default null, p_note text default null,
+  p_auto boolean default null, p_learn boolean default true
+) returns jsonb language plpgsql security definer set search_path = '' as $$
+begin
+  if not exists (select 1 from public.captures where id = p_capture and household_id in (select private.my_household_ids())) then
+    raise exception 'Capture not found';
+  end if;
+  return public.file_capture_as(auth.uid(), p_capture, p_target, p_category, p_category_id, p_account_id, p_source, p_book_id, p_note, p_auto, p_learn);
+end $$;
+revoke execute on function public.file_capture(uuid, text, text, uuid, uuid, text, uuid, text, boolean, boolean) from public, anon;
+grant execute on function public.file_capture(uuid, text, text, uuid, uuid, text, uuid, text, boolean, boolean) to authenticated;
+
+-- Bank SMS payments are added automatically (per phone; "ask first" = off). Editing the category of
+-- an auto-added entry teaches its payee's rule, so the next payment to them gets it right.
+alter table public.quick_devices add column if not exists auto_capture boolean not null default true;
+grant update (name, default_target, auto_capture) on public.quick_devices to authenticated;
+
+create or replace function private.learn_from_entry() returns trigger language plpgsql security definer set search_path = '' as $$
+declare c public.captures;
+begin
+  select * into c from public.captures where entry_id = new.id and status = 'filed' limit 1;
+  if not found or c.payee is null or trim(c.payee) = '' then return new; end if;
+  if tg_table_name = 'hisab_entries' then
+    insert into public.capture_rules as r (user_id, household_id, key, target, category, source, book_id, hits)
+    values (c.user_id, c.household_id, 'payee:' || lower(trim(c.payee)), 'hisab', nullif(trim(new.category), ''), new.source, new.book_id, 1)
+    on conflict (household_id, key) do update set target = 'hisab', category = excluded.category, source = coalesce(excluded.source, r.source),
+      book_id = excluded.book_id, category_id = null, hits = r.hits + 1, updated_at = now();
+  else
+    insert into public.capture_rules as r (user_id, household_id, key, target, category_id, account_id, hits)
+    values (c.user_id, c.household_id, 'payee:' || lower(trim(c.payee)), 'budget', new.category_id, new.account_id, 1)
+    on conflict (household_id, key) do update set target = 'budget', category_id = excluded.category_id, category = null,
+      account_id = coalesce(excluded.account_id, r.account_id), hits = r.hits + 1, updated_at = now();
+  end if;
+  return new;
+end $$;
+drop trigger if exists hisab_entries_learn on public.hisab_entries;
+create trigger hisab_entries_learn after update of category on public.hisab_entries
+  for each row when (old.category is distinct from new.category) execute function private.learn_from_entry();
+drop trigger if exists transactions_learn on public.transactions;
+create trigger transactions_learn after update of category_id, account_id on public.transactions
+  for each row when (old.category_id is distinct from new.category_id or old.account_id is distinct from new.account_id)
+  execute function private.learn_from_entry();

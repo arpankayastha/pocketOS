@@ -100,7 +100,7 @@ class QuickAddActivity : Activity() {
             date = runCatching { LocalDate.parse(c.optString("date")) }.getOrDefault(LocalDate.now())
             source = if (c.optBoolean("card")) "Card" else "UPI"
             c.optString("account_id").takeIf { it.isNotEmpty() && it != "null" }?.let { accountId = it }
-            c.optJSONObject("suggestion")?.let { s ->
+            (c.optJSONObject("suggestion") ?: c.optJSONObject("guess"))?.let { s ->
                 val str = { k: String -> s.optString(k).takeIf { it.isNotEmpty() && it != "null" } }
                 str("target")?.let { target = it }
                 if (target == "budget") { category = str("category_id"); categoryName = str("label") } else { category = str("category"); categoryName = category }
@@ -248,8 +248,9 @@ class QuickAddActivity : Activity() {
         keypadView.visibility = if (cap != null) View.GONE else View.VISIBLE
         captureInfo.visibility = if (cap != null) View.VISIBLE else View.GONE
         if (cap != null) captureInfo.text = listOf(Captures.subtitle(cap), "from bank SMS").filter { it.isNotEmpty() }.joinToString(" · ")
-        nextBtn.text = if (cap != null) "Ignore" else "Save & next"
-        saveBtn.text = if (cap != null) "Add" else "Save"
+        val refile = cap?.optBoolean("refile") == true
+        nextBtn.text = if (cap != null) (if (refile) "Remove" else "Ignore") else "Save & next"
+        saveBtn.text = if (cap != null) (if (refile) "Save" else "Add") else "Save"
         renderAmount()
         renderPickers(c)
     }
@@ -360,7 +361,7 @@ class QuickAddActivity : Activity() {
     // ----- Captured payment: file it (or ignore it) -----
     private fun fileCapture() {
         val cap = capture ?: return
-        val body = JSONObject().put("action", "file").put("capture_id", cap.optString("id")).put("target", target)
+        val body = JSONObject().put("action", if (cap.optBoolean("refile")) "refile" else "file").put("capture_id", cap.optString("id")).put("target", target)
         note.text.toString().trim().takeIf { it.isNotEmpty() }?.let { body.put("note", it) }
         if (target == "budget") { category?.let { body.put("category_id", it) }; accountId?.let { body.put("account_id", it) } }
         else { category?.let { body.put("category", it) }; source?.let { body.put("source", it) }; bookId?.let { body.put("book_id", it) } }
@@ -370,7 +371,8 @@ class QuickAddActivity : Activity() {
 
     private fun ignoreCapture() {
         val cap = capture ?: return
-        send(JSONObject().put("action", "ignore").put("capture_id", cap.optString("id")), "Ignored")
+        val refile = cap.optBoolean("refile")
+        send(JSONObject().put("action", if (refile) "unfile" else "ignore").put("capture_id", cap.optString("id")), if (refile) "Removed" else "Ignored")
     }
 
     private fun send(body: JSONObject, done: String) {

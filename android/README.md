@@ -20,8 +20,9 @@ A small native app, installed from https://echopdo.vercel.app/download/ (not the
   account/card number (or a bank-looking header), skips balance/limit amounts, OTP / due / request / offer
   messages, and pulls payee (VPA, `UPI-…-NAME`, `UPI/P2M/…/NAME`, to/at/from/towards/Info:), UPI ref/RRN/UTR and
   the date in any common format. Exact rules for BoB, Federal, ICICI and Kotak run first. Only the parsed fields go to
-  the server (`capture` action) — never the SMS text. A notification offers ✓ <remembered category> / Change… /
-  Ignore (or "Same, skip" when it matches an entry added by hand); "Change…" opens the quick-add sheet in
+  the server (`capture` action) — never the SMS text. By default the server adds each payment to Hisab straight away
+  (remembered or guessed category, note = UPI id) and the notification says "Added … · Food" with Change… /
+  Remove; with auto off (Phone widget card) it offers ✓ <category> / Change… / Ignore (or "Same, skip"); "Change…" opens the quick-add sheet in
   capture mode (amount fixed, no keypad, "Always add <payee> like this"). "Look back 7 days" scans the inbox (also automatically once SMS is allowed); Phone settings shows
   what it found (SMS checked, from banks, payments, errors). Offline captures queue like entries.
 - **Pairing** (`PairActivity`): eChopdo → ⚙ Settings → Phone widget → Pair a phone → "Pair this phone"

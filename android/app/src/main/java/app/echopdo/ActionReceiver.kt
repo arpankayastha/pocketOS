@@ -17,6 +17,7 @@ class ActionReceiver : BroadcastReceiver() {
         const val CAP_FILE = "app.echopdo.CAP_FILE"     // file a captured payment with its suggestion
         const val CAP_IGNORE = "app.echopdo.CAP_IGNORE"
         const val CAP_MATCH = "app.echopdo.CAP_MATCH"   // "same as the one I already added"
+        const val CAP_UNFILE = "app.echopdo.CAP_UNFILE" // take an automatically added payment out again
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -41,26 +42,28 @@ class ActionReceiver : BroadcastReceiver() {
                         Notify.saved(app, entry, res)
                         if (res is SaveResult.Failed && res.unpaired) QuickWidget.refreshAll(app)
                     }
-                    CAP_FILE, CAP_IGNORE, CAP_MATCH -> {
+                    CAP_FILE, CAP_IGNORE, CAP_MATCH, CAP_UNFILE -> {
                         Notify.cancel(app, intent.getIntExtra("nid", 0))
                         val c = JSONObject(intent.getStringExtra("capture") ?: "{}")
                         val body = JSONObject().put("capture_id", c.optString("id"))
                         when (intent.action) {
                             CAP_FILE -> {
-                                val sug = c.optJSONObject("suggestion") ?: JSONObject()
+                                val sug = c.optJSONObject("suggestion") ?: c.optJSONObject("guess") ?: JSONObject()
                                 body.put("action", "file")
                                 listOf("target", "category", "category_id", "account_id", "source", "book_id").forEach { k ->
                                     sug.optString(k).takeIf { it.isNotEmpty() && it != "null" }?.let { body.put(k, it) }
                                 }
                             }
                             CAP_IGNORE -> body.put("action", "ignore")
+                            CAP_UNFILE -> body.put("action", "unfile")
                             else -> body.put("action", "match")
                         }
                         val msg = try {
                             val res = Api.call(app, body)
                             when (intent.action) {
-                                CAP_FILE -> if (res.has("already")) "Already done" else "Added ${Calc.money(c.optDouble("amount"))} · ${c.optJSONObject("suggestion")?.optString("label") ?: ""}"
+                                CAP_FILE -> if (res.has("already")) "Already done" else "Added ${Calc.money(c.optDouble("amount"))} · ${(c.optJSONObject("suggestion") ?: c.optJSONObject("guess"))?.optString("label") ?: ""}"
                                 CAP_IGNORE -> "Ignored"
+                                CAP_UNFILE -> "Removed"
                                 else -> "Marked as already added"
                             }
                         } catch (e: ApiError) { e.message ?: "Could not save." } catch (e: java.io.IOException) { "No internet — open eChopdo to add it later." }
