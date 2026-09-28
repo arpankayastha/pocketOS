@@ -9,10 +9,10 @@ A small native app, installed from https://echopdo.vercel.app/download/ (not the
 - **Quick add** (`QuickAddActivity`): a sheet over the home screen — Hisab (default) or Budget, calculator
   keypad, category / book / source (or account) chips, date, note, Save / Save & next. Opened from the
   widget, the app-icon shortcuts (Spent / Received) and the quick-settings tile "eChopdo +".
-- **Widgets** (icons only): `QuickWidget` (large, resizable) — the original layout: header, two wide rounded − / + buttons (icons, no text), up to 3 icon chips of the
+- **Widgets** (icons only): `QuickWidget` (large, resizable) — header and two wide rounded buttons (icon in a tinted circle + label), up to 3 icon chips of the
   household's frequent Hisab entries (same category + amount ≥ 2× in 60 days, one tap saves, Undo in a
   notification for 15 min), a "N to add" badge and, when ≥ 170 dp tall, two rows of bank payments to add with
-  a one-tap ✓. `QuickWidgetSmall` (2×1) — the same two rounded − / + buttons and the badge.
+  a one-tap ✓. `QuickWidgetSmall` (2×1) — the same two buttons (icon over label) and the badge.
 - **Bank SMS capture** (`SmsParser`, `Captures`, `SmsReceiver`): off until turned on in Phone settings
   (`PairActivity`, also an icon shortcut); needs RECEIVE_SMS/READ_SMS — Android 13+ hides these for sideloaded
   apps until App info → ⋮ → *Allow restricted settings* (the app walks through it). Any business (DLT) sender

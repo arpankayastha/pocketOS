@@ -138,6 +138,8 @@ class UiTest {
         val host = host(v, 340, 150)
         assertNotNull(find(v, "Home · Hisab"))
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.wOut).visibility)
+        assertEquals("Spent", v.findViewById<TextView>(R.id.wOutLabel).text.toString())
+        assertEquals("Received", v.findViewById<TextView>(R.id.wInLabel).text.toString())
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.p0).visibility)
         assertEquals("🥦 60", v.findViewById<TextView>(R.id.p0).text.toString())
         assertEquals("⛽ 500", v.findViewById<TextView>(R.id.p1).text.toString())
@@ -157,7 +159,7 @@ class UiTest {
         shot(tallHost, "3b-widget-tall")
 
         val small = QuickWidget.small(ctx).apply(ctx, FrameLayout(ctx))
-        val smallHost = host(small, 150, 64)
+        val smallHost = host(small, 150, 72)
         assertEquals("2", small.findViewById<TextView>(R.id.sBadge).text.toString())
         assertEquals(View.VISIBLE, small.findViewById<View>(R.id.sBadge).visibility)
         shot(smallHost, "3c-widget-small")

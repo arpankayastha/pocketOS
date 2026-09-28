@@ -51,28 +51,68 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:layout_marginTop="8dp"
-        android:minHeight="44dp"
+        android:minHeight="52dp"
         android:orientation="horizontal">
-        <ImageView
+        <LinearLayout
             android:id="@+id/wOut"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="5dp"
             android:background="@drawable/widget_btn_out"
-            android:contentDescription="Spent"
-            android:scaleType="center"
-            android:src="@drawable/ic_w_out" />
-        <ImageView
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp">
+            <ImageView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="@drawable/widget_icon_out"
+                android:contentDescription="Spent"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_w_out" />
+            <TextView
+                android:id="@+id/wOutLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:maxLines="1"
+                android:text="Spent"
+                android:textColor="@color/neg"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout
             android:id="@+id/wIn"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="5dp"
             android:background="@drawable/widget_btn_in"
-            android:contentDescription="Received"
-            android:scaleType="center"
-            android:src="@drawable/ic_w_in" />
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp">
+            <ImageView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="@drawable/widget_icon_in"
+                android:contentDescription="Received"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_w_in" />
+            <TextView
+                android:id="@+id/wInLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:maxLines="1"
+                android:text="Received"
+                android:textColor="@color/pos"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
 
     <LinearLayout

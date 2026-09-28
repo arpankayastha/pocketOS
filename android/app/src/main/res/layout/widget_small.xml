@@ -5,31 +5,67 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
-    android:padding="6dp">
+    android:padding="5dp">
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="horizontal">
-        <ImageView
+        <LinearLayout
             android:id="@+id/sOut"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
             android:background="@drawable/widget_btn_out"
-            android:contentDescription="Spent"
-            android:scaleType="center"
-            android:src="@drawable/ic_w_out" />
-        <ImageView
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="@drawable/widget_icon_out"
+                android:contentDescription="Spent"
+                android:padding="6dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_w_out" />
+            <TextView
+                android:id="@+id/sOutLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:text="Spent"
+                android:textColor="@color/neg"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout
             android:id="@+id/sIn"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:layout_marginStart="4dp"
             android:background="@drawable/widget_btn_in"
-            android:contentDescription="Received"
-            android:scaleType="center"
-            android:src="@drawable/ic_w_in" />
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="@drawable/widget_icon_in"
+                android:contentDescription="Received"
+                android:padding="6dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_w_in" />
+            <TextView
+                android:id="@+id/sInLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:text="Received"
+                android:textColor="@color/pos"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
     <TextView
         android:id="@+id/sBadge"

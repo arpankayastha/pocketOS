@@ -72,6 +72,8 @@ open class QuickWidget : AppWidgetProvider() {
             v.setTextViewText(R.id.wTitle, listOf(Store.household(ctx), if (budget) "Budget" else "Hisab").filter { it.isNotEmpty() }.joinToString(" · "))
             v.setViewVisibility(R.id.wPair, View.GONE)
             v.setViewVisibility(R.id.wButtons, View.VISIBLE)
+            v.setTextViewText(R.id.wOutLabel, if (budget) "Expense" else "Spent")
+            v.setTextViewText(R.id.wInLabel, if (budget) "Income" else "Received")
             v.setOnClickPendingIntent(R.id.wOut, activity(ctx, 3, quickIntent(ctx, "out")))
             v.setOnClickPendingIntent(R.id.wIn, activity(ctx, 4, quickIntent(ctx, "in")))
 
@@ -133,6 +135,9 @@ open class QuickWidget : AppWidgetProvider() {
                 v.setViewVisibility(R.id.sBadge, View.GONE)
                 return v
             }
+            val budget = Store.defaultTarget(ctx) == "budget"
+            v.setTextViewText(R.id.sOutLabel, if (budget) "Expense" else "Spent")
+            v.setTextViewText(R.id.sInLabel, if (budget) "Income" else "Received")
             v.setOnClickPendingIntent(R.id.sOut, activity(ctx, 52, quickIntent(ctx, "out")))
             v.setOnClickPendingIntent(R.id.sIn, activity(ctx, 53, quickIntent(ctx, "in")))
             val caps = pending(ctx)
