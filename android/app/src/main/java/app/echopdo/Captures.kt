@@ -29,6 +29,7 @@ object Captures {
     fun body(t: BankTxn, smsTime: Long): JSONObject = JSONObject().put("action", "capture")
         .put("direction", t.direction).put("amount", t.amount)
         .put("date", (t.date ?: Instant.ofEpochMilli(smsTime).atZone(ZoneId.systemDefault()).toLocalDate()).toString())
+        .put("at", Instant.ofEpochMilli(smsTime).toString()) // when the SMS came: the time shown in Hisab
         .put("account_hint", t.accountHint).put("card", t.card).put("payee", t.payee).put("ref", t.ref).put("bank", t.bank)
 
     /** Blocking. Sends one parsed SMS; shows the notification. Returns false if it was already sent. */

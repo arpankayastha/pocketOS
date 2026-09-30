@@ -209,12 +209,14 @@ class UiTest {
 
     @Test fun smsIsParsedQueuedOfflineAndNotSentTwice() {
         val sms = "Debited Rs 270.00 from a/c X5678 on 23Sep26 19:53 via UPI to DEMO STORE D. Ref 315300000003.Bal Rs 342.77. Not you?Call 18004251199 -Federal Bank"
-        assertTrue(Captures.handle(ctx, "AD-FEDBNK-T", sms, System.currentTimeMillis()))
+        val smsTime = java.time.Instant.parse("2026-09-23T14:23:10Z").toEpochMilli() // 7:53 pm in India
+        assertTrue(Captures.handle(ctx, "AD-FEDBNK-T", sms, smsTime))
         val q = Store.queue(ctx)
         assertEquals(1, q.length())
         val e = q.getJSONObject(0)
         assertEquals("capture", e.getString("action")); assertEquals(270.0, e.getDouble("amount"), 0.0)
         assertEquals("DEMO STORE D", e.getString("payee")); assertEquals("315300000003", e.getString("ref")); assertEquals("2026-09-23", e.getString("date"))
+        assertEquals("2026-09-23T14:23:10Z", e.getString("at")) // the SMS's time, shown on the Hisab entry
         assertTrue(!e.has("body") && !e.toString().contains("Bal Rs")) // the SMS text itself is never sent
         assertTrue(!Captures.handle(ctx, "AD-FEDBNK-T", sms, System.currentTimeMillis())) // same ref again → ignored
         assertTrue(!Captures.handle(ctx, "+919000000001", "Debited Rs 50 from a/c X1 to you", 0L)) // not a bank sender

@@ -6,7 +6,7 @@
 //   { action: 'config', token }              → pickers + frequent entries
 //   { action: 'add', token, target, ... }    → { id }
 //   { action: 'undo', token, target, id }    → { ok }
-//   { action: 'capture', token, direction, amount, date, account_hint, card, payee, ref, bank }
+//   { action: 'capture', token, direction, amount, date, at, account_hint, card, payee, ref, bank }
 //                                            → a bank SMS read on the phone (the SMS itself never
 //                                              leaves it) → { id, suggestion, match } | { duplicate }
 //   { action: 'file' | 'ignore' | 'match', token, capture_id, … } → file / drop a capture
@@ -42,6 +42,12 @@ function randomToken() {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 const isDate = (s: unknown) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
+// When it happened (the SMS's time from the phone), as an ISO instant; ignored if missing or absurd.
+function instantOf(v: unknown) {
+  if (typeof v !== 'string') return null
+  const t = Date.parse(v)
+  return Number.isFinite(t) && t > Date.UTC(2020, 0, 1) && t < Date.now() + 86400_000 ? new Date(t).toISOString() : null
+}
 const clean = (s: unknown, max = 200) => (typeof s === 'string' && s.trim() ? s.trim().slice(0, max) : null)
 function amountOf(v: unknown) {
   const n = Math.round(Number(v) * 100) / 100
@@ -201,6 +207,14 @@ Deno.serve(async (req) => {
     return data as (Capture & { status: string }) | null
   }
 
+  // A capture read again (resync, or the other phone) fills in its time if it had none — older
+  // app versions didn't send it — and passes it on to the Hisab entry made from it.
+  async function fillTime(id: string, at: string | null) {
+    if (!at) return
+    const { data: c } = await db.from('captures').update({ occurred_at: at }).eq('id', id).is('occurred_at', null).select('entry_id, target').maybeSingle()
+    if (c?.entry_id && c.target === 'hisab') await db.from('hisab_entries').update({ occurred_at: at }).eq('id', c.entry_id).is('occurred_at', null)
+  }
+
   if (action === 'config') {
     const since = new Date(Date.now() - 60 * 86400_000).toISOString().slice(0, 10)
     const [hh, books, hcats, cats, accts, recent] = await Promise.all([
@@ -276,6 +290,7 @@ Deno.serve(async (req) => {
     try { bookId = bookId || await dailyBook() } catch (e) { return json({ error: String((e as Error).message || e) }, 500) }
     const { data, error } = await db.from('hisab_entries').insert({
       user_id: dev.user_id, household_id: hid, book_id: bookId, direction, amount, occurred_on: date,
+      occurred_at: instantOf(body.at) ?? (date === todayIST() ? new Date().toISOString() : null),
       category: clean(body.category, 60), source: clean(body.source, 40), note,
     }).select('id').single()
     if (error) return json({ error: error.message }, 500)
@@ -303,6 +318,7 @@ Deno.serve(async (req) => {
     const row = {
       user_id: dev.user_id, household_id: hid, device_id: dev.id, direction, amount, occurred_on: date,
       account_hint: clean(body.account_hint, 8), card: body.card === true, payee: clean(body.payee, 80), ref, bank: clean(body.bank, 40),
+      occurred_at: instantOf(body.at),
     }
     // No reference (some card SMS): the same amount / day / card / payee already captured is the same SMS
     // read twice (look-back again, or the other phone).
@@ -311,13 +327,17 @@ Deno.serve(async (req) => {
       q = row.account_hint ? q.eq('account_hint', row.account_hint) : q.is('account_hint', null)
       q = row.payee ? q.eq('payee', row.payee) : q.is('payee', null)
       const { data: same } = await q.limit(1)
-      if (same?.length) return json({ duplicate: true })
+      if (same?.length) { await fillTime(same[0].id, row.occurred_at); return json({ duplicate: true }) }
     }
     const ins = ref
       ? await db.from('captures').upsert(row, { onConflict: 'household_id,ref', ignoreDuplicates: true }).select(CAPTURE_COLS).maybeSingle()
       : await db.from('captures').insert(row).select(CAPTURE_COLS).single()
     if (ins.error) return json({ error: ins.error.message }, 500)
-    if (!ins.data) return json({ duplicate: true }) // same UPI ref already captured (e.g. by the other phone)
+    if (!ins.data) { // same UPI ref already captured (e.g. by the other phone, or a resync)
+      const { data: old } = await db.from('captures').select('id').eq('household_id', hid).eq('ref', ref!).maybeSingle()
+      if (old) await fillTime(old.id, row.occurred_at)
+      return json({ duplicate: true })
+    }
     const cap = ins.data as Capture
 
     // Money between the family's own accounts isn't spending.

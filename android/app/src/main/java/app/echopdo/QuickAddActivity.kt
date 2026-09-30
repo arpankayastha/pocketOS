@@ -412,6 +412,8 @@ class QuickAddActivity : Activity() {
         val amount = Calc.evaluate(expr)
         if (amount == null || amount <= 0) { showError("Enter an amount."); return }
         val entry = JSONObject().put("target", target).put("amount", amount).put("date", date.toString())
+        // The time it was added (kept even if it waits offline); none for a back-dated entry.
+        if (date == LocalDate.now()) entry.put("at", java.time.Instant.now().toString())
         note.text.toString().trim().takeIf { it.isNotEmpty() }?.let { entry.put("note", it) }
         if (target == "budget") {
             entry.put("kind", if (direction == "in") "income" else "expense")

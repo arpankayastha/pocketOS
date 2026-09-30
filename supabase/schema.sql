@@ -1009,3 +1009,9 @@ end $$;
 -- The owner's own "opens on" tab per household (members have household_members.start_tab).
 alter table public.households add column if not exists start_tab text not null default 'dashboard'
   check (start_tab in ('dashboard','transactions','plan','dues','hisab'));
+
+-- When a Hisab entry happened (shown on the list): the SMS's time for captured payments (the phone
+-- sends `at`; a resync fills older ones in), the time it was added for entries typed in on the day.
+alter table public.hisab_entries add column if not exists occurred_at timestamptz;
+alter table public.captures add column if not exists occurred_at timestamptz;
+-- public.file_capture_as copies captures.occurred_at into the Hisab entry it creates (see the function above; re-created with that column).

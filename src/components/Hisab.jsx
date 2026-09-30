@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DonutChart } from './LazyCharts'
 import { currentMonth, money, moneyShort, monthLabel, shiftMonth, today } from '../lib/format'
-import { SOURCES, loadCategories, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
+import { SOURCES, entryTime, loadCategories, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
 import { useBackAction } from '../lib/backNav'
 import { useMonthSwipe, useSwipe } from '../lib/useSwipe'
 import { useDialog } from '../lib/dialog'
@@ -241,7 +241,10 @@ function EntryRow({ e, onOpen }) {
         <div className="hb-entry-name">{e.category || 'Other'}</div>
         {(e.note || e.source) && <div className="muted small hb-entry-sub">{[e.note, e.source].filter(Boolean).join(' · ')}</div>}
       </div>
-      <b className={`amt ${e.direction === 'out' ? 'neg' : 'pos'}`}>{e.direction === 'out' ? '−' : '+'}{money(e.amount)}</b>
+      <div className="hb-entry-amt">
+        <b className={`amt ${e.direction === 'out' ? 'neg' : 'pos'}`}>{e.direction === 'out' ? '−' : '+'}{money(e.amount)}</b>
+        {entryTime(e) && <span className="muted small">{entryTime(e)}</span>}
+      </div>
     </button>
   )
 }
@@ -453,6 +456,7 @@ function EntrySheet({ book, books, categories, entry, used, defaultDate, onClose
           <input type="date" aria-label="Date" value={date} onChange={(e) => setDate(e.target.value)} />
           <input aria-label="Note" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
+        {entry && entryTime(entry) && <div className="muted small hb-when">🕒 {entryTime(entry)}{entry.occurred_on !== date ? ` on ${dayHead(entry.occurred_on)}` : ''}</div>}
 
         <div className="hb-keys">
           {KEYS.map((k) => (

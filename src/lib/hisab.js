@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { PALETTE } from './colors'
+import { today } from './format'
 
 // Hisab: Money Tracker-style cash books kept apart from Budget. Each household has one
 // "daily" book (created on first visit) plus any number of occasion books. Category and
@@ -72,10 +73,16 @@ export async function loadBooks(householdId) {
 
 export async function loadEntries(bookId) {
   const { data, error } = await supabase.from('hisab_entries').select('*').eq('book_id', bookId)
-    .order('occurred_on', { ascending: false }).order('created_at', { ascending: false })
+    .order('occurred_on', { ascending: false }).order('occurred_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false })
   if (error) throw error
   return data
 }
+
+// When an entry happened, "7:53 pm": the SMS's time for bank payments, the time it was added for
+// ones typed in on the day. Back-dated entries (and old SMS synced before times were kept) have none.
+export const entryTime = (e) => (e.occurred_at
+  ? new Date(e.occurred_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(' ', '\u202f').toLowerCase()
+  : null)
 
 export async function saveBook({ id, householdId, name, target }) {
   const fields = { name: name.trim(), target: target || null }
@@ -96,7 +103,7 @@ export async function saveEntry(book, { id, direction, amount, occurredOn, categ
   const fields = { direction, amount, occurred_on: occurredOn, category: category || null, source: source || null, note: note || null, book_id: book.id }
   const { error } = id
     ? await supabase.from('hisab_entries').update(fields).eq('id', id)
-    : await supabase.from('hisab_entries').insert({ ...fields, household_id: book.household_id })
+    : await supabase.from('hisab_entries').insert({ ...fields, household_id: book.household_id, occurred_at: occurredOn === today() ? new Date().toISOString() : null })
   if (error) throw error
 }
 
