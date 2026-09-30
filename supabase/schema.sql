@@ -1005,3 +1005,7 @@ begin
   end if;
   raise exception 'Sign-ups are closed for eChopdo.' using errcode = '42501';
 end $$;
+
+-- The owner's own "opens on" tab per household (members have household_members.start_tab).
+alter table public.households add column if not exists start_tab text not null default 'dashboard'
+  check (start_tab in ('dashboard','transactions','plan','dues','hisab'));

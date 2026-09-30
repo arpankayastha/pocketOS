@@ -237,15 +237,26 @@ function UnlockScreen({ vault, onRecovered }) {
 }
 
 function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard' }) {
-  // `startTab` is the "home" of this app: where it opens and where Android back returns to.
+  // The "home" tab: where the app opens and where Android back returns to. A member's comes from
+  // their login (`startTab`); the owner picks one per household ("Opens on" in the HouseholdSheet).
   const [tab, setTab] = useState(startTab)
-  useBackAction(tab !== startTab, () => setTab(startTab), 2)
   const [fabOpen, setFabOpen] = useState(false)
   const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
   const [dataVersion, setDataVersion] = useState(0)
   const [hisabAdd, setHisabAdd] = useState(0) // the + on the Hisab tab adds a Hisab entry instead
   const data = useFinanceData()
   const dialog = useDialog()
+  const household = data.households.find((h) => h.id === data.activeHouseholdId)
+  const home = member ? startTab : household?.start_tab || 'dashboard'
+  useBackAction(tab !== home, () => setTab(home), 2)
+  // Opening the app or switching household lands on that household's home (not while in Settings).
+  const seenHousehold = useRef(null)
+  useEffect(() => {
+    if (member || !household || seenHousehold.current === household.id) return
+    const first = seenHousehold.current === null
+    seenHousehold.current = household.id
+    if (first || tab !== 'settings') setTab(household.start_tab || 'dashboard')
+  }, [member, household, tab])
 
   return (
     <div className="app">
@@ -257,7 +268,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
           }}
           onManage={() => setTab('settings')} />
         <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Accounts & Categories" title="Accounts & Categories"
-          onClick={() => setTab(tab === 'settings' ? 'dashboard' : 'settings')}><SettingsIcon /></button>
+          onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon /></button>
       </>)}>
         <nav className="tabs">
           {BUDGET_TABS.map((t) => (

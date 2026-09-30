@@ -313,6 +313,12 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
     refresh()
   }
 
+  async function setOwnStartTab(h, startTab) {
+    const { error } = await supabase.from('households').update({ start_tab: startTab }).eq('id', h.id)
+    if (error) return setError(error.message)
+    refresh()
+  }
+
   async function recolor(h, color) {
     const { error } = await supabase.from('households').update({ color }).eq('id', h.id)
     if (error) return setError(error.message)
@@ -361,7 +367,7 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
         onSwitch={() => { setActiveHouseholdId(open.id); setOpenId(null) }}
         onRename={(next) => rename(open, next)} onDelete={() => remove(open)}
         onCreateLogin={() => setLoginFor(open)} onResetPin={(m) => resetPin(open, m)} onRemoveLogin={(m) => removeLogin(open, m)}
-        onStartTab={setStartTab} vaultOn={vaultOn} canVault={vault?.status === 'unlocked'} onEnableVault={enableVault} onDisableVault={disableVault} />}
+        onStartTab={setStartTab} onOwnStartTab={(t) => setOwnStartTab(open, t)} vaultOn={vaultOn} canVault={vault?.status === 'unlocked'} onEnableVault={enableVault} onDisableVault={disableVault} />}
       {loginFor && <LoginForm household={loginFor} taken={(members || []).map((x) => x.username)} onClose={() => setLoginFor(null)}
         onCreated={(username, pin) => { setShare({ household: loginFor, username, pin }); setLoginFor(null); loadMembers() }} />}
       {share && <ShareLogin {...share} onClose={() => setShare(null)} />}
@@ -378,7 +384,7 @@ function LoginBadge({ member, loading }) {
 }
 
 // Everything about one household in one bottom sheet: switch, rename, login, delete.
-function HouseholdSheet({ household, color, onColor, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab, vaultOn, canVault, onEnableVault, onDisableVault }) {
+function HouseholdSheet({ household, color, onColor, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab, onOwnStartTab, vaultOn, canVault, onEnableVault, onDisableVault }) {
   const [name, setName] = useState(household.name)
   const changed = name.trim() && name.trim() !== household.name
   return (
@@ -403,6 +409,15 @@ function HouseholdSheet({ household, color, onColor, member, membersLoaded, acti
 
         <section className="hh-sec">
           <ColorPicker color={color} onChange={onColor} />
+        </section>
+
+        <section className="hh-sec">
+          <label className="hh-start">Your app opens on
+            <select value={household.start_tab || 'dashboard'} onChange={(e) => onOwnStartTab(e.target.value)}>
+              {START_TABS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
+          <div className="muted small">Where eChopdo opens for you when this household is open{member ? ` (their login has its own “Opens on” below)` : ''}.</div>
         </section>
 
         <section className="hh-sec">
