@@ -62,8 +62,13 @@ Deno.serve(async (req) => {
     if (taken) return json({ error: `"${username}" is already used.` }, 409)
     const { data: existing } = await admin.from('household_members').select('user_id').eq('household_id', hh.id).maybeSingle()
     if (existing) return json({ error: 'This household already has a login.' }, 409)
+    // Sign-ups are closed in SQL (private.block_public_signups): a one-time ticket, which only the
+    // service role can write, lets this one member address through.
+    const email = `${username}@${EMAIL_DOMAIN}`
+    const { error: tErr } = await admin.from('member_signup_tickets').upsert({ email, expires_at: new Date(Date.now() + 120_000).toISOString() })
+    if (tErr) return json({ error: tErr.message }, 500)
     const { data: created, error } = await admin.auth.admin.createUser({
-      email: `${username}@${EMAIL_DOMAIN}`, password: body.pin, email_confirm: true,
+      email, password: body.pin, email_confirm: true,
       app_metadata: { role: 'member' }, user_metadata: { username },
     })
     if (error || !created.user) return json({ error: error?.message || 'Could not create the login.' }, 400)

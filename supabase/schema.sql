@@ -985,3 +985,23 @@ end $$;
 drop trigger if exists capture_rules_book_daily on public.capture_rules;
 create trigger capture_rules_book_daily before insert or update of book_id on public.capture_rules
   for each row execute function private.rule_book_daily_only();
+
+-- Member logins: GoTrue inserts the auth user *before* it adds app_metadata.role, so the sign-up
+-- block can't rely on the role. The members Edge Function (service role) writes a one-time ticket
+-- for the exact address first; the block lets only a ticketed @members address through and uses it up.
+create table if not exists public.member_signup_tickets (
+  email text primary key,
+  expires_at timestamptz not null default now() + interval '2 minutes'
+);
+alter table public.member_signup_tickets enable row level security;
+revoke all on public.member_signup_tickets from anon, authenticated;
+
+create or replace function private.block_public_signups() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.email like '%@members.echopdo.vercel.app'
+     and exists (select 1 from public.member_signup_tickets t where t.email = lower(new.email) and t.expires_at > now()) then
+    delete from public.member_signup_tickets where email = lower(new.email);
+    return new;
+  end if;
+  raise exception 'Sign-ups are closed for eChopdo.' using errcode = '42501';
+end $$;
