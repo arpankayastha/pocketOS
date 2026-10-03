@@ -9,7 +9,8 @@ import { isCard } from './instruments'
 // - "Left to spend" for the month:
 //     planned income − Plan commitments − Hisab spends not on a card − one-off Budget expenses not on a card.
 //   Hisab spends linked to a commitment (recurring_item_id) are that commitment's payment, not extra.
-//   Card spends don't count here; they're in the card's bill, in the month it's due.
+//   Card spends don't count here; they're in the card's bill, in the month it's due. Budget entries on
+//   a card count nowhere (usually the bill being paid by hand; the bill line already covers it).
 export async function loadMonthMoney(householdId, month, accounts) {
   const cards = accounts.filter((a) => isCard(a) && a.statement_day)
   const cardIds = new Set(accounts.filter(isCard).map((a) => a.id))

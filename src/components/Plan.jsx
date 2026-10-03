@@ -104,7 +104,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
                   {bill.spends.map((s) => (
                     <div key={`${s.from}-${s.id}`} className="plan-spend">
                       <span className="muted small">{shortDate(s.occurred_on)}</span>
-                      <span className="grow">{s.note || s.category || (s.from === 'budget' ? 'Budget entry' : 'Spend')}</span>
+                      <span className="grow">{s.note || s.category || 'Spend'}</span>
                       <span className={s.sign < 0 ? 'pos' : ''}>{s.sign < 0 ? '+' : ''}{money(s.amount)}</span>
                     </div>
                   ))}
