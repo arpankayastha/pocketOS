@@ -772,6 +772,10 @@ details.section[open] .chev { transform: rotate(90deg); }
 .sms-found { display: grid; gap: 6px; margin: 4px 0 14px; padding: 10px; border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 12px; }
 .sms-found-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 4px; border: none; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .sms-found-row:last-child { border-bottom: none; }
+.sms-found-row { cursor: default; gap: 6px; }
+.sms-found-main { min-width: 0; padding: 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sms-hidden-toggle { justify-self: start; padding: 4px 0; border: none; background: none; font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
+.sms-found-row.hidden-row { opacity: .75; }
 
 /* Plan: left to spend, card bills */
 .plan-left { display: grid; gap: 2px; width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;

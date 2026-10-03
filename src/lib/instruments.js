@@ -15,11 +15,17 @@ export function parseDigits(text) {
   return [...new Set(String(text || '').split(/[^0-9]+/).filter((d) => d.length >= 3 && d.length <= 6))]
 }
 
-// Bank + digits seen in this household's SMS that no account claims yet.
+// Bank + digits seen in this household's SMS that no account claims yet (with `hidden`).
 export async function loadUnlinked(householdId) {
-  const { data, error } = await supabase.rpc('unlinked_instruments', { p_household: householdId })
+  const { data, error } = await supabase.rpc('sms_instruments', { p_household: householdId })
   if (error) throw error
   return data || []
+}
+
+// Hide one from "Found in your SMS" (a closed account, someone else's card) — or show it again.
+export async function setHidden(householdId, row, hidden) {
+  const { error } = await supabase.rpc('set_instrument_hidden', { p_household: householdId, p_bank: row.bank, p_digits: row.digits, p_hidden: hidden })
+  if (error) throw error
 }
 
 // Attach SMS digits to an existing account (or create one). The database then re-links past

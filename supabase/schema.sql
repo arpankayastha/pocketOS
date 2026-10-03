@@ -1186,3 +1186,32 @@ create or replace function public.instrument_for_device(p_household uuid, p_bank
 language sql stable security definer set search_path = '' as $$ select private.instrument_for(p_household, p_bank, p_hint) $$;
 revoke execute on function public.instrument_for_device(uuid, text, text) from public, anon, authenticated;
 grant execute on function public.instrument_for_device(uuid, text, text) to service_role;
+
+-- "Found in your SMS": bank+digits the household chose to hide (a closed account, someone else's card).
+-- Keys are "<lower bank>:<digits>". sms_instruments replaces unlinked_instruments (same rows + hidden).
+alter table public.households add column if not exists hidden_instruments text[] not null default '{}';
+create or replace function public.set_instrument_hidden(p_household uuid, p_bank text, p_digits text, p_hidden boolean)
+returns void language plpgsql security definer set search_path = '' as $$
+declare k text := lower(coalesce(p_bank, '')) || ':' || p_digits;
+begin
+  if p_household not in (select private.my_household_ids()) then raise exception 'Not your household'; end if;
+  update public.households set hidden_instruments = case when p_hidden
+    then (select array_agg(distinct x) from unnest(hidden_instruments || k) x)
+    else array_remove(hidden_instruments, k) end
+  where id = p_household;
+end $$;
+revoke execute on function public.set_instrument_hidden(uuid, text, text, boolean) from public, anon;
+grant execute on function public.set_instrument_hidden(uuid, text, text, boolean) to authenticated;
+create or replace function public.sms_instruments(p_household uuid)
+returns table (bank text, digits text, card boolean, n bigint, total numeric, last_seen date, hidden boolean)
+language sql stable security definer set search_path = '' as $$
+  select c.bank, c.account_hint, bool_or(c.card), count(*), sum(c.amount), max(c.occurred_on),
+    (lower(coalesce(c.bank, '')) || ':' || c.account_hint) = any (h.hidden_instruments)
+  from public.captures c join public.households h on h.id = c.household_id
+  where c.household_id = p_household and p_household in (select private.my_household_ids())
+    and c.account_hint is not null and private.instrument_for(c.household_id, c.bank, c.account_hint) is null
+  group by c.bank, c.account_hint, h.hidden_instruments
+  order by count(*) desc
+$$;
+revoke execute on function public.sms_instruments(uuid) from public, anon;
+grant execute on function public.sms_instruments(uuid) to authenticated;

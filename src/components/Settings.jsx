@@ -9,7 +9,7 @@ import { StrengthMeter } from './VaultGate'
 import PhoneWidget from './PhoneWidget'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor, householdColor } from '../lib/colors'
-import { attachDigits, isCard, loadUnlinked, parseDigits } from '../lib/instruments'
+import { attachDigits, isCard, loadUnlinked, parseDigits, setHidden } from '../lib/instruments'
 import { money } from '../lib/format'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock, vault }) {
@@ -670,25 +670,41 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
 function FromSms({ accounts, activeHouseholdId, refresh }) {
   const [rows, setRows] = useState(null)
   const [linking, setLinking] = useState(null)
+  const [showHidden, setShowHidden] = useState(false)
   const [error, setError] = useState(null)
   const load = useCallback(() => {
     if (!activeHouseholdId) return
     loadUnlinked(activeHouseholdId).then(setRows).catch((err) => setError(err.message))
   }, [activeHouseholdId])
   useEffect(() => { load() }, [load, accounts])
+  const hide = (r, hidden) => setHidden(activeHouseholdId, r, hidden).then(load).catch((err) => setError(err.message))
   if (error) return <div className="alert error">{error}</div>
   if (!rows?.length) return null
+  const shown = rows.filter((r) => !r.hidden), hidden = rows.filter((r) => r.hidden)
   return (
     <div className="sms-found">
       <div className="muted small caps">Found in your SMS</div>
-      {rows.map((r) => (
-        <button type="button" key={`${r.bank}:${r.digits}`} className="sms-found-row" onClick={() => setLinking(r)}>
-          <span className="grow">
+      {!shown.length && <div className="muted small">Nothing new to link.</div>}
+      {shown.map((r) => (
+        <div key={`${r.bank}:${r.digits}`} className="sms-found-row">
+          <button type="button" className="grow sms-found-main" onClick={() => setLinking(r)}>
             <b>{r.bank || 'Bank'} ••{r.digits}</b> <span className="muted small">{r.card ? 'card' : 'account'}</span>
             <div className="muted small">{r.n} payment{r.n === 1 ? '' : 's'} · {money(r.total)} · last {new Date(`${r.last_seen}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
-          </span>
-          <span className="chip">Link</span>
+          </button>
+          <button type="button" className="chip chip-btn" onClick={() => setLinking(r)}>Link</button>
+          <button type="button" className="chip chip-btn" title="Closed account / not mine" onClick={() => hide(r, true)}>Hide</button>
+        </div>
+      ))}
+      {hidden.length > 0 && (
+        <button type="button" className="sms-hidden-toggle muted small" onClick={() => setShowHidden((v) => !v)}>
+          {showHidden ? 'Hide' : 'Show'} {hidden.length} hidden
         </button>
+      )}
+      {showHidden && hidden.map((r) => (
+        <div key={`h-${r.bank}:${r.digits}`} className="sms-found-row hidden-row">
+          <span className="grow muted small">{r.bank || 'Bank'} ••{r.digits} · {r.n} payment{r.n === 1 ? '' : 's'}</span>
+          <button type="button" className="chip chip-btn" onClick={() => hide(r, false)}>Unhide</button>
+        </div>
       ))}
       {linking && <LinkDigits row={linking} accounts={accounts} activeHouseholdId={activeHouseholdId}
         onClose={() => setLinking(null)} onDone={() => { setLinking(null); refresh(); load() }} />}
