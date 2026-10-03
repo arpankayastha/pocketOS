@@ -1015,3 +1015,174 @@ alter table public.households add column if not exists start_tab text not null d
 alter table public.hisab_entries add column if not exists occurred_at timestamptz;
 alter table public.captures add column if not exists occurred_at timestamptz;
 -- public.file_capture_as copies captures.occurred_at into the Hisab entry it creates (see the function above; re-created with that column).
+
+-- Cards & bank accounts (Hisab ↔ Budget link). A Budget account can be a real instrument: the last
+-- digits bank SMS show for it, and for a credit card its statement (cut-off) and due days. Hisab entries
+-- and captures point at the instrument they were paid from, so card spends build that card's bill in
+-- Plan and bank spends count against this month.
+alter table public.accounts add column if not exists digits text[] not null default '{}';
+alter table public.accounts add column if not exists bank text;
+alter table public.accounts add column if not exists statement_day smallint check (statement_day between 1 and 31);
+alter table public.accounts add column if not exists due_day smallint check (due_day between 1 and 31);
+alter table public.hisab_entries add column if not exists account_id uuid references public.accounts(id) on delete set null;
+alter table public.captures add column if not exists account_id uuid references public.accounts(id) on delete set null;
+alter table public.recurring_items add column if not exists auto_card boolean not null default false;
+create index if not exists hisab_entries_account_id_idx on public.hisab_entries (account_id, occurred_on);
+create index if not exists captures_account_id_idx on public.captures (account_id);
+
+-- The account an SMS's last digits belong to: digits match by suffix (SMS show 3–4 digits); when two
+-- accounts share digits, the one with the same bank wins.
+create or replace function private.instrument_for(p_household uuid, p_bank text, p_hint text) returns uuid
+language sql stable security definer set search_path = '' as $$
+  select a.id from public.accounts a, unnest(a.digits) d
+  where p_hint is not null and a.household_id = p_household and length(d) >= 3 and length(p_hint) >= 3
+    and right(d, least(length(d), length(p_hint))) = right(p_hint, least(length(d), length(p_hint)))
+  order by (lower(coalesce(a.bank, '')) = lower(coalesce(p_bank, ''))) desc, a.created_at
+  limit 1
+$$;
+
+-- Re-point a household's captures, and the Hisab entries made from them, after digits change.
+create or replace function private.relink_instruments(p_household uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.captures c set account_id = private.instrument_for(c.household_id, c.bank, c.account_hint)
+    where c.household_id = p_household
+      and c.account_id is distinct from private.instrument_for(c.household_id, c.bank, c.account_hint);
+  update public.hisab_entries e set account_id = c.account_id
+    from public.captures c
+    where c.household_id = p_household and c.entry_id = e.id and c.target = 'hisab'
+      and e.account_id is distinct from c.account_id;
+end $$;
+
+-- A card with a statement day has one automatic Plan line ("<card> bill") whose amount Plan computes
+-- from the card's spends. Kept in step with the card here.
+create or replace function private.sync_card_account() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_cat uuid;
+begin
+  if tg_op = 'INSERT' or new.digits is distinct from old.digits or new.bank is distinct from old.bank then
+    perform private.relink_instruments(new.household_id);
+  end if;
+  if new.type = 'card' and new.statement_day is not null then
+    if exists (select 1 from public.recurring_items where account_id = new.id and auto_card) then
+      update public.recurring_items set name = trim(new.name) || ' bill', day_of_month = new.due_day, active = true
+        where account_id = new.id and auto_card;
+    else
+      select id into v_cat from public.categories where household_id = new.household_id and kind = 'expense' and lower(trim(name)) = 'card bills';
+      if v_cat is null then
+        insert into public.categories (user_id, household_id, name, kind, color)
+          values (new.user_id, new.household_id, 'Card bills', 'expense', '#8b5cf6') returning id into v_cat;
+      end if;
+      insert into public.recurring_items (user_id, household_id, name, kind, category_id, account_id, expected_amount, day_of_month, auto_card)
+        values (new.user_id, new.household_id, trim(new.name) || ' bill', 'expense', v_cat, new.id, 0, new.due_day, true);
+    end if;
+  else
+    update public.recurring_items set active = false where account_id = new.id and auto_card and active;
+  end if;
+  return new;
+end $$;
+create or replace trigger accounts_sync_card after insert or update of digits, bank, type, statement_day, due_day, name on public.accounts
+  for each row execute function private.sync_card_account();
+
+-- Filing a capture records the instrument on the capture and on the entry it makes.
+create or replace function public.file_capture_as(p_user uuid, p_capture uuid, p_target text, p_category text DEFAULT NULL::text, p_category_id uuid DEFAULT NULL::uuid, p_account_id uuid DEFAULT NULL::uuid, p_source text DEFAULT NULL::text, p_book_id uuid DEFAULT NULL::uuid, p_note text DEFAULT NULL::text, p_auto boolean DEFAULT NULL::boolean, p_learn boolean DEFAULT true)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  c public.captures;
+  v_target text := case when p_target = 'budget' then 'budget' else 'hisab' end;
+  v_cat_id uuid; v_acct uuid; v_book uuid; v_entry uuid; v_source text; v_inst uuid;
+begin
+  select * into c from public.captures where id = p_capture for update;
+  if not found then raise exception 'Capture not found'; end if;
+  if c.status <> 'new' then return jsonb_build_object('already', c.status, 'id', c.entry_id, 'target', c.target); end if;
+  v_inst := private.instrument_for(c.household_id, c.bank, c.account_hint);
+
+  if v_target = 'budget' then
+    select id into v_cat_id from public.categories where id = p_category_id and household_id = c.household_id
+      and kind = case when c.direction = 'in' then 'income' else 'expense' end;
+    select id into v_acct from public.accounts where id = coalesce(p_account_id, v_inst) and household_id = c.household_id;
+    insert into public.transactions (user_id, household_id, kind, amount, occurred_on, note, category_id, account_id)
+    values (p_user, c.household_id, case when c.direction = 'in' then 'income' else 'expense' end, c.amount, c.occurred_on,
+            coalesce(nullif(trim(p_note), ''), c.payee), v_cat_id, v_acct)
+    returning id into v_entry;
+  else
+    select id into v_book from public.hisab_books where id = p_book_id and household_id = c.household_id;
+    if v_book is null then
+      select id into v_book from public.hisab_books where household_id = c.household_id and kind = 'daily' order by created_at limit 1;
+    end if;
+    if v_book is null then
+      insert into public.hisab_books (user_id, household_id, name, kind) values (p_user, c.household_id, 'Daily', 'daily') returning id into v_book;
+    end if;
+    v_source := coalesce(nullif(trim(p_source), ''), case when c.card then 'Card' else 'UPI' end);
+    insert into public.hisab_entries (user_id, household_id, book_id, direction, amount, occurred_on, occurred_at, category, source, note, account_id)
+    values (p_user, c.household_id, v_book, c.direction, c.amount, c.occurred_on, c.occurred_at, nullif(trim(p_category), ''), v_source,
+            coalesce(nullif(trim(p_note), ''), c.payee), v_inst)
+    returning id into v_entry;
+  end if;
+
+  update public.captures set status = 'filed', target = v_target, entry_id = v_entry, filed_at = now(), account_id = v_inst where id = c.id;
+
+  if p_learn and c.payee is not null and trim(c.payee) <> '' then
+    insert into public.capture_rules as r (user_id, household_id, key, target, category, category_id, account_id, source, book_id, hits, auto)
+    values (p_user, c.household_id, 'payee:' || lower(trim(c.payee)), v_target, nullif(trim(p_category), ''), v_cat_id, v_acct,
+            case when v_target = 'hisab' then v_source end, v_book, 1, coalesce(p_auto, false))
+    on conflict (household_id, key) do update set
+      hits = case when r.target is not distinct from excluded.target and r.category is not distinct from excluded.category
+                   and r.category_id is not distinct from excluded.category_id then r.hits + 1 else 1 end,
+      target = excluded.target, category = excluded.category, category_id = excluded.category_id,
+      account_id = coalesce(excluded.account_id, r.account_id), source = coalesce(excluded.source, r.source),
+      book_id = excluded.book_id, auto = coalesce(p_auto, r.auto), updated_at = now();
+  end if;
+  if p_learn and c.account_hint is not null and v_target = 'budget' and v_acct is not null then
+    insert into public.capture_rules as r (user_id, household_id, key, target, account_id, hits)
+    values (p_user, c.household_id, 'acct:' || coalesce(lower(c.bank), '') || ':' || c.account_hint, 'budget', v_acct, 1)
+    on conflict (household_id, key) do update set account_id = excluded.account_id, hits = r.hits + 1, updated_at = now();
+  end if;
+  return jsonb_build_object('id', v_entry, 'target', v_target);
+end $function$;
+
+-- Bank + digits seen in a household's SMS that no account claims yet (Settings → "From your SMS").
+create or replace function public.unlinked_instruments(p_household uuid)
+returns table (bank text, digits text, card boolean, n bigint, total numeric, last_seen date)
+language sql stable security definer set search_path = '' as $$
+  select c.bank, c.account_hint, bool_or(c.card), count(*), sum(c.amount), max(c.occurred_on)
+  from public.captures c
+  where c.household_id = p_household and p_household in (select private.my_household_ids())
+    and c.account_hint is not null and private.instrument_for(c.household_id, c.bank, c.account_hint) is null
+  group by c.bank, c.account_hint
+  order by count(*) desc
+$$;
+revoke execute on function public.unlinked_instruments(uuid) from public, anon;
+grant execute on function public.unlinked_instruments(uuid) to authenticated;
+
+-- A Hisab spend that is a Plan commitment's payment (SIP, LIC… debited by SMS): linked so Plan shows it
+-- paid and "left to spend" doesn't count it twice. Auto-linked on insert when the amount is exactly
+-- the commitment's expected amount and it isn't paid yet that month; editable in the entry sheet.
+alter table public.hisab_entries add column if not exists recurring_item_id uuid references public.recurring_items(id) on delete set null;
+create index if not exists hisab_entries_recurring_item_id_idx on public.hisab_entries (recurring_item_id);
+create or replace function private.link_hisab_to_plan() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.recurring_item_id is not null or new.direction <> 'out' then return new; end if;
+  select r.id into new.recurring_item_id from public.recurring_items r
+  where r.household_id = new.household_id and r.active and not r.auto_card and r.kind = 'expense'
+    and r.expected_amount = new.amount
+    and not exists (select 1 from public.transactions t where t.recurring_item_id = r.id
+                    and date_trunc('month', t.occurred_on) = date_trunc('month', new.occurred_on))
+    and not exists (select 1 from public.hisab_entries h where h.recurring_item_id = r.id
+                    and date_trunc('month', h.occurred_on) = date_trunc('month', new.occurred_on))
+  order by r.created_at limit 1;
+  return new;
+end $$;
+create or replace trigger hisab_entries_link_plan before insert on public.hisab_entries
+  for each row execute function private.link_hisab_to_plan();
+
+-- The quickadd function (service role) looks up which card a "payment received" SMS is for.
+create or replace function public.instrument_for_device(p_household uuid, p_bank text, p_hint text) returns uuid
+language sql stable security definer set search_path = '' as $$ select private.instrument_for(p_household, p_bank, p_hint) $$;
+revoke execute on function public.instrument_for_device(uuid, text, text) from public, anon, authenticated;
+grant execute on function public.instrument_for_device(uuid, text, text) to service_role;

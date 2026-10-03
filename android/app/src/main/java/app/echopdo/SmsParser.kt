@@ -34,6 +34,22 @@ object SmsParser {
             "\\bbbps\\b.{0,80}credit card|credit card.{0,80}\\bbbps\\b|cred\\.club|@cred\\b|\\bcred club\\b"
     )
     fun isCardBillPayment(text: String) = CARD_BILL.containsMatchIn(text) && !Regex("(?i)refund|reversal").containsMatchIn(text)
+
+    // The card issuer's side of a bill payment ("Payment of Rs X has been received on your … Credit Card
+    // XX1234", "Thank you for your payment … card ending 1234"): read as a bill payment so that card's
+    // bill in Plan is marked paid. The bank's side (money debited towards the card, CRED, BBPS from an
+    // account) stays skipped — it's the same payment.
+    private val BILL_RECEIVED = Regex("(?i)received|thank you for (the |your )?payment|payment.{0,20}(credited|posted|successful)")
+    private val BILL_BANK_SIDE = Regex("(?i)debited|\\bdr\\b|cred\\.club|@cred\\b|\\bcred club\\b|trf to|transferred to|sent to|paid to")
+    private val CARD_DIGITS = Regex("(?i)card\\b[^0-9]{0,30}?(?:xx|x+|\\*+|ending(?: in| with)?|no\\.?|number)?\\s*([0-9]{4})\\b")
+    fun billPayment(sender: String?, body: String): BankTxn? {
+        val text = body.replace(Regex("\\s+"), " ").trim()
+        if (!isCardBillPayment(text) || !BILL_RECEIVED.containsMatchIn(text) || BILL_BANK_SIDE.containsMatchIn(text)) return null
+        if (Regex("(?i)\\bOTP\\b|will be|is due|due on|due date|minimum amount").containsMatchIn(text)) return null
+        val amount = AMOUNT.find(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()?.takeIf { it > 0 } ?: return null
+        val digits = CARD_DIGITS.find(text)?.groupValues?.get(1) ?: return null
+        return BankTxn("bill", amount, null, digits, true, null, null, bankName(sender))
+    }
     private val AMOUNT = Regex("(?i)(?:rs\\.?|inr|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)")
 
     /** True for business (DLT) sender ids like "JK-BOBSMS-S", "AD-FEDBNK-T", "VM-HDFCBK" — any bank. */

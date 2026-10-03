@@ -117,6 +117,19 @@ class SmsParserTest {
         assertNull(SmsParser.parse("AD-HDFCBK", "Rs 1500 will be debited from a/c XX1234 on 05-10-26 towards autopay DEMO."))
     }
 
+    // The card's own "payment received" SMS marks that card's bill paid (made-up values).
+    @Test fun cardBillPaymentReceivedIsReadAsBillPayment() {
+        val icici = SmsParser.billPayment("AD-ICICIB-S", "Payment of Rs 12,345.67 has been received on your ICICI Bank Credit Card XX1234 through Bharat Bill Payment System on 08-SEP-26.")!!
+        assertEquals("bill", icici.direction); assertEquals(12345.67, icici.amount, 0.001); assertEquals("1234", icici.accountHint); assertEquals("ICICI", icici.bank)
+        val hdfc = SmsParser.billPayment("VM-HDFCBK", "Thank you for your payment of INR 5,000.00 towards your HDFC Bank Credit Card ending 4321.")!!
+        assertEquals(5000.0, hdfc.amount, 0.001); assertEquals("4321", hdfc.accountHint)
+        // The bank's side of the same payment, and ordinary spends, are not bill payments.
+        assertNull(SmsParser.billPayment("AD-BOBSMS-S", "Rs.4000.00 debited from A/c XX1111 towards ICICI Credit Card bill payment via BBPS. Ref 123"))
+        assertNull(SmsParser.billPayment("AD-SBIUPI-S", "Dear UPI user A/C X2222 debited by 3000.0 on date 08Sep26 trf to CRED Club Refno 400000000001."))
+        assertNull(SmsParser.billPayment("AD-ICICIB-S", "INR 768.00 spent using ICICI Bank Card XX1234 on 25-Sep-26 on IND*DEMO FUELS. Avl Limit: INR 1,00,000."))
+        assertNull(SmsParser.billPayment("AD-ICICIB-S", "Payment of Rs 5,000 is due on your ICICI Bank Credit Card XX1234 on 03-Oct-26."))
+    }
+
     @Test fun creditCardBillPaymentsAreSkipped() {
         // Card side: the bill payment arriving on the card.
         assertNull(SmsParser.parse("AX-ICICIT-S", "Payment of Rs 12,345.67 has been received on your ICICI Bank Credit Card XX1234 through Bharat Bill Payment System on 08-SEP-26."))

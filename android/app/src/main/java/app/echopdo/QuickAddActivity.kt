@@ -320,6 +320,28 @@ class QuickAddActivity : Activity() {
             val s = sources.getString(i)
             fs.addView(chip(s, source == s) { source = if (source == s) null else s; render() })
         }
+        // Which card / bank account (typed-in entries; bank SMS already say it): card spends build that
+        // card's bill in Plan, bank ones count against this month.
+        if (capture == null) {
+            val accts = Store.config(this)?.optJSONObject("budget")?.optJSONArray("accounts") ?: JSONArray()
+            val inst = (0 until accts.length()).map { accts.getJSONObject(it) }.filter { it.optString("type") in setOf("bank", "card", "wallet") }
+            if (inst.isNotEmpty()) {
+                pickers.addView(section(if (direction == "in") "Into" else "Paid with"))
+                val fa = flow()
+                for (a in inst) {
+                    val id = a.optString("id")
+                    val card = a.optString("type") == "card"
+                    val digits = a.optJSONArray("digits")?.optString(0)?.takeIf { it.isNotEmpty() }
+                    val label = (if (card) "💳 " else "🏦 ") + a.optString("name").trim() + (digits?.let { " ••$it" } ?: "")
+                    fa.addView(chip(label, accountId == id) {
+                        val on = accountId == id
+                        accountId = if (on) null else id
+                        if (!on && (source == null || source in setOf("Cash", "UPI", "Card"))) source = if (card) "Card" else "UPI"
+                        render()
+                    })
+                }
+            }
+        }
     }
 
     private fun budgetPickers(b: JSONObject) {
@@ -424,6 +446,7 @@ class QuickAddActivity : Activity() {
             category?.let { entry.put("category", it) }
             source?.let { entry.put("source", it) }
             bookId?.let { entry.put("book_id", it) }
+            accountId?.let { entry.put("account_id", it) }
         }
         busy = true
         saveBtn.alpha = 0.5f; nextBtn.alpha = 0.5f

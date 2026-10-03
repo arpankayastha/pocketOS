@@ -19,6 +19,7 @@ class ActionReceiver : BroadcastReceiver() {
         const val CAP_MATCH = "app.echopdo.CAP_MATCH"   // "same as the one I already added"
         const val CAP_UNFILE = "app.echopdo.CAP_UNFILE" // take an automatically added payment out again
         const val CAP_SELF = "app.echopdo.CAP_SELF"     // "My account": a transfer; skip this payee from now on
+        const val CAP_UNBILL = "app.echopdo.CAP_UNBILL" // undo "card bill marked paid"
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -42,6 +43,13 @@ class ActionReceiver : BroadcastReceiver() {
                         })
                         Notify.saved(app, entry, res)
                         if (res is SaveResult.Failed && res.unpaired) QuickWidget.refreshAll(app)
+                    }
+                    CAP_UNBILL -> {
+                        Notify.cancel(app, intent.getIntExtra("nid", 0))
+                        val c = JSONObject(intent.getStringExtra("capture") ?: "{}")
+                        val msg = try { Api.call(app, JSONObject().put("action", "unbill").put("id", c.optString("id"))); "Bill no longer marked paid" }
+                            catch (e: ApiError) { e.message ?: "Could not undo." } catch (e: java.io.IOException) { "No internet — undo it in eChopdo → Plan." }
+                        toast(app, msg)
                     }
                     CAP_FILE, CAP_IGNORE, CAP_MATCH, CAP_UNFILE, CAP_SELF -> {
                         Notify.cancel(app, intent.getIntExtra("nid", 0))

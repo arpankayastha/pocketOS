@@ -5,6 +5,7 @@ import { currentMonth, monthEnd, monthKey, monthLabel, monthStart, money, shiftM
 import { MonthPicker } from './Transactions'
 import { DashboardSkeleton } from './Skeleton'
 import { useMonthSwipe } from '../lib/useSwipe'
+import { loadMonthMoney } from '../lib/runway'
 
 // Forward-looking report: only last month, this month and next month. Next month is the
 // plan (recurring commitments at their expected amounts, or the actual once logged).
@@ -16,6 +17,8 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
   const [month, setMonth] = useState(thisMonth)
   const [all, setAll] = useState([])
   const [recurring, setRecurring] = useState([])
+  const [nowMoney, setNowMoney] = useState(null) // this month: left to spend
+  const [planMoney, setPlanMoney] = useState(null) // next month: plan items with card bills worked out
   const [error, setError] = useState(null)
   const [loaded, setLoaded] = useState(false) // first load done — until then show a skeleton, not ₹0.00
 
@@ -36,7 +39,9 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
     setAll(t.data || [])
     setRecurring(ri.data || [])
     setLoaded(true)
-  }, [activeHouseholdId, range.min, range.max])
+    Promise.all([loadMonthMoney(activeHouseholdId, thisMonth, accounts), loadMonthMoney(activeHouseholdId, range.max, accounts)])
+      .then(([a, b]) => { setNowMoney(a); setPlanMoney(b) }).catch(() => {})
+  }, [activeHouseholdId, range.min, range.max, thisMonth, accounts])
 
   useEffect(() => { load() }, [load])
 
@@ -48,11 +53,13 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
     const txs = all.filter((t) => monthKey(t.occurred_on) === ym)
     if (ym !== range.max) return txs
     const logged = new Set(txs.map((t) => t.recurring_item_id).filter(Boolean))
+    // Card bills: the amount worked out from the card's spends (expected_amount is 0 for them).
+    const amountOf = (r) => planMoney?.items.find((i) => i.id === r.id)?.amount ?? r.expected_amount
     const planned = recurring.filter((r) => !logged.has(r.id)).map((r) => ({
-      id: `plan-${r.id}`, kind: r.kind, amount: r.expected_amount, category_id: r.category_id, account_id: r.account_id, note: r.name, day: r.day_of_month, planned: true,
+      id: `plan-${r.id}`, kind: r.kind, amount: amountOf(r), category_id: r.category_id, account_id: r.account_id, note: r.name, day: r.day_of_month, planned: true,
     }))
     return [...txs, ...planned]
-  }, [all, recurring, range.max])
+  }, [all, recurring, range.max, planMoney])
 
   const stats = useMemo(() => {
     const rows = rowsFor(month)
@@ -110,6 +117,14 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
         <span className="muted small">{month === thisMonth ? 'this month' : isPlan ? 'next month · planned' : 'last month'}</span>
       </div>
       {error && <div className="alert error">{error}</div>}
+
+      {month === thisMonth && nowMoney && (
+        <div className="card plan-left">
+          <div className="muted small">Left to spend this month</div>
+          <div className={`plan-left-num ${nowMoney.left < 0 ? 'neg' : 'pos'}`}>{money(nowMoney.left)}</div>
+          <div className="muted small">Income {money(nowMoney.income)} − plan {money(nowMoney.commitments)} − bank &amp; cash spends {money(nowMoney.spends + nowMoney.oneOffs)}. Card spends count on their bill (Plan).</div>
+        </div>
+      )}
 
       <div className="tiles">
         <Tile label={isPlan ? 'Expected income' : 'Income'} value={money(stats.income)} tone="pos" />

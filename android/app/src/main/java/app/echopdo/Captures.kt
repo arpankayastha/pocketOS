@@ -31,13 +31,14 @@ object Captures {
         .put("date", (t.date ?: Instant.ofEpochMilli(smsTime).atZone(ZoneId.systemDefault()).toLocalDate()).toString())
         .put("at", Instant.ofEpochMilli(smsTime).toString()) // when the SMS came: the time shown in Hisab
         .put("account_hint", t.accountHint).put("card", t.card).put("payee", t.payee).put("ref", t.ref).put("bank", t.bank)
+        .also { if (t.direction == "bill") it.put("kind", "bill") } // a card's bill paid: marks it paid in Plan
 
     /** Blocking. Sends one parsed SMS; shows the notification. Returns false if it was already sent. */
     var lastError: String? = null
 
     fun handle(ctx: Context, sender: String?, text: String, smsTime: Long, notify: Boolean = true, refresh: Boolean = true): Boolean {
         if (!SmsParser.fromBank(sender)) return false
-        val t = SmsParser.parse(sender, text) ?: return false
+        val t = SmsParser.parse(sender, text) ?: SmsParser.billPayment(sender, text) ?: return false
         // Key without "|" (the list separator): a reference, else a hash of sender + text.
         if (!Store.markSeen(ctx, t.ref ?: "h" + Integer.toHexString("$sender $text".hashCode()))) return false
         val req = body(t, smsTime)
@@ -121,6 +122,18 @@ object Captures {
         val choose = PendingIntent.getActivity(ctx, id, chooseIntent(ctx, c), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val b = Notification.Builder(ctx, CHANNEL).setSmallIcon(R.drawable.ic_stat).setColor(0xFF60A5FA.toInt())
             .setAutoCancel(true).setContentIntent(choose).setSubText(subtitle(c))
+        if (c.optBoolean("bill")) {
+            // A card bill paid (its "payment received" SMS).
+            if (c.optBoolean("already")) return
+            val amt = Calc.money(c.optDouble("amount"))
+            b.setContentTitle("$amt bill paid · ${c.optString("label")}")
+            if (c.has("id")) {
+                b.setContentText("Marked paid in Plan")
+                    .addAction(Notification.Action.Builder(null, "Undo", actionIntent(ctx, ActionReceiver.CAP_UNBILL, c, id + 10)).build())
+            } else b.setContentText("Give this card its bill day in eChopdo → ⚙ Accounts to track its bill")
+            nm.notify(id, b.build())
+            return
+        }
         val filed = c.optJSONObject("filed")
         val sug = c.optJSONObject("suggestion") ?: c.optJSONObject("guess")
         val icon = c.optString("icon").takeIf { it.isNotEmpty() && it != "null" }?.let { "$it " } ?: ""

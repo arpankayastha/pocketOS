@@ -767,3 +767,23 @@ details.section[open] .chev { transform: rotate(90deg); }
 .check-line { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
 .check-line input { width: auto; }
 .pw-auto { flex-basis: 100%; }
+
+/* Settings → Accounts: bank + digits found in SMS, to link */
+.sms-found { display: grid; gap: 6px; margin: 4px 0 14px; padding: 10px; border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 12px; }
+.sms-found-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 4px; border: none; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.sms-found-row:last-child { border-bottom: none; }
+
+/* Plan: left to spend, card bills */
+.plan-left { display: grid; gap: 2px; width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--card)), var(--card)); }
+.plan-left-num { font-family: var(--font-mono); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.txn.plan-card { cursor: pointer; }
+.plan-spends { display: grid; gap: 2px; padding: 4px 4px 10px 22px; border-bottom: 1px solid var(--line); }
+.plan-spend { display: flex; align-items: baseline; gap: 10px; font-size: 13px; }
+.plan-spend > :last-child { font-family: var(--font-mono); }
+.left-sheet { gap: 6px; }
+.left-sec { margin-top: 10px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.left-row { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.left-row > :last-child { font-family: var(--font-mono); }
+.hb-plan { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.hb-plan select { flex: 1; }

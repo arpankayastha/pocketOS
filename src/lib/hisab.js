@@ -99,8 +99,9 @@ export async function deleteBook(id) {
 }
 
 // `book` is where the entry goes: saving an existing entry with another book moves it there.
-export async function saveEntry(book, { id, direction, amount, occurredOn, category, source, note }) {
-  const fields = { direction, amount, occurred_on: occurredOn, category: category || null, source: source || null, note: note || null, book_id: book.id }
+export async function saveEntry(book, { id, direction, amount, occurredOn, category, source, note, accountId, recurringItemId }) {
+  const fields = { direction, amount, occurred_on: occurredOn, category: category || null, source: source || null, note: note || null, book_id: book.id,
+    account_id: accountId || null, recurring_item_id: direction === 'out' ? recurringItemId || null : null }
   const { error } = id
     ? await supabase.from('hisab_entries').update(fields).eq('id', id)
     : await supabase.from('hisab_entries').insert({ ...fields, household_id: book.household_id, occurred_at: occurredOn === today() ? new Date().toISOString() : null })

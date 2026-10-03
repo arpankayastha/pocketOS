@@ -9,6 +9,8 @@ import { StrengthMeter } from './VaultGate'
 import PhoneWidget from './PhoneWidget'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor, householdColor } from '../lib/colors'
+import { attachDigits, isCard, loadUnlinked, parseDigits } from '../lib/instruments'
+import { money } from '../lib/format'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock, vault }) {
   const dialog = useDialog()
@@ -636,10 +638,13 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
 
   return (
     <Collapsible id="accounts" title="Accounts" summary={`${accounts.length} account${accounts.length === 1 ? '' : 's'}`}>
+      <p className="muted small" style={{ marginTop: -6 }}>Give your bank accounts and cards their last digits (as bank SMS show them), and cards their bill and due days: card spends then build that card's bill in Plan, and bank spends count against this month.</p>
+      <FromSms accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
       {accounts.map((a) => (
         <div className="line" key={a.id}>
           <button type="button" className="line-btn" onClick={() => setEditing(a)}>
-            <span className="dot" style={{ background: a.color || '#94a3b8' }} />{a.name} <span className="muted small">{a.type}</span>
+            <span className="dot" style={{ background: a.color || '#94a3b8' }} />{a.name}{' '}
+            <span className="muted small">{a.type}{a.digits?.length ? ` · ••${a.digits.join(', ••')}` : ''}{isCard(a) && a.statement_day ? ` · bill ${a.statement_day}${a.due_day ? `, due ${a.due_day}` : ''}` : ''}</span>
           </button>
           <span>
             <button className="btn icon" aria-label={`Edit ${a.name}`} onClick={() => setEditing(a)}><PencilIcon /></button>
@@ -657,6 +662,84 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
       {error && <div className="alert error">{error}</div>}
       {editing && <AccountEditor account={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />}
     </Collapsible>
+  )
+}
+
+// Bank + digits seen in this household's SMS that no account claims yet: link each to an
+// account (or make one), choosing bank or card. Past payments with those digits follow.
+function FromSms({ accounts, activeHouseholdId, refresh }) {
+  const [rows, setRows] = useState(null)
+  const [linking, setLinking] = useState(null)
+  const [error, setError] = useState(null)
+  const load = useCallback(() => {
+    if (!activeHouseholdId) return
+    loadUnlinked(activeHouseholdId).then(setRows).catch((err) => setError(err.message))
+  }, [activeHouseholdId])
+  useEffect(() => { load() }, [load, accounts])
+  if (error) return <div className="alert error">{error}</div>
+  if (!rows?.length) return null
+  return (
+    <div className="sms-found">
+      <div className="muted small caps">Found in your SMS</div>
+      {rows.map((r) => (
+        <button type="button" key={`${r.bank}:${r.digits}`} className="sms-found-row" onClick={() => setLinking(r)}>
+          <span className="grow">
+            <b>{r.bank || 'Bank'} ••{r.digits}</b> <span className="muted small">{r.card ? 'card' : 'account'}</span>
+            <div className="muted small">{r.n} payment{r.n === 1 ? '' : 's'} · {money(r.total)} · last {new Date(`${r.last_seen}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
+          </span>
+          <span className="chip">Link</span>
+        </button>
+      ))}
+      {linking && <LinkDigits row={linking} accounts={accounts} activeHouseholdId={activeHouseholdId}
+        onClose={() => setLinking(null)} onDone={() => { setLinking(null); refresh(); load() }} />}
+    </div>
+  )
+}
+
+function LinkDigits({ row, accounts, activeHouseholdId, onClose, onDone }) {
+  const [accountId, setAccountId] = useState('')
+  const [name, setName] = useState(`${row.bank || 'Bank'} ${row.card ? 'card' : 'account'}`)
+  const [type, setType] = useState(row.card ? 'card' : 'bank')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await attachDigits({ householdId: activeHouseholdId, accountId: accountId || null, name, type, bank: row.bank, digits: row.digits,
+        color: nextColor(accounts.map((a) => a.color)) })
+      onDone()
+    } catch (err) { setError(err.message); setBusy(false) }
+  }
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
+        <h3>{row.bank} ••{row.digits}</h3>
+        <p className="muted small">{row.n} payment{row.n === 1 ? '' : 's'} so far. Link these digits to one of your accounts, or add it as a new one.</p>
+        <label>Account
+          <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">+ New account</option>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name.trim()} ({a.type})</option>)}
+          </select>
+        </label>
+        {!accountId && (
+          <>
+            <label>Name<input required value={name} onChange={(e) => setName(e.target.value)} /></label>
+            <div className="seg">
+              <button type="button" className={type === 'bank' ? 'on' : ''} onClick={() => setType('bank')}>Bank account</button>
+              <button type="button" className={type === 'card' ? 'on' : ''} onClick={() => setType('card')}>Credit card</button>
+            </div>
+            {type === 'card' && <p className="muted small">After adding, tap the card to set its bill and due days.</p>}
+          </>
+        )}
+        {error && <div className="alert error">{error}</div>}
+        <div className="actions">
+          <span className="spacer" />
+          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={busy}>{busy ? 'Linking…' : 'Link'}</button>
+        </div>
+      </form>
+    </div>
   )
 }
 
@@ -678,7 +761,8 @@ async function deleteAccount(account, dialog) {
 
 function AccountEditor({ account, onClose, onSaved }) {
   const dialog = useDialog()
-  const [form, setForm] = useState({ name: account.name, type: account.type, color: account.color || PALETTE[0]})
+  const [form, setForm] = useState({ name: account.name, type: account.type, color: account.color || PALETTE[0],
+    digits: (account.digits || []).join(', '), bank: account.bank || '', statement_day: account.statement_day || '', due_day: account.due_day || '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -688,7 +772,11 @@ function AccountEditor({ account, onClose, onSaved }) {
     e.preventDefault()
     setBusy(true)
     const { error } = await supabase.from('accounts')
-      .update({ name: form.name.trim(), type: form.type, color: form.color }).eq('id', account.id)
+      .update({
+        name: form.name.trim(), type: form.type, color: form.color, digits: parseDigits(form.digits), bank: form.bank.trim() || null,
+        statement_day: form.type === 'card' ? Number(form.statement_day) || null : null,
+        due_day: form.type === 'card' ? Number(form.due_day) || null : null,
+      }).eq('id', account.id)
     setBusy(false)
     if (error) return setError(error.message)
     onSaved()
@@ -710,6 +798,27 @@ function AccountEditor({ account, onClose, onSaved }) {
             {types.map((t) => <option key={t}>{t}</option>)}
           </select>
         </label>
+        <div className="grid2">
+          <label>Last digits <span className="muted">(from SMS)</span>
+            <input inputMode="numeric" placeholder="e.g. 1234" value={form.digits} onChange={set('digits')} />
+          </label>
+          <label>Bank
+            <input placeholder="e.g. ICICI" value={form.bank} onChange={set('bank')} />
+          </label>
+        </div>
+        {form.type === 'card' && (
+          <>
+            <div className="grid2">
+              <label>Bill generated on <span className="muted">(day)</span>
+                <input type="number" inputMode="numeric" min="1" max="31" placeholder="e.g. 15" value={form.statement_day} onChange={set('statement_day')} />
+              </label>
+              <label>Payment due on <span className="muted">(day)</span>
+                <input type="number" inputMode="numeric" min="1" max="31" placeholder="e.g. 3" value={form.due_day} onChange={set('due_day')} />
+              </label>
+            </div>
+            <p className="muted small">Spends up to the bill day go on that month's bill; later ones on the next. With a bill day set, the card gets a "{form.name.trim() || 'Card'} bill" line in Plan worked out from its spends.</p>
+          </>
+        )}
         <ColorPicker color={form.color} onChange={(color) => setForm((f) => ({ ...f, color }))} />
         {error && <div className="alert error">{error}</div>}
         <div className="actions">

@@ -1,6 +1,7 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { currentMonth, money, monthEnd, monthStart, shiftMonth } from '../lib/format'
+import { currentMonth, money, shiftMonth } from '../lib/format'
+import { loadMonthMoney } from '../lib/runway'
 import { MonthPicker } from './Transactions'
 import { useMonthSwipe } from '../lib/useSwipe'
 import { TrashIcon } from '../lib/icons'
@@ -10,39 +11,23 @@ import { addEntry } from '../lib/dues'
 
 export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [month, setMonth] = useState(() => shiftMonth(currentMonth(), 1))
-  const [items, setItems] = useState([])
-  const [actuals, setActuals] = useState({})
+  const [money_, setMoney] = useState(null) // loadMonthMoney result
   const [logging, setLogging] = useState(null)
+  const [open, setOpen] = useState(null) // card bill showing its spends
   const [showForm, setShowForm] = useState(false)
+  const [showLeft, setShowLeft] = useState(false)
   const [error, setError] = useState(null)
   const dialog = useDialog()
-  const [loaded, setLoaded] = useState(false) // avoids flashing "no commitments yet" before the first load
+  const isNow = month === currentMonth()
 
   const load = useCallback(async () => {
     if (!activeHouseholdId) return
-    const [ri, tx] = await Promise.all([
-      supabase.from('recurring_items').select('*').eq('household_id', activeHouseholdId).eq('active', true).order('created_at'),
-      supabase.from('transactions').select('id, amount, occurred_on, recurring_item_id')
-        .eq('household_id', activeHouseholdId).not('recurring_item_id', 'is', null)
-        .gte('occurred_on', monthStart(month)).lte('occurred_on', monthEnd(month)),
-    ])
-    if (ri.error || tx.error) return setError((ri.error || tx.error).message)
-    setError(null)
-    setItems(ri.data || [])
-    setActuals(Object.fromEntries((tx.data || []).map((t) => [t.recurring_item_id, t])))
-    setLoaded(true)
-  }, [activeHouseholdId, month])
+    try { setMoney(await loadMonthMoney(activeHouseholdId, month, accounts)); setError(null) } catch (err) { setError(err.message) }
+  }, [activeHouseholdId, month, accounts])
 
   useEffect(() => { load() }, [load])
-
-  const totals = useMemo(() => {
-    let income = 0, expense = 0
-    items.forEach((it) => {
-      const amt = actuals[it.id] ? Number(actuals[it.id].amount) : Number(it.expected_amount)
-      if (it.kind === 'income') income += amt; else expense += amt
-    })
-    return { income, expense, net: income - expense }
-  }, [items, actuals])
+  const items = money_?.items || []
+  const loaded = !!money_
 
   async function removeItem(it) {
     if (!await dialog.confirm({ title: `Remove "${it.name}"?`, message: 'It leaves your recurring commitments. Transactions already logged against it are kept.', confirmLabel: 'Remove' })) return
@@ -52,6 +37,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
   }
 
   const swipe = useMonthSwipe(month, setMonth)
+  const accName = (id) => accounts.find((a) => a.id === id)?.name?.trim()
 
   return (
     <section {...swipe}>
@@ -60,10 +46,18 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
       </div>
       {error && <div className="alert error">{error}</div>}
 
+      {isNow && (
+        <button type="button" className="card plan-left" onClick={() => setShowLeft(true)}>
+          <div className="muted small">Left to spend this month</div>
+          {loaded ? <div className={`plan-left-num ${money_.left < 0 ? 'neg' : 'pos'}`}>{money(money_.left)}</div> : <div className="skel" style={{ height: 30, width: '55%' }} />}
+          {loaded && <div className="muted small">Income {money(money_.income)} − plan {money(money_.commitments)} − spends {money(money_.spends + money_.oneOffs)} · card spends go to their bill ›</div>}
+        </button>
+      )}
+
       <div className="tiles">
-        <Tile label="Expected income" value={loaded ? money(totals.income) : null} tone="pos" />
-        <Tile label="Expected expense" value={loaded ? money(totals.expense) : null} tone="neg" />
-        <Tile label="Expected net" value={loaded ? money(totals.net) : null} />
+        <Tile label="Expected income" value={loaded ? money(money_.income) : null} tone="pos" />
+        <Tile label="Expected expense" value={loaded ? money(money_.commitments) : null} tone="neg" />
+        <Tile label="Expected net" value={loaded ? money(money_.income - money_.commitments) : null} />
       </div>
 
       <div className="card">
@@ -79,32 +73,85 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
 
       <div className="card list">
         {!loaded ? <SkeletonRows rows={4} /> : items.length === 0 ? (
-          <div className="muted pad">No recurring commitments yet. Add your credit cards, SIPs, bills and salary to see next month's trend.</div>
+          <div className="muted pad">No recurring commitments yet. Add your SIPs, bills and salary — and give your credit cards a bill day in ⚙ Accounts to get their bills here automatically.</div>
         ) : items.map((it) => {
-          const actual = actuals[it.id]
+          const actual = it.actual
           const cat = categories.find((c) => c.id === it.category_id)
+          const bill = it.bill
+          const sub = it.auto_card
+            ? (bill?.statement
+              ? `${bill.open ? `${bill.count} spend${bill.count === 1 ? '' : 's'} so far · closes ${shortDate(bill.statement)}` : `Statement ${shortDate(bill.statement)} · ${bill.count} spend${bill.count === 1 ? '' : 's'}`} · due ${shortDate(bill.due)}`
+              : 'No bill due this month')
+            : `${cat?.name || 'Uncategorised'}${it.day_of_month ? ` · due ${it.day_of_month}` : ''}${actual?.fromHisab ? ` · paid${it.onCard ? ' by card' : ''} (Hisab)` : ''}`
           return (
             <Fragment key={it.id}>
-              <div className="txn">
-                <span className="dot" style={{ background: cat?.color || '#94a3b8' }} />
+              <div className={`txn ${it.auto_card ? 'plan-card' : ''}`} onClick={it.auto_card && bill?.count ? () => setOpen(open === it.id ? null : it.id) : undefined}>
+                <span className="dot" style={{ background: it.auto_card ? (accounts.find((a) => a.id === it.account_id)?.color || '#8b5cf6') : cat?.color || '#94a3b8' }} />
                 <div className="grow">
-                  <div>{it.name}</div>
-                  <div className="muted small">{cat?.name || 'Uncategorised'}{it.day_of_month ? ` · due ${it.day_of_month}` : ''}</div>
+                  <div>{it.auto_card ? '💳 ' : ''}{it.name}</div>
+                  <div className="muted small">{sub}</div>
                 </div>
                 <div className={`amt ${it.kind === 'income' ? 'pos' : 'neg'} ${actual ? '' : 'expected'}`}>
-                  {it.kind === 'income' ? '+' : '−'}{money(actual ? actual.amount : it.expected_amount)}
+                  {it.kind === 'income' ? '+' : '−'}{money(it.amount)}
                 </div>
-                {actual ? <span className="chip">Logged</span> : (
-                  <button type="button" className="btn small ghost" onClick={() => setLogging(logging === it.id ? null : it.id)}>Log</button>
+                {actual ? <span className="chip">{it.kind === 'income' ? 'Received' : 'Paid'}</span> : (
+                  <button type="button" className="btn small ghost" onClick={(e) => { e.stopPropagation(); setLogging(logging === it.id ? null : it.id) }}>Log</button>
                 )}
-                <button type="button" className="btn icon" title="Remove" onClick={() => removeItem(it)}><TrashIcon /></button>
+                {!it.auto_card && <button type="button" className="btn icon" title="Remove" onClick={(e) => { e.stopPropagation(); removeItem(it) }}><TrashIcon /></button>}
               </div>
+              {open === it.id && bill && (
+                <div className="plan-spends">
+                  {bill.spends.map((s) => (
+                    <div key={`${s.from}-${s.id}`} className="plan-spend">
+                      <span className="muted small">{shortDate(s.occurred_on)}</span>
+                      <span className="grow">{s.note || s.category || (s.from === 'budget' ? 'Budget entry' : 'Spend')}</span>
+                      <span className={s.sign < 0 ? 'pos' : ''}>{s.sign < 0 ? '+' : ''}{money(s.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {logging === it.id && <LogForm item={it} month={month} onDone={() => { setLogging(null); load() }} />}
             </Fragment>
           )
         })}
       </div>
+
+      {showLeft && loaded && <LeftSheet m={money_} accName={accName} onClose={() => setShowLeft(false)} />}
     </section>
+  )
+}
+
+const shortDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '')
+
+// How "left to spend" is worked out, line by line.
+function LeftSheet({ m, accName, onClose }) {
+  const lines = (kind) => m.items.filter((i) => i.kind === kind)
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <div className="card modal left-sheet" onMouseDown={(e) => e.stopPropagation()}>
+        <h3>Left to spend: <span className={m.left < 0 ? 'neg' : 'pos'}>{money(m.left)}</span></h3>
+        <div className="left-sec">Income</div>
+        {lines('income').map((i) => <Row key={i.id} label={i.name} value={i.counted} tone="pos" note={i.actual ? 'received' : 'expected'} />)}
+        <div className="left-sec">Plan this month</div>
+        {lines('expense').map((i) => <Row key={i.id} label={`${i.auto_card ? '💳 ' : ''}${i.name}`} value={-i.counted}
+          note={i.onCard ? 'on a card bill' : i.actual ? 'paid' : i.auto_card ? 'card bill' : 'expected'} />)}
+        <div className="left-sec">Spent from bank / cash (Hisab)</div>
+        {Object.entries(m.byAccount).map(([id, v]) => <Row key={id} label={id === 'none' ? 'Not linked to an account' : accName(id) || 'Account'} value={-v} />)}
+        {!Object.keys(m.byAccount).length && <div className="muted small">Nothing yet</div>}
+        {m.oneOffs > 0 && <><div className="left-sec">Other Budget expenses</div><Row label="One-off entries" value={-m.oneOffs} /></>}
+        <p className="muted small">Card spends aren't taken off here — they make up that card's bill in the month it's due.</p>
+        <div className="actions"><span className="spacer" /><button type="button" className="btn" onClick={onClose}>Done</button></div>
+      </div>
+    </div>
+  )
+}
+
+function Row({ label, value, note, tone }) {
+  return (
+    <div className="left-row">
+      <span className="grow">{label}{note && <span className="muted small"> · {note}</span>}</span>
+      <span className={tone || (value < 0 ? 'neg' : '')}>{value < 0 ? '−' : ''}{money(Math.abs(value))}</span>
+    </div>
   )
 }
 
@@ -180,7 +227,7 @@ function ItemForm({ categories, accounts, activeHouseholdId, onSaved }) {
 }
 
 function LogForm({ item, month, onDone }) {
-  const [amount, setAmount] = useState(String(item.expected_amount))
+  const [amount, setAmount] = useState(String(Math.round((item.amount ?? item.expected_amount) * 100) / 100))
   const [date, setDate] = useState(() => {
     const day = item.day_of_month || 1
     const [y, m] = month.split('-').map(Number)
@@ -209,7 +256,7 @@ function LogForm({ item, month, onDone }) {
         occurred_on: date, note: item.name, recurring_item_id: item.id,
       }))
     }
-    if (!error) await supabase.from('recurring_items').update({ expected_amount: Number(amount) }).eq('id', item.id)
+    if (!error && !item.auto_card) await supabase.from('recurring_items').update({ expected_amount: Number(amount) }).eq('id', item.id)
     setBusy(false)
     if (error) return setError(error.message)
     onDone()

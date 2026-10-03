@@ -14,6 +14,10 @@
 //   { action: 'unfile', token, capture_id }  → remove an auto-added entry (capture ignored)
 //   { action: 'self', token, capture_id }    → "My account": a transfer between the family's own
 //                                              accounts; not added, and that payee is skipped from now on
+//   { action: 'capture', kind: 'bill', token, amount, date, account_hint, bank } → a credit card's "payment
+//                                              received" SMS: that card's bill in Plan is marked paid (a Budget
+//                                              transaction against its auto Plan line) → { bill: true, id, … }
+//   { action: 'unbill', token, id }          → undo that (deletes the transaction)
 // Transfers are not spending: a capture whose payee is marked is_self, or one that pairs with an
 // opposite capture of the same amount (±1 day) on a different account, becomes status 'transfer'.
 // With the phone's auto_capture on (default), a capture is filed on arrival: the payee's
@@ -79,6 +83,19 @@ const acctKey = (bank: string | null, hint: string) => `acct:${(bank || '').toLo
 
 // "Today" in India, where the family lives (the phone also sends its own date).
 const todayIST = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
+
+// Card bill cycle (same rules as src/lib/cardCycle.js): the bill a payment on `date` settles is the one
+// from the latest statement on or before it; it belongs to the month its due date falls in.
+const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate()
+const ymd = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(Math.min(d, daysIn(y, m))).padStart(2, '0')}`
+function billMonthPaidOn(card: { statement_day: number, due_day: number | null }, date: string) {
+  let [y, m, d] = date.split('-').map(Number)
+  if (d < Math.min(card.statement_day, daysIn(y, m))) { if (m === 1) { y--; m = 12 } else m-- }
+  const st = ymd(y, m, card.statement_day), sd = Number(st.slice(8))
+  if (!card.due_day) return new Date(Date.UTC(y, m - 1, sd + 20)).toISOString().slice(0, 7)
+  if (card.due_day > sd) return st.slice(0, 7)
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -222,7 +239,7 @@ Deno.serve(async (req) => {
       db.from('hisab_books').select('id, name, kind, created_at').eq('household_id', hid).order('created_at'),
       db.from('hisab_categories').select('direction, name, icon, position').eq('household_id', hid).order('position'),
       db.from('categories').select('id, name, kind, color').eq('household_id', hid).order('name'),
-      db.from('accounts').select('id, name, color').eq('household_id', hid).order('name'),
+      db.from('accounts').select('id, name, color, type, digits').eq('household_id', hid).order('name'),
       db.from('hisab_entries').select('direction, amount, category, source, book_id').eq('household_id', hid).gte('occurred_on', since).limit(2000),
     ])
     let bookList = books.data || []
@@ -288,10 +305,13 @@ Deno.serve(async (req) => {
     let bookId = clean(body.book_id, 64)
     if (bookId) { const { data } = await db.from('hisab_books').select('id').eq('id', bookId).eq('household_id', hid).maybeSingle(); if (!data) bookId = null }
     try { bookId = bookId || await dailyBook() } catch (e) { return json({ error: String((e as Error).message || e) }, 500) }
+    // Paid with which card / bank account (only this household's).
+    let hisabAcct = clean(body.account_id, 64)
+    if (hisabAcct) { const { data } = await db.from('accounts').select('id').eq('id', hisabAcct).eq('household_id', hid).maybeSingle(); if (!data) hisabAcct = null }
     const { data, error } = await db.from('hisab_entries').insert({
       user_id: dev.user_id, household_id: hid, book_id: bookId, direction, amount, occurred_on: date,
       occurred_at: instantOf(body.at) ?? (date === todayIST() ? new Date().toISOString() : null),
-      category: clean(body.category, 60), source: clean(body.source, 40), note,
+      category: clean(body.category, 60), source: clean(body.source, 40), note, account_id: hisabAcct,
     }).select('id').single()
     if (error) return json({ error: error.message }, 500)
     return json({ id: data.id, target: 'hisab' })
@@ -306,6 +326,42 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500)
     // An undone capture goes back to the "To add" list.
     await db.from('captures').update({ status: 'new', entry_id: null, target: null, filed_at: null }).eq('household_id', hid).eq('entry_id', row.id)
+    return json({ ok: true })
+  }
+
+  if (action === 'capture' && body.kind === 'bill') {
+    const amount = amountOf(body.amount)
+    if (!amount) return json({ error: 'No amount.' }, 400)
+    const date = isDate(body.date) ? body.date as string : todayIST()
+    const hint = clean(body.account_hint, 8), bank = clean(body.bank, 40)
+    const { data: cardId } = await db.rpc('instrument_for_device', { p_household: hid, p_bank: bank, p_hint: hint })
+    const { data: card } = cardId ? await db.from('accounts').select('id, name, type, statement_day, due_day').eq('id', cardId).maybeSingle() : { data: null }
+    const label = card ? `${card.name.trim()}${hint ? ` ••${hint}` : ''}` : `${bank || 'Card'}${hint ? ` ••${hint}` : ''}`
+    if (!card || card.type !== 'card' || !card.statement_day) return json({ bill: true, unmatched: true, label, amount, date })
+    const { data: item } = await db.from('recurring_items').select('id, category_id').eq('account_id', card.id).eq('auto_card', true).eq('active', true).maybeSingle()
+    if (!item) return json({ bill: true, unmatched: true, label, amount, date })
+    const month = billMonthPaidOn(card, date)
+    const last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10)
+    const { data: paid } = await db.from('transactions').select('id').eq('recurring_item_id', item.id).gte('occurred_on', `${month}-01`).lte('occurred_on', last).limit(1)
+    if (paid?.length) return json({ bill: true, already: true, label, amount, month })
+    // Dated in the bill's month so Plan shows it paid there (the SMS date can be just before).
+    const on = date.startsWith(month) ? date : date < `${month}-01` ? `${month}-01` : last
+    const { data: tx, error } = await db.from('transactions').insert({
+      user_id: dev.user_id, household_id: hid, kind: 'expense', amount, occurred_on: on, note: `${card.name.trim()} bill paid`,
+      category_id: item.category_id, account_id: card.id, recurring_item_id: item.id,
+    }).select('id').single()
+    if (error) return json({ error: error.message }, 500)
+    return json({ bill: true, id: tx.id, label, amount, month })
+  }
+
+  if (action === 'unbill') {
+    const id = clean(body.id, 64)
+    const { data: row } = await db.from('transactions').select('id, recurring_item_id').eq('id', id || '').eq('household_id', hid).maybeSingle()
+    if (!row?.recurring_item_id) return json({ error: 'Already removed.' }, 404)
+    // Only a card bill's payment (what 'capture' kind 'bill' made) can be undone from the phone.
+    const { data: item } = await db.from('recurring_items').select('auto_card').eq('id', row.recurring_item_id).maybeSingle()
+    if (!item?.auto_card) return json({ error: 'Not a card bill payment.' }, 400)
+    await db.from('transactions').delete().eq('id', row.id)
     return json({ ok: true })
   }
 

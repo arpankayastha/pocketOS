@@ -7,6 +7,8 @@ import { useMonthSwipe, useSwipe } from '../lib/useSwipe'
 import { useDialog } from '../lib/dialog'
 import { BookIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { MonthPicker } from './Transactions'
+import { supabase } from '../lib/supabase'
+import { instrumentLabel } from '../lib/instruments'
 import { SkeletonRows } from './Skeleton'
 
 const dayHead = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -17,7 +19,7 @@ const sum = (rows, dir) => rows.filter((e) => e.direction === dir).reduce((s, e)
 // book (what's used every day); occasion books (Diwali, a wedding…) sit behind the "Occasions"
 // button, with recently used ones as chips under the month total. `addSignal` bumps when the
 // floating + is tapped on this tab: it adds to the open book.
-export default function Hisab({ activeHouseholdId, addSignal }) {
+export default function Hisab({ activeHouseholdId, accounts = [], addSignal }) {
   const [books, setBooks] = useState(null)
   const [bookId, setBookId] = useState(null) // an occasion book; null = Daily
   const [addReq, setAddReq] = useState(0)
@@ -50,7 +52,7 @@ export default function Hisab({ activeHouseholdId, addSignal }) {
   if (!book) return <section>{error ? <div className="alert error">{error}</div> : <div className="card"><SkeletonRows rows={4} /></div>}</section>
   return (
     <>
-      <BookView key={book.id} book={book} books={books} categories={categories} addReq={addReq} occasions={occasions}
+      <BookView key={book.id} book={book} books={books} accounts={accounts} categories={categories} addReq={addReq} occasions={occasions}
         onOccasions={() => setShowOccasions(true)} onOpenBook={open}
         onBack={() => setBookId(null)} onChanged={load} onEdit={() => setEditingBook(book)} />
       {showOccasions && <OccasionsSheet occasions={occasions} onOpen={open} onClose={() => setShowOccasions(false)}
@@ -110,7 +112,7 @@ function TargetBar({ spent, target }) {
   )
 }
 
-function BookView({ book, books, categories, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit }) {
+function BookView({ book, books, accounts, categories, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit }) {
   const [entries, setEntries] = useState(null)
   const [view, setView] = useState('daily') // daily | calendar | summary
   const [month, setMonth] = useState(currentMonth)
@@ -206,7 +208,7 @@ function BookView({ book, books, categories, addReq, occasions, onOccasions, onO
       ) : <SummaryView entries={shown} />}
       </div>
 
-      {sheet && <EntrySheet book={book} books={books} categories={categories} entry={sheet.id ? sheet : null} used={used}
+      {sheet && <EntrySheet book={book} books={books} accounts={accounts} categories={categories} entry={sheet.id ? sheet : null} used={used}
         defaultDate={isDaily && month !== currentMonth() ? `${month}-01` : today()}
         onClose={() => setSheet(null)} onSaved={changed} />}
     </section>
@@ -346,9 +348,20 @@ function SummaryView({ entries }) {
 
 const KEYS = ['7', '8', '9', '⌫', '4', '5', '6', '+', '1', '2', '3', '−', '.', '0', '00', '×']
 
-function EntrySheet({ book, books, categories, entry, used, defaultDate, onClose, onSaved }) {
+function EntrySheet({ book, books, accounts = [], categories, entry, used, defaultDate, onClose, onSaved }) {
   const dialog = useDialog()
   const [target, setTarget] = useState(book) // the book it's saved in; changing it moves the entry
+  // Paid with which card / bank account (card spends build that card's bill in Plan).
+  const instruments = accounts.filter((a) => ['bank', 'card', 'wallet'].includes(a.type))
+  const [accountId, setAccountId] = useState(entry?.account_id || '')
+  // A Plan commitment this spend pays (SIP, LIC…), so it isn't counted twice.
+  const [planItems, setPlanItems] = useState([])
+  const [planId, setPlanId] = useState(entry?.recurring_item_id || '')
+  useEffect(() => {
+    supabase.from('recurring_items').select('id, name, expected_amount').eq('household_id', book.household_id)
+      .eq('active', true).eq('kind', 'expense').eq('auto_card', false).order('name')
+      .then(({ data }) => setPlanItems(data || []))
+  }, [book.household_id])
   const [dir, setDir] = useState(entry?.direction || 'out')
   const [expr, setExpr] = useState(entry ? String(Number(entry.amount)) : '')
   const [category, setCategory] = useState(entry?.category || '')
@@ -398,7 +411,7 @@ function EntrySheet({ book, books, categories, entry, used, defaultDate, onClose
     if (!amount || amount <= 0) return setError('Enter an amount.')
     setBusy(true); setError(null)
     try {
-      await saveEntry(target, { id: entry?.id, direction: dir, amount, occurredOn: date, category: category || 'Other', source, note: note.trim() })
+      await saveEntry(target, { id: entry?.id, direction: dir, amount, occurredOn: date, category: category || 'Other', source, note: note.trim(), accountId, recurringItemId: planId })
       onSaved()
       if (next) { setSaved(`${money(amount)} · ${category || 'Other'}${target.id !== book.id ? ` → ${target.name}` : ''}`); setExpr(''); setNote(''); setBusy(false) }
       else onClose()
@@ -451,6 +464,29 @@ function EntrySheet({ book, books, categories, entry, used, defaultDate, onClose
           ))}
           <button type="button" className="chip chip-btn" onClick={addSource}>+ Other</button>
         </div>
+
+        {instruments.length > 0 && (
+          <div className="hb-books" role="radiogroup" aria-label="Paid with">
+            {instruments.map((a) => (
+              <button type="button" key={a.id} role="radio" aria-checked={accountId === a.id} className={`chip chip-btn ${accountId === a.id ? 'on' : ''}`}
+                onClick={() => {
+                  const on = accountId === a.id
+                  setAccountId(on ? '' : a.id)
+                  if (!on && (!source || ['Cash', 'UPI', 'Card'].includes(source))) setSource(a.type === 'card' ? 'Card' : 'UPI')
+                }}>
+                {a.type === 'card' ? '💳' : '🏦'} {instrumentLabel(a)}
+              </button>
+            ))}
+          </div>
+        )}
+        {dir === 'out' && planItems.length > 0 && (
+          <label className="hb-plan">Plan
+            <select value={planId} onChange={(e) => setPlanId(e.target.value)}>
+              <option value="">Not a Plan payment</option>
+              {planItems.map((p) => <option key={p.id} value={p.id}>{p.name.trim()} · {money(p.expected_amount)}</option>)}
+            </select>
+          </label>
+        )}
 
         <div className="hb-meta">
           <input type="date" aria-label="Date" value={date} onChange={(e) => setDate(e.target.value)} />
