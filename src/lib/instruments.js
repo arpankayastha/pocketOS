@@ -7,10 +7,10 @@ import { supabase } from './supabase'
 export const isCard = (a) => a?.type === 'card'
 export const isInstrument = (a) => (a?.digits?.length || 0) > 0
 
-// "ICICI Amazon ••7013"
+// "Demo card ••1234"
 export const instrumentLabel = (a) => (a.digits?.length ? `${a.name.trim()} ••${a.digits[0]}` : a.name.trim())
 
-// Parse "7013, 1487" → ['7013', '1487'] (digits only, 3–6 long, no repeats).
+// Parse "1234, 5678" → ['1234', '5678'] (digits only, 3–6 long, no repeats).
 export function parseDigits(text) {
   return [...new Set(String(text || '').split(/[^0-9]+/).filter((d) => d.length >= 3 && d.length <= 6))]
 }
