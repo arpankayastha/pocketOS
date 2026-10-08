@@ -16,8 +16,9 @@
 //                                              accounts; not added, and that payee is skipped from now on
 //   { action: 'capture', kind: 'bill', token, amount, date, account_hint, bank } → a credit card's "payment
 //                                              received" SMS: that card's bill in Plan is marked paid (a Budget
-//                                              transaction against its auto Plan line) → { bill: true, id, … }
-//   { action: 'unbill', token, id }          → undo that (deletes the transaction)
+//                                              transaction against its auto Plan line; a hand-entered expense
+//                                              on that card within ±25 % is taken over instead) → { bill: true, id, … }
+//   { action: 'unbill', token, id }          → undo that (deletes the transaction, or restores the taken-over one)
 // Transfers are not spending: a capture whose payee is marked is_self, or one that pairs with an
 // opposite capture of the same amount (±1 day) on a different account, becomes status 'transfer'.
 // With the phone's auto_capture on (default), a capture is filed on arrival: the payee's
@@ -346,8 +347,25 @@ Deno.serve(async (req) => {
     if (paid?.length) return json({ bill: true, already: true, label, amount, month })
     // Dated in the bill's month so Plan shows it paid there (the SMS date can be just before).
     const on = date.startsWith(month) ? date : date < `${month}-01` ? `${month}-01` : last
+    const note = `${card.name.trim()} bill paid`
+    // The owner often enters the bill by hand once it's generated (an expense on this card, roughly the
+    // same amount). Take that entry over instead of adding a second one; Undo puts it back as it was.
+    const from = new Date(Date.parse(`${date}T00:00:00Z`) - 30 * 86400_000).toISOString().slice(0, 10)
+    const { data: planned } = await db.from('transactions').select('id, amount, occurred_on, note, category_id')
+      .eq('household_id', hid).eq('account_id', card.id).eq('kind', 'expense').is('recurring_item_id', null).is('transfer_id', null)
+      .gte('occurred_on', from < `${month}-01` ? from : `${month}-01`).lte('occurred_on', last).limit(50)
+    const near = (planned || []).filter((t) => Math.abs(Number(t.amount) - amount) <= Math.max(0.25 * amount, 1))
+      .sort((a, b) => Math.abs(Number(a.amount) - amount) - Math.abs(Number(b.amount) - amount))[0]
+    if (near) {
+      const { error } = await db.from('transactions').update({
+        amount, occurred_on: on, note, category_id: item.category_id, recurring_item_id: item.id,
+        bill_original: { amount: near.amount, occurred_on: near.occurred_on, note: near.note, category_id: near.category_id },
+      }).eq('id', near.id)
+      if (error) return json({ error: error.message }, 500)
+      return json({ bill: true, id: near.id, updated: true, label, amount, month })
+    }
     const { data: tx, error } = await db.from('transactions').insert({
-      user_id: dev.user_id, household_id: hid, kind: 'expense', amount, occurred_on: on, note: `${card.name.trim()} bill paid`,
+      user_id: dev.user_id, household_id: hid, kind: 'expense', amount, occurred_on: on, note,
       category_id: item.category_id, account_id: card.id, recurring_item_id: item.id,
     }).select('id').single()
     if (error) return json({ error: error.message }, 500)
@@ -356,12 +374,14 @@ Deno.serve(async (req) => {
 
   if (action === 'unbill') {
     const id = clean(body.id, 64)
-    const { data: row } = await db.from('transactions').select('id, recurring_item_id').eq('id', id || '').eq('household_id', hid).maybeSingle()
+    const { data: row } = await db.from('transactions').select('id, recurring_item_id, bill_original').eq('id', id || '').eq('household_id', hid).maybeSingle()
     if (!row?.recurring_item_id) return json({ error: 'Already removed.' }, 404)
     // Only a card bill's payment (what 'capture' kind 'bill' made) can be undone from the phone.
     const { data: item } = await db.from('recurring_items').select('auto_card').eq('id', row.recurring_item_id).maybeSingle()
     if (!item?.auto_card) return json({ error: 'Not a card bill payment.' }, 400)
-    await db.from('transactions').delete().eq('id', row.id)
+    // A planned entry the payment took over goes back to how it was; one it added is removed.
+    if (row.bill_original) await db.from('transactions').update({ ...row.bill_original, recurring_item_id: null, bill_original: null }).eq('id', row.id)
+    else await db.from('transactions').delete().eq('id', row.id)
     return json({ ok: true })
   }
 

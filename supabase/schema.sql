@@ -1215,3 +1215,7 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke execute on function public.sms_instruments(uuid) from public, anon;
 grant execute on function public.sms_instruments(uuid) to authenticated;
+
+-- A planned bill entry that a card's payment SMS took over (quickadd 'capture' kind 'bill'): its values
+-- before, so the notification's Undo can put it back.
+alter table public.transactions add column if not exists bill_original jsonb;
