@@ -123,6 +123,10 @@ class SmsParserTest {
         assertEquals("bill", icici.direction); assertEquals(12345.67, icici.amount, 0.001); assertEquals("1234", icici.accountHint); assertEquals("ICICI", icici.bank)
         val hdfc = SmsParser.billPayment("VM-HDFCBK", "Thank you for your payment of INR 5,000.00 towards your HDFC Bank Credit Card ending 4321.")!!
         assertEquals(5000.0, hdfc.amount, 0.001); assertEquals("4321", hdfc.accountHint)
+        // Card issuers that name the card without "credit card" (e.g. "BOBCARD ending 1234").
+        val bobcard = SmsParser.billPayment("CP-BOBCRD-T", "Update: Payment of Rs 1016.67 received for your BOBCARD ending 5678 on 2026-10-08. Visit bobcard app: bobcard.io/App or online card account at https://www.bobcard.co.in/ for details.")!!
+        assertEquals("bill", bobcard.direction); assertEquals(1016.67, bobcard.amount, 0.001); assertEquals("5678", bobcard.accountHint)
+        assertNull(SmsParser.parse("CP-BOBCRD-T", "Update: Payment of Rs 1016.67 received for your BOBCARD ending 5678 on 2026-10-08."))
         // The bank's side of the same payment, and ordinary spends, are not bill payments.
         assertNull(SmsParser.billPayment("AD-BOBSMS-S", "Rs.4000.00 debited from A/c XX1111 towards ICICI Credit Card bill payment via BBPS. Ref 123"))
         assertNull(SmsParser.billPayment("AD-SBIUPI-S", "Dear UPI user A/C X2222 debited by 3000.0 on date 08Sep26 trf to CRED Club Refno 400000000001."))

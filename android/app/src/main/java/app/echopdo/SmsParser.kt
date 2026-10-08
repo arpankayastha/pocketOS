@@ -29,6 +29,7 @@ object SmsParser {
     // counted): the card's "payment received" SMS and the bank's "paid towards credit card" one.
     private val CARD_BILL = Regex(
         "(?i)(payment|amount|rs\\.?|inr).{0,40}(has been )?received.{0,50}credit card|" +
+            "(payment|amount|rs\\.?|inr).{0,40}received (for|on|in|to|towards) (your )?[a-z]*card\\b|" +
             "received.{0,40}towards.{0,30}(credit )?card|thank you for (the |your )?payment.{0,60}card|" +
             "credit card.{0,30}(bill|payment|dues?)\\b|card (bill|dues) (paid|payment)|towards.{0,30}credit card|" +
             "\\bbbps\\b.{0,80}credit card|credit card.{0,80}\\bbbps\\b|cred\\.club|@cred\\b|\\bcred club\\b"
