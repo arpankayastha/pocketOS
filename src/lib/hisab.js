@@ -42,6 +42,32 @@ export async function loadCategories(householdId) {
   return seeded
 }
 
+// A category typed in the entry sheet that doesn't exist yet: added to the household's list (at the end)
+// with an icon guessed from its name; the icon can be changed in ⚙ → Hisab categories.
+const ICON_GUESS = [
+  [/milk|dairy|doodh/i, '🥛'], [/veg|sabji|sabzi/i, '🥦'], [/fruit/i, '🍎'], [/tea|chai|coffee|cafe/i, '☕'],
+  [/snack|nasto|nasta|farsan/i, '🍿'], [/bakery|bread|cake/i, '🥐'], [/sweet|mithai/i, '🍬'], [/food|restaurant|lunch|dinner|swiggy|zomato/i, '🍽️'],
+  [/grocer|kirana|ration/i, '🛒'], [/petrol|fuel|cng|diesel/i, '⛽'], [/medic|pharma|doctor|hospital|dawa/i, '💊'],
+  [/rent|house|home/i, '🏠'], [/school|fees|tuition|class/i, '🎓'], [/kid|toy|baby/i, '🧸'], [/pet|dog|cat/i, '🐾'],
+  [/gym|fitness|yoga/i, '💪'], [/movie|cinema|film/i, '🎬'], [/phone|mobile|recharge|internet|wifi/i, '📱'],
+  [/electric|light bill/i, '💡'], [/gas|cylinder/i, '🔥'], [/water/i, '💧'], [/bus|train|metro|rail/i, '🚆'],
+  [/auto|cab|taxi|uber|ola|rapido|travel/i, '🚕'], [/laundry|dhobi|iron/i, '🧺'], [/salon|hair|parlou?r|beauty/i, '💇'],
+  [/gift/i, '🎁'], [/temple|mandir|puja|pooja|dan/i, '🛕'], [/cloth|dress|saree/i, '👕'], [/shoe|chappal/i, '👟'],
+  [/book|stationery|pen/i, '📚'], [/repair|service|plumber|electrician/i, '🔧'], [/flower|phool/i, '💐'], [/parking|toll/i, '🅿️'],
+  [/shopping|amazon|flipkart/i, '🛍️'], [/insurance|lic/i, '🛡️'], [/maid|help|bai/i, '🧹'], [/party|celebrat/i, '🎉'],
+]
+export const guessIcon = (name) => ICON_GUESS.find(([re]) => re.test(name))?.[1] || '🏷️'
+
+export async function addCategory(householdId, direction, name, existing) {
+  const clean = name.trim().replace(/\s+/g, ' ').slice(0, 40)
+  const position = existing.filter((c) => c.direction === direction).reduce((m, c) => Math.max(m, c.position ?? 0), -1) + 1
+  const row = { household_id: householdId, direction, name: clean, icon: guessIcon(clean), position }
+  // Unique (household, direction, name): adding one that another phone just added is a no-op.
+  const { error } = await supabase.from('hisab_categories').upsert(row, { onConflict: 'household_id,direction,name', ignoreDuplicates: true })
+  if (error) throw error
+  return row
+}
+
 // Stable colour per category name (charts key by name here: names are the identity).
 export function colorFor(category, order) {
   const i = order.indexOf(category)

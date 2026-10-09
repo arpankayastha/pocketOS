@@ -350,6 +350,16 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hb-cats button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--card-2)); color: var(--text); }
 .hb-cat-icon { font-size: 18px; line-height: 1.15; }
 .hb-cat-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Hisab category picker: search-or-add box + a two-row chip strip that scrolls sideways. */
+.hb-catpick { display: grid; gap: 6px; }
+.hb-catq { display: flex; align-items: center; gap: 8px; padding: 0 6px 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); }
+.hb-catq:focus-within { border-color: var(--accent); }
+.hb-catq input { flex: 1; min-width: 0; border: none; background: none; padding: 9px 0; font-size: 15px; outline: none; box-shadow: none; }
+.hb-catq-x { border: none; background: none; color: var(--muted); font-size: 20px; padding: 0 8px; cursor: pointer; }
+.hb-chipstrip { min-height: 76px; align-content: start; display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); gap: 6px; overflow-x: auto; scrollbar-width: none; justify-content: start; padding-bottom: 2px; }
+.hb-chipstrip::-webkit-scrollbar { display: none; }
+.hb-chipstrip .chip { white-space: nowrap; }
+.hb-addcat { border-style: dashed; border-color: var(--accent); color: var(--accent); }
 .hb-sources { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .hb-sources .chip { flex: none; }
 .hb-meta { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 6px; }

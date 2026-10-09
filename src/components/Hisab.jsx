@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DonutChart } from './LazyCharts'
 import { currentMonth, money, moneyShort, monthLabel, shiftMonth, today } from '../lib/format'
-import { SOURCES, entryTime, loadCategories, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
+import { SOURCES, addCategory, entryTime, loadCategories, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
 import { useBackAction } from '../lib/backNav'
 import { useMonthSwipe, useSwipe } from '../lib/useSwipe'
 import { useDialog } from '../lib/dialog'
@@ -53,6 +53,7 @@ export default function Hisab({ activeHouseholdId, accounts = [], addSignal }) {
   return (
     <>
       <BookView key={book.id} book={book} books={books} accounts={accounts} categories={categories} addReq={addReq} occasions={occasions}
+        onCategoryAdded={() => loadCategories(activeHouseholdId).then(setCategories)}
         onOccasions={() => setShowOccasions(true)} onOpenBook={open}
         onBack={() => setBookId(null)} onChanged={load} onEdit={() => setEditingBook(book)} />
       {showOccasions && <OccasionsSheet occasions={occasions} onOpen={open} onClose={() => setShowOccasions(false)}
@@ -112,7 +113,7 @@ function TargetBar({ spent, target }) {
   )
 }
 
-function BookView({ book, books, accounts, categories, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit }) {
+function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit }) {
   const [entries, setEntries] = useState(null)
   const [view, setView] = useState('daily') // daily | calendar | summary
   const [month, setMonth] = useState(currentMonth)
@@ -208,7 +209,7 @@ function BookView({ book, books, accounts, categories, addReq, occasions, onOcca
       ) : <SummaryView entries={shown} />}
       </div>
 
-      {sheet && <EntrySheet book={book} books={books} accounts={accounts} categories={categories} entry={sheet.id ? sheet : null} used={used}
+      {sheet && <EntrySheet book={book} books={books} accounts={accounts} categories={categories} onCategoryAdded={onCategoryAdded} entry={sheet.id ? sheet : null} used={used}
         defaultDate={isDaily && month !== currentMonth() ? `${month}-01` : today()}
         onClose={() => setSheet(null)} onSaved={changed} />}
     </section>
@@ -348,7 +349,7 @@ function SummaryView({ entries }) {
 
 const KEYS = ['7', '8', '9', '⌫', '4', '5', '6', '+', '1', '2', '3', '−', '.', '0', '00', '×']
 
-function EntrySheet({ book, books, accounts = [], categories, entry, used, defaultDate, onClose, onSaved }) {
+function EntrySheet({ book, books, accounts = [], categories, onCategoryAdded, entry, used, defaultDate, onClose, onSaved }) {
   const dialog = useDialog()
   const [target, setTarget] = useState(book) // the book it's saved in; changing it moves the entry
   // Paid with which card / bank account (card spends build that card's bill in Plan).
@@ -376,7 +377,9 @@ function EntrySheet({ book, books, accounts = [], categories, entry, used, defau
   const hasOps = /[+−×]/.test(expr)
 
   // The household's managed list (⚙ → Hisab categories); an entry's own category stays pickable when editing.
-  const cats = categories.filter((c) => c.direction === dir)
+  const [extraCats, setExtraCats] = useState([]) // added from this sheet, until the list reloads
+  const cats = [...categories, ...extraCats.filter((x) => !categories.some((c) => c.direction === x.direction && c.name === x.name))]
+    .filter((c) => c.direction === dir)
   if (entry?.category && !cats.some((c) => c.name === entry.category)) cats.push({ name: entry.category, icon: iconFor(entry.category) })
   const sources = [...new Set([...SOURCES, ...used.sources, ...extraSources, ...(source ? [source] : [])])]
 
@@ -450,14 +453,11 @@ function EntrySheet({ book, books, accounts = [], categories, entry, used, defau
         )}
         {entry && target.id !== book.id && <div className="muted small">Moves this entry to <b>{target.name}</b></div>}
 
-        <div className="hb-cats" role="radiogroup" aria-label="Category">
-          {cats.map((c) => (
-            <button type="button" key={c.name} role="radio" aria-checked={category === c.name} className={category === c.name ? 'on' : ''}
-              onClick={() => setCategory(category === c.name ? '' : c.name)}>
-              <span className="hb-cat-icon">{c.icon}</span><span className="hb-cat-name">{c.name}</span>
-            </button>
-          ))}
-        </div>
+        <CategoryPicker cats={cats} used={used.categories} value={category} onChange={setCategory}
+          onAdd={async (name) => {
+            const row = await addCategory(book.household_id, dir, name, categories)
+            setExtraCats((x) => [...x, { ...row, direction: dir }]); setCategory(row.name); onCategoryAdded?.()
+          }} />
 
         <div className="hb-sources" aria-label="Paid with">
           {sources.map((s) => (
@@ -502,6 +502,53 @@ function EntrySheet({ book, books, accounts = [], categories, entry, used, defau
           <button type="button" className="btn primary" disabled={busy} onClick={() => save(false)}>{busy ? 'Saving…' : entry ? 'Save' : 'Save & close'}</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Category: a "search or add" box over a swipeable two-row strip of chips, most used first. Typing
+// filters the chips; a name that doesn't exist yet shows "+ Add" (Enter does the same), which adds it
+// to the household's list and picks it.
+function CategoryPicker({ cats, used, value, onChange, onAdd }) {
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  // The picked one first (so it's always in view), then most used, then the household's order.
+  const rank = (name) => { if (name === value) return -1; const i = used.indexOf(name); return i < 0 ? 1e6 : i }
+  const order = cats.map((c, i) => ({ ...c, i })).sort((a, b) => rank(a.name) - rank(b.name) || a.i - b.i)
+  const term = q.trim().toLowerCase()
+  const shown = term ? order.filter((c) => c.name.toLowerCase().includes(term)) : order
+  const exact = term && cats.find((c) => c.name.toLowerCase() === term)
+  const stripRef = useRef(null)
+  useEffect(() => { stripRef.current?.scrollTo({ left: 0 }) }, [term])
+
+  function pick(name) { onChange(value === name ? '' : name); setQ('') }
+  async function add() {
+    if (!term || busy) return
+    if (exact) return pick(exact.name)
+    setBusy(true); setErr(null)
+    try { await onAdd(q); setQ('') } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="hb-catpick">
+      <div className="hb-catq">
+        <span aria-hidden="true">{value ? iconFor(value) : '🔍'}</span>
+        <input aria-label="Search or add category" placeholder={value ? `${value} · type to change` : 'Search or add category'} value={q}
+          enterKeyHint="done" onChange={(e) => { setQ(e.target.value); setErr(null) }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (shown.length === 1 && !exact) pick(shown[0].name); else add() } }} />
+        {q && <button type="button" className="hb-catq-x" aria-label="Clear" onClick={() => setQ('')}>×</button>}
+      </div>
+      <div className="hb-chipstrip" ref={stripRef} role="radiogroup" aria-label="Category">
+        {term && !exact && (
+          <button type="button" className="chip chip-btn hb-addcat" disabled={busy} onClick={add}>+ Add “{q.trim()}”</button>
+        )}
+        {shown.map((c) => (
+          <button type="button" key={c.name} role="radio" aria-checked={value === c.name} className={`chip chip-btn ${value === c.name ? 'on' : ''}`}
+            onClick={() => pick(c.name)}>{c.icon} {c.name}</button>
+        ))}
+      </div>
+      {err && <div className="alert error">{err}</div>}
     </div>
   )
 }
