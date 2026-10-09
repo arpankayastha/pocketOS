@@ -334,24 +334,31 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hb-donut { position: relative; }
 .hb-donut-mid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
 .hb-donut-mid b { font-family: var(--font-mono); font-size: 18px; }
-.hb-sheet { gap: 10px; }
+.hb-sheet { gap: 8px; }
 .hb-sheet:focus { outline: none; }
 .hb-sheet-top { display: flex; align-items: center; gap: 8px; }
-.hb-dir { flex: 1; }
-.hb-display { display: grid; justify-items: end; padding: 4px 4px 0; min-height: 56px; }
-.hb-expr { font-family: var(--font-mono); font-size: 30px; font-weight: 700; max-width: 100%; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
-.hb-result { font-family: var(--font-mono); font-size: 14px; color: var(--muted); }
-.hb-cats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.hb-cats button { display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border-radius: 12px; border: 1px solid transparent; background: var(--card-2);
+.hb-dir { flex: none; }
+.hb-dir button { padding: 8px 14px; }
+.hb-display { flex: 1; min-width: 0; display: grid; justify-items: end; align-content: center; padding: 0 4px; min-height: 44px; }
+/* Right-aligned flex: a long sum keeps its last digits (what's being typed) in view, clipping the start. */
+.hb-expr { display: flex; justify-content: flex-end; font-family: var(--font-mono); font-size: 26px; font-weight: 700; max-width: 100%; overflow: hidden; white-space: nowrap; }
+.hb-expr > span { flex: none; }
+.hb-result { white-space: nowrap; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.hb-cats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.hb-cats button { display: grid; justify-items: center; gap: 1px; padding: 4px 2px; border-radius: 12px; border: 1px solid transparent; background: var(--card-2);
   color: var(--muted); font: inherit; font-size: 10.5px; cursor: pointer; min-width: 0; transition: border-color .15s, background-color .15s; }
 .hb-cats button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--card-2)); color: var(--text); }
-.hb-cat-icon { font-size: 20px; line-height: 1.2; }
+.hb-cat-icon { font-size: 18px; line-height: 1.15; }
 .hb-cat-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-sources { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .hb-sources .chip { flex: none; }
-.hb-meta { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px; }
+.hb-meta { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 6px; }
+.hb-meta.with-plan { grid-template-columns: 128px minmax(0, 1fr) 84px; }
+.hb-meta input, .hb-meta select { font-size: 14px; padding-left: 8px; padding-right: 6px; }
+.hb-meta select.on { border-color: var(--accent); color: var(--text); }
+.hb-sep { flex: none; width: 1px; align-self: stretch; margin: 4px 2px; background: var(--line); }
 .hb-keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.hb-keys button { height: 46px; border-radius: 12px; border: none; background: var(--card-2); color: var(--text); font: inherit; font-size: 19px; font-weight: 600; cursor: pointer; font-family: var(--font-mono); }
+.hb-keys button { height: 40px; border-radius: 12px; border: none; background: var(--card-2); color: var(--text); font: inherit; font-size: 19px; font-weight: 600; cursor: pointer; font-family: var(--font-mono); }
 .hb-keys button.op { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card-2)); }
 .hb-keys button:active { transform: scale(.95); background: var(--line); }
 .hb-saved { text-align: center; color: var(--pos); }
@@ -789,5 +796,3 @@ details.section[open] .chev { transform: rotate(90deg); }
 .left-sec { margin-top: 10px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .left-row { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .left-row > :last-child { font-family: var(--font-mono); }
-.hb-plan { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
-.hb-plan select { flex: 1; }

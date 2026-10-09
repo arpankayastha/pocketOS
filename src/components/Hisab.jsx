@@ -426,10 +426,16 @@ function EntrySheet({ book, books, accounts = [], categories, entry, used, defau
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <div className="card modal hb-sheet" onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown} tabIndex={-1}>
+        {/* Everything fits on one phone screen with the keypad in view: amount beside Spent / Received,
+            payment chips and the Plan link in one scrolling row. */}
         <div className="hb-sheet-top">
           <div className="seg hb-dir">
             <button type="button" className={dir === 'out' ? 'on expense' : ''} onClick={() => { setDir('out'); setCategory('') }}>Spent</button>
             <button type="button" className={dir === 'in' ? 'on income' : ''} onClick={() => { setDir('in'); setCategory('') }}>Received</button>
+          </div>
+          <div className={`hb-display ${dir === 'out' ? 'neg' : 'pos'}`} aria-live="polite">
+            <span className="hb-expr"><span>{expr ? `₹${expr}` : <span className="muted">₹0</span>}</span></span>
+            {hasOps && amount !== null && <span className="hb-result">= {money(amount)}</span>}
           </div>
           {entry && <button type="button" className="btn icon" aria-label="Delete entry" onClick={remove}><TrashIcon /></button>}
         </div>
@@ -444,11 +450,6 @@ function EntrySheet({ book, books, accounts = [], categories, entry, used, defau
         )}
         {entry && target.id !== book.id && <div className="muted small">Moves this entry to <b>{target.name}</b></div>}
 
-        <div className={`hb-display ${dir === 'out' ? 'neg' : 'pos'}`} aria-live="polite">
-          <span className="hb-expr">{expr ? `₹${expr}` : <span className="muted">₹0</span>}</span>
-          {hasOps && amount !== null && <span className="hb-result">= {money(amount)}</span>}
-        </div>
-
         <div className="hb-cats" role="radiogroup" aria-label="Category">
           {cats.map((c) => (
             <button type="button" key={c.name} role="radio" aria-checked={category === c.name} className={category === c.name ? 'on' : ''}
@@ -458,39 +459,33 @@ function EntrySheet({ book, books, accounts = [], categories, entry, used, defau
           ))}
         </div>
 
-        <div className="hb-sources">
+        <div className="hb-sources" aria-label="Paid with">
           {sources.map((s) => (
             <button type="button" key={s} className={`chip chip-btn ${source === s ? 'on' : ''}`} onClick={() => setSource(source === s ? '' : s)}>{s}</button>
           ))}
           <button type="button" className="chip chip-btn" onClick={addSource}>+ Other</button>
+          {instruments.length > 0 && <span className="hb-sep" aria-hidden="true" />}
+          {instruments.map((a) => (
+            <button type="button" key={a.id} role="radio" aria-checked={accountId === a.id} className={`chip chip-btn ${accountId === a.id ? 'on' : ''}`}
+              onClick={() => {
+                const on = accountId === a.id
+                setAccountId(on ? '' : a.id)
+                if (!on && (!source || ['Cash', 'UPI', 'Card'].includes(source))) setSource(a.type === 'card' ? 'Card' : 'UPI')
+              }}>
+              {a.type === 'card' ? '💳' : '🏦'} {instrumentLabel(a)}
+            </button>
+          ))}
         </div>
 
-        {instruments.length > 0 && (
-          <div className="hb-books" role="radiogroup" aria-label="Paid with">
-            {instruments.map((a) => (
-              <button type="button" key={a.id} role="radio" aria-checked={accountId === a.id} className={`chip chip-btn ${accountId === a.id ? 'on' : ''}`}
-                onClick={() => {
-                  const on = accountId === a.id
-                  setAccountId(on ? '' : a.id)
-                  if (!on && (!source || ['Cash', 'UPI', 'Card'].includes(source))) setSource(a.type === 'card' ? 'Card' : 'UPI')
-                }}>
-                {a.type === 'card' ? '💳' : '🏦'} {instrumentLabel(a)}
-              </button>
-            ))}
-          </div>
-        )}
-        {dir === 'out' && planItems.length > 0 && (
-          <label className="hb-plan">Plan
-            <select value={planId} onChange={(e) => setPlanId(e.target.value)}>
-              <option value="">Not a Plan payment</option>
-              {planItems.map((p) => <option key={p.id} value={p.id}>{p.name.trim()} · {money(p.expected_amount)}</option>)}
-            </select>
-          </label>
-        )}
-
-        <div className="hb-meta">
+        <div className={`hb-meta ${dir === 'out' && planItems.length ? 'with-plan' : ''}`}>
           <input type="date" aria-label="Date" value={date} onChange={(e) => setDate(e.target.value)} />
           <input aria-label="Note" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          {dir === 'out' && planItems.length > 0 && (
+            <select aria-label="Plan payment" className={planId ? 'on' : ''} value={planId} onChange={(e) => setPlanId(e.target.value)}>
+              <option value="">Plan: —</option>
+              {planItems.map((p) => <option key={p.id} value={p.id}>{p.name.trim()} · {money(p.expected_amount)}</option>)}
+            </select>
+          )}
         </div>
         {entry && entryTime(entry) && <div className="muted small hb-when">🕒 {entryTime(entry)}{entry.occurred_on !== date ? ` on ${dayHead(entry.occurred_on)}` : ''}</div>}
 
