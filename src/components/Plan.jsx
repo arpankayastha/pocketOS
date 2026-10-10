@@ -135,11 +135,11 @@ function LeftSheet({ m, accName, onClose }) {
         <div className="left-sec">Plan this month</div>
         {lines('expense').map((i) => <Row key={i.id} label={`${i.auto_card ? '💳 ' : ''}${i.name}`} value={-i.counted}
           note={i.onCard ? 'on a card bill' : i.actual ? 'paid' : i.auto_card ? 'card bill' : 'expected'} />)}
-        <div className="left-sec">Spent from bank / cash (Hisab)</div>
+        <div className="left-sec">Spent from bank / cash (Hisab Daily)</div>
         {Object.entries(m.byAccount).map(([id, v]) => <Row key={id} label={id === 'none' ? 'Not linked to an account' : accName(id) || 'Account'} value={-v} />)}
         {!Object.keys(m.byAccount).length && <div className="muted small">Nothing yet</div>}
         {m.oneOffs > 0 && <><div className="left-sec">Other Budget expenses</div><Row label="One-off entries" value={-m.oneOffs} /></>}
-        <p className="muted small">Card spends aren't taken off here — they make up that card's bill in the month it's due.</p>
+        <p className="muted small">Card spends aren&apos;t taken off here — they make up that card&apos;s bill in the month it&apos;s due. Occasion books (house, wedding…) are left out.</p>
         <div className="actions"><span className="spacer" /><button type="button" className="btn" onClick={onClose}>Done</button></div>
       </div>
     </div>

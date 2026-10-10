@@ -122,7 +122,7 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
         <div className="card plan-left">
           <div className="muted small">Left to spend this month</div>
           <div className={`plan-left-num ${nowMoney.left < 0 ? 'neg' : 'pos'}`}>{money(nowMoney.left)}</div>
-          <div className="muted small">Income {money(nowMoney.income)} − plan {money(nowMoney.commitments)} − bank &amp; cash spends {money(nowMoney.spends + nowMoney.oneOffs)}. Card spends count on their bill (Plan).</div>
+          <div className="muted small">Income {money(nowMoney.income)} − plan {money(nowMoney.commitments)} − bank &amp; cash spends {money(nowMoney.spends + nowMoney.oneOffs)}. Card spends count on their bill (Plan); occasion books are left out.</div>
         </div>
       )}
 
