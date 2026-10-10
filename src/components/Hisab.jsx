@@ -168,14 +168,14 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
             {todayOut !== null && <div><span className="muted small">Today</span><b>{money(todayOut)}</b></div>}
             {days > 0 && <div><span className="muted small">Per day</span><b>{money(Math.round(out / days))}</b></div>}
             <div><span className="muted small">Received</span><b className="pos">{money(inn)}</b></div>
+            {/* Money received this month (shagun, cash in…) minus what was spent — under Received, same style. */}
+            {entries && inn > 0 && (
+              <div className="hb-balance">
+                <span className="muted small">Balance</span>
+                <b className={inn - out >= 0 ? 'pos' : 'neg'}>{inn - out >= 0 ? '+' : '−'}{money(Math.abs(inn - out))}</b>
+              </div>
+            )}
           </div>
-          {/* Money received this month (shagun, cash in…) minus what was spent. */}
-          {entries && inn > 0 && (
-            <div className="hb-balance">
-              <span className="muted small">Balance <span className="hb-balance-hint">received − spent</span></span>
-              <b className={inn - out >= 0 ? 'pos' : 'neg'}>{inn - out >= 0 ? '+' : '−'}{money(Math.abs(inn - out))}</b>
-            </div>
-          )}
         </div>
       ) : (
         <>
