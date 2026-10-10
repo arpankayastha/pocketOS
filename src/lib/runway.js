@@ -7,7 +7,8 @@ import { isCard } from './instruments'
 // - Plan items with the amount that counts this month: the logged actual, else (card bills) the
 //   bill worked out from that card's spends, else the expected amount.
 // - "Left to spend" for the month:
-//     planned income − Plan commitments − Hisab spends not on a card − one-off Budget expenses not on a card.
+//     planned income + Hisab Daily money received − Plan commitments − Hisab Daily spends not on a card
+//     − one-off Budget expenses not on a card.
 //   Hisab spends linked to a commitment (recurring_item_id) are that commitment's payment, not extra.
 //   Only the Daily book counts: occasion books (a house, a wedding…) are usually paid from savings and keep
 //   their own totals (the user's call). Card spends don't count here; they're in the card's bill, in the
@@ -50,11 +51,17 @@ export async function loadMonthMoney(householdId, month, accounts) {
   const spends = hisabOut.reduce((s, e) => s + Number(e.amount), 0)
   const oneOffRows = txs.filter((t) => t.kind === 'expense' && !t.recurring_item_id && !t.transfer_id && offCard(t.account_id))
   const oneOffs = oneOffRows.reduce((s, t) => s + Number(t.amount), 0)
+  // Money received into the Daily book (a transfer in, cash in, a refund to the bank) adds to what's
+  // left (the user's call). Not received on a card (card credits already reduce that card's bill), and not
+  // a Plan income item already counted above (e.g. the salary credit, if an SMS put it in Hisab too).
+  const planIncome = new Set(items.filter((i) => i.kind === 'income').map((i) => Number(i.counted)))
+  const hisabIn = (hz.data || []).filter((e) => e.direction === 'in' && dailyIds.has(e.book_id) && offCard(e.account_id) && !planIncome.has(Number(e.amount)))
+  const received = hisabIn.reduce((s, e) => s + Number(e.amount), 0)
   // Bank spends by account (for the breakdown).
   const byAccount = {}
   for (const e of hisabOut) byAccount[e.account_id || 'none'] = (byAccount[e.account_id || 'none'] || 0) + Number(e.amount)
   return {
-    items, income, commitments, spends, oneOffs, byAccount,
-    left: income - commitments - spends - oneOffs,
+    items, income, received, commitments, spends, oneOffs, byAccount,
+    left: income + received - commitments - spends - oneOffs,
   }
 }

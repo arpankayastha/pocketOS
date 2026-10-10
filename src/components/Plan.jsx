@@ -50,7 +50,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
         <button type="button" className="card plan-left" onClick={() => setShowLeft(true)}>
           <div className="muted small">Left to spend this month</div>
           {loaded ? <div className={`plan-left-num ${money_.left < 0 ? 'neg' : 'pos'}`}>{money(money_.left)}</div> : <div className="skel" style={{ height: 30, width: '55%' }} />}
-          {loaded && <div className="muted small">Income {money(money_.income)} − plan {money(money_.commitments)} − spends {money(money_.spends + money_.oneOffs)} · card spends go to their bill ›</div>}
+          {loaded && <div className="muted small">Income {money(money_.income)}{money_.received > 0 ? ` + received ${money(money_.received)}` : ''} − plan {money(money_.commitments)} − spends {money(money_.spends + money_.oneOffs)} · card spends go to their bill ›</div>}
         </button>
       )}
 
@@ -132,6 +132,7 @@ function LeftSheet({ m, accName, onClose }) {
         <h3>Left to spend: <span className={m.left < 0 ? 'neg' : 'pos'}>{money(m.left)}</span></h3>
         <div className="left-sec">Income</div>
         {lines('income').map((i) => <Row key={i.id} label={i.name} value={i.counted} tone="pos" note={i.actual ? 'received' : 'expected'} />)}
+        {m.received > 0 && <Row label="Received (Hisab Daily)" value={m.received} tone="pos" />}
         <div className="left-sec">Plan this month</div>
         {lines('expense').map((i) => <Row key={i.id} label={`${i.auto_card ? '💳 ' : ''}${i.name}`} value={-i.counted}
           note={i.onCard ? 'on a card bill' : i.actual ? 'paid' : i.auto_card ? 'card bill' : 'expected'} />)}
