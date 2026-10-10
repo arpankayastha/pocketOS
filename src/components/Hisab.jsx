@@ -21,7 +21,15 @@ const sum = (rows, dir) => rows.filter((e) => e.direction === dir).reduce((s, e)
 // floating + is tapped on this tab: it adds to the open book.
 export default function Hisab({ activeHouseholdId, accounts = [], addSignal }) {
   const [books, setBooks] = useState(null)
-  const [bookId, setBookId] = useState(null) // an occasion book; null = Daily
+  // An occasion book; null = Daily. Kept for this tab only, so a reload / pull-to-refresh stays on the
+  // open book, while opening the app fresh starts on Daily.
+  const [bookId, setBookIdState] = useState(() => {
+    try { const v = JSON.parse(sessionStorage.getItem('pocketos.hisabBook') || 'null'); return v?.hid === activeHouseholdId ? v.id : null } catch { return null }
+  })
+  const setBookId = (id) => {
+    setBookIdState(id)
+    try { if (id) sessionStorage.setItem('pocketos.hisabBook', JSON.stringify({ hid: activeHouseholdId, id })); else sessionStorage.removeItem('pocketos.hisabBook') } catch { /* private mode */ }
+  }
   const [addReq, setAddReq] = useState(0)
   const [showOccasions, setShowOccasions] = useState(false)
   const [editingBook, setEditingBook] = useState(null) // {} new, or a book
@@ -108,7 +116,7 @@ function TargetBar({ spent, target }) {
   return (
     <div className="hb-target">
       <div className="bar"><div className={`fill ${pct > 1 ? 'over' : pct > 0.85 ? 'warn' : 'ok'}`} style={{ width: `${Math.min(100, pct * 100)}%` }} /></div>
-      <span className="muted small">{Math.round(pct * 100)}% of {moneyShort(target)}</span>
+      <span className="muted small">{Math.round(pct * 100)}% of {moneyShort(target)} · {spent > target ? `over by ${moneyShort(spent - target)}` : `${moneyShort(target - spent)} left`}</span>
     </div>
   )
 }
@@ -185,13 +193,12 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
           {entries ? <div className="hb-hero-num neg">{money(out)}</div> : <div className="skel" style={{ height: 34, width: '60%' }} />}
           {book.target && entries && <TargetBar spent={out} target={book.target} />}
           <div className="hb-hero-stats">
+            <div><span className="muted small">Today</span><b>{money(sum(shown.filter((e) => e.occurred_on === today()), 'out'))}</b></div>
             <div><span className="muted small">Received</span><b className="pos">{money(inn)}</b></div>
             {entries && inn > 0 && (
               <div><span className="muted small">Balance</span>
                 <b className={inn - out >= 0 ? 'pos' : 'neg'}>{inn - out >= 0 ? '+' : '−'}{money(Math.abs(inn - out))}</b></div>
             )}
-            {book.target && <div><span className="muted small">{out > book.target ? 'Over by' : 'Left'}</span>
-              <b className={out > book.target ? 'neg' : ''}>{money(Math.abs(book.target - out))}</b></div>}
           </div>
         </div>
       )}
