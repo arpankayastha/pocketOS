@@ -169,6 +169,13 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
             {days > 0 && <div><span className="muted small">Per day</span><b>{money(Math.round(out / days))}</b></div>}
             <div><span className="muted small">Received</span><b className="pos">{money(inn)}</b></div>
           </div>
+          {/* Money received this month (shagun, cash in…) minus what was spent. */}
+          {entries && inn > 0 && (
+            <div className="hb-balance">
+              <span className="muted small">Balance <span className="hb-balance-hint">received − spent</span></span>
+              <b className={inn - out >= 0 ? 'pos' : 'neg'}>{inn - out >= 0 ? '+' : '−'}{money(Math.abs(inn - out))}</b>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -180,6 +187,10 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
           <div className="tiles hb-tiles">
             <div className="card tile"><div className="muted small">Spent</div>{entries ? <div className="big-num neg">{money(out)}</div> : <div className="skel" style={{ height: 22 }} />}</div>
             <div className="card tile"><div className="muted small">Received</div>{entries ? <div className="big-num pos">{money(inn)}</div> : <div className="skel" style={{ height: 22 }} />}</div>
+            {entries && inn > 0 && (
+              <div className="card tile hb-balance-tile"><div className="muted small">Balance <span className="hb-balance-hint">received − spent</span></div>
+                <div className={`big-num ${inn - out >= 0 ? 'pos' : 'neg'}`}>{inn - out >= 0 ? '+' : '−'}{money(Math.abs(inn - out))}</div></div>
+            )}
           </div>
           {book.target && entries && <div className="card"><TargetBar spent={out} target={book.target} /></div>}
         </>
