@@ -283,16 +283,14 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hb-hero { display: grid; gap: 2px; padding: 12px 16px 16px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--card)), var(--card)); }
 .hb-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 -6px 8px; }
+.hb-book-name { margin: 0; min-width: 0; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-hero .hb-target { margin-top: 6px; }
 .hb-hero-top .month strong { min-width: 0; font-size: 15px; }
 .hb-occ-btn { flex: none; font-size: 13px; }
 .hb-occ-count { min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 99px;
   background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent); font-size: 11px; font-weight: 700; }
 .hb-hero-num { font-family: var(--font-mono); font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; letter-spacing: -.5px; }
 .hb-hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.hb-hero-stats { grid-auto-flow: row; }
-.hb-hero-stats > .hb-balance { grid-column: -2 / -1; }
-.hb-balance-hint { opacity: .7; font-size: 11px; margin-left: 4px; }
-.hb-tiles .hb-balance-tile { grid-column: 1 / -1; }
 .hb-hero-stats > div { display: grid; gap: 2px; min-width: 0; }
 .hb-hero-stats b { font-family: var(--font-mono); font-size: 14px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-swipe { min-height: 55vh; }

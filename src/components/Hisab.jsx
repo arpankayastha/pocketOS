@@ -147,11 +147,9 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
     onRight: () => setView((v) => VIEWS[Math.max(0, VIEWS.indexOf(v) - 1)]),
   })
   const cal = isDaily ? month : calMonth || (entries?.[0]?.occurred_on.slice(0, 7) ?? currentMonth())
-  // Daily's summary line: today (this month only) and the average per day so far.
+  // Daily's summary line: today (this month only), received, and the balance when something came in.
   const now = currentMonth()
   const todayOut = month === now ? sum(shown.filter((e) => e.occurred_on === today()), 'out') : null
-  const [y, m] = month.split('-').map(Number)
-  const days = month === now ? Number(today().slice(8, 10)) : month < now ? new Date(y, m, 0).getDate() : 0
   const recent = (occasions || []).filter(isRecent)
 
   return (
@@ -166,9 +164,8 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
           {entries ? <div className="hb-hero-num neg">{money(out)}</div> : <div className="skel" style={{ height: 34, width: '60%' }} />}
           <div className="hb-hero-stats">
             {todayOut !== null && <div><span className="muted small">Today</span><b>{money(todayOut)}</b></div>}
-            {days > 0 && <div><span className="muted small">Per day</span><b>{money(Math.round(out / days))}</b></div>}
             <div><span className="muted small">Received</span><b className="pos">{money(inn)}</b></div>
-            {/* Money received this month (shagun, cash in…) minus what was spent — under Received, same style. */}
+            {/* Money received this month (shagun, cash in…) minus what was spent. */}
             {entries && inn > 0 && (
               <div className="hb-balance">
                 <span className="muted small">Balance</span>
@@ -178,22 +175,25 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
           </div>
         </div>
       ) : (
-        <>
-          <div className="hb-head">
+        <div className="card hb-hero">
+          <div className="hb-hero-top">
             <button className="btn icon" aria-label="Back to Daily" onClick={onBack}>‹</button>
-            <h2 className="grow">📒 {book.name}</h2>
+            <h2 className="grow hb-book-name">📒 {book.name}</h2>
             <button className="btn icon" aria-label="Edit book" onClick={onEdit}><PencilIcon /></button>
           </div>
-          <div className="tiles hb-tiles">
-            <div className="card tile"><div className="muted small">Spent</div>{entries ? <div className="big-num neg">{money(out)}</div> : <div className="skel" style={{ height: 22 }} />}</div>
-            <div className="card tile"><div className="muted small">Received</div>{entries ? <div className="big-num pos">{money(inn)}</div> : <div className="skel" style={{ height: 22 }} />}</div>
+          <div className="muted small">Spent</div>
+          {entries ? <div className="hb-hero-num neg">{money(out)}</div> : <div className="skel" style={{ height: 34, width: '60%' }} />}
+          {book.target && entries && <TargetBar spent={out} target={book.target} />}
+          <div className="hb-hero-stats">
+            <div><span className="muted small">Received</span><b className="pos">{money(inn)}</b></div>
             {entries && inn > 0 && (
-              <div className="card tile hb-balance-tile"><div className="muted small">Balance <span className="hb-balance-hint">received − spent</span></div>
-                <div className={`big-num ${inn - out >= 0 ? 'pos' : 'neg'}`}>{inn - out >= 0 ? '+' : '−'}{money(Math.abs(inn - out))}</div></div>
+              <div><span className="muted small">Balance</span>
+                <b className={inn - out >= 0 ? 'pos' : 'neg'}>{inn - out >= 0 ? '+' : '−'}{money(Math.abs(inn - out))}</b></div>
             )}
+            {book.target && <div><span className="muted small">{out > book.target ? 'Over by' : 'Left'}</span>
+              <b className={out > book.target ? 'neg' : ''}>{money(Math.abs(book.target - out))}</b></div>}
           </div>
-          {book.target && entries && <div className="card"><TargetBar spent={out} target={book.target} /></div>}
-        </>
+        </div>
       )}
       {error && <div className="alert error">{error}</div>}
       {isDaily && recent.length > 0 && (
