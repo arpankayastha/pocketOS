@@ -13,16 +13,16 @@ import android.widget.TextView
 
 // Small helpers for the programmatic UI (same palette as the web app's dark theme).
 object C {
-    val bg = Color.parseColor("#121417")
-    val card = Color.parseColor("#1a1d21")
-    val card2 = Color.parseColor("#22262b")
-    val line = Color.parseColor("#2b3036")
-    val text = Color.parseColor("#e3e5e8")
-    val muted = Color.parseColor("#8d949d")
-    val accent = Color.parseColor("#8f9de0")
-    val accent2 = Color.parseColor("#262b40")
-    val pos = Color.parseColor("#6fb38f")
-    val neg = Color.parseColor("#d58585")
+    val bg = Color.parseColor("#1e2330")
+    val card = Color.parseColor("#262c3a")
+    val card2 = Color.parseColor("#2f3646")
+    val line = Color.parseColor("#3a4254")
+    val text = Color.parseColor("#e7eaf0")
+    val muted = Color.parseColor("#a1a9b9")
+    val accent = Color.parseColor("#9aa7e6")
+    val accent2 = Color.parseColor("#343c5c")
+    val pos = Color.parseColor("#7cc29b")
+    val neg = Color.parseColor("#e09393")
     fun alpha(color: Int, a: Float) = Color.argb((a * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
 }
 

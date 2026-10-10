@@ -2,16 +2,16 @@
   /* Theme "Slate": quiet neutral greys + one soft indigo accent (replaced Cyber Blue, Oct 2026 — the user
      found it too vibrant). Dark is the default; light via ⚙ Settings → Appearance (html[data-theme]), or
      "System" which follows the phone. Keep the two token sets below in sync. */
-  --bg: #121417; --card: #1a1d21; --card-2: #22262b; --text: #e3e5e8; --muted: #8d949d; --line: #2b3036;
-  --accent: #8f9de0; --accent-bg: #7f8fd6; --on-accent: #11131c; --accent-2: #262b40;
-  --pos: #6fb38f; --neg: #d58585; --warn: #d1a65a; --transfer: #7fb2d6;
+  --bg: #1e2330; --card: #262c3a; --card-2: #2f3646; --text: #e7eaf0; --muted: #a1a9b9; --line: #3a4254;
+  --accent: #9aa7e6; --accent-bg: #8190d8; --on-accent: #151827; --accent-2: #343c5c;
+  --pos: #7cc29b; --neg: #e09393; --warn: #ddb36a; --transfer: #8cbde0;
   --accent-grad: linear-gradient(var(--accent-bg), var(--accent-bg));
-  --focus-ring: #a5b1ea;
+  --focus-ring: #b0bbee;
   --glow: 0 0 0 transparent;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / .35);
-  --shadow-md: 0 4px 16px rgb(0 0 0 / .35), 0 1px 2px rgb(0 0 0 / .25);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / .2);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / .22), 0 1px 2px rgb(0 0 0 / .15);
   --shadow-lg: 0 16px 40px rgb(0 0 0 / .45), 0 2px 8px rgb(0 0 0 / .3);
-  --backdrop: rgb(0 0 0 / .5);
+  --backdrop: rgb(10 12 20 / .45);
   --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
   color-scheme: dark;

@@ -1,15 +1,15 @@
-// eChopdo logo: an open hisab book with ₹ on its page, Slate indigo on charcoal.
+// eChopdo logo: an open hisab book with ₹ on its page, white pages on Slate indigo.
 // eChopdo logo: a stack of ledger pages (the family chopdo, kept safe), cyan → blue → violet.
 // Keep in sync with public/favicon.svg, public/icons/*.svg (+ PNGs) and the splash in index.html.
-// The eChopdo logo: an open hisab book with ₹ on its page, Slate indigo on charcoal (same as public/icons/source.svg).
+// The eChopdo logo: an open hisab book with ₹ on its page, white pages on Slate indigo (same as public/icons/source.svg).
 export function BrandMark({ size = 24 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" className="brand-mark">
-      <rect width="512" height="512" rx="112" fill="#1a1d21" />
-      <path d="M88 172c58-30 118-30 168 6v226c-50-34-110-34-168-6z" fill="#8a98de" />
-      <path d="M424 172c-58-30-118-30-168 6v226c50-34 110-34 168-6z" fill="#5d6dc4" />
-      <path d="M122 238h96M122 272h96M122 306h62" fill="none" stroke="#1a1d21" strokeWidth="12" strokeLinecap="round" opacity=".45" />
-      <path d="M296 236h82M296 266h82M306 236c46 0 46 60 0 60h-6l62 66" fill="none" stroke="#1a1d21" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+      <rect width="512" height="512" rx="112" fill="#5d6dc4" />
+      <path d="M88 172c58-30 118-30 168 6v226c-50-34-110-34-168-6z" fill="#ffffff" />
+      <path d="M424 172c-58-30-118-30-168 6v226c50-34 110-34 168-6z" fill="#dfe3f7" />
+      <path d="M122 238h96M122 272h96M122 306h62" fill="none" stroke="#5d6dc4" strokeWidth="12" strokeLinecap="round" opacity=".45" />
+      <path d="M296 236h82M296 266h82M306 236c46 0 46 60 0 60h-6l62 66" fill="none" stroke="#4b5bb8" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

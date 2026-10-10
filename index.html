@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#121417" />
+    <meta name="theme-color" content="#1e2330" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="eChopdo" />
@@ -24,10 +24,10 @@
     <style>
       /* Splash: painted before any JS loads; React replaces #root's content on first render.
          Kept in sync with <Splash /> in src/App.jsx so the hand-off is seamless. */
-      html, body { margin: 0; background: #121417; }
+      html, body { margin: 0; background: #1e2330; }
       html[data-theme="light"], html[data-theme="light"] body { background: #f3f4f6; }
-      .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px; background: #121417;
-        font: 700 22px 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: -.01em; color: #e3e5e8; }
+      .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px; background: #1e2330;
+        font: 700 22px 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: -.01em; color: #e7eaf0; }
       html[data-theme="light"] .splash { background: #f3f4f6; color: #1f2329; }
       .splash svg { width: 76px; height: 76px; border-radius: 20px; animation: splash-pulse 1.6s ease-in-out infinite; }
       @keyframes splash-pulse { 50% { transform: scale(.95); opacity: .85; } }
@@ -35,7 +35,7 @@
     </style>
   </head>
   <body>
-    <div id="root"><div class="splash" aria-label="Loading eChopdo"><svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1a1d21"/><path d="M88 172c58-30 118-30 168 6v226c-50-34-110-34-168-6z" fill="#8a98de"/><path d="M424 172c-58-30-118-30-168 6v226c50-34 110-34 168-6z" fill="#5d6dc4"/><path d="M122 238h96M122 272h96M122 306h62" fill="none" stroke="#1a1d21" stroke-width="12" stroke-linecap="round" opacity=".45"/><path d="M296 236h82M296 266h82M306 236c46 0 46 60 0 60h-6l62 66" fill="none" stroke="#1a1d21" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg><span>eChopdo</span></div></div>
+    <div id="root"><div class="splash" aria-label="Loading eChopdo"><svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#5d6dc4"/><path d="M88 172c58-30 118-30 168 6v226c-50-34-110-34-168-6z" fill="#ffffff"/><path d="M424 172c-58-30-118-30-168 6v226c50-34 110-34 168-6z" fill="#dfe3f7"/><path d="M122 238h96M122 272h96M122 306h62" fill="none" stroke="#5d6dc4" stroke-width="12" stroke-linecap="round" opacity=".45"/><path d="M296 236h82M296 266h82M306 236c46 0 46 60 0 60h-6l62 66" fill="none" stroke="#4b5bb8" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg><span>eChopdo</span></div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

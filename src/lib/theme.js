@@ -2,7 +2,7 @@
 // (localStorage) and applied as <html data-theme="dark|light">; index.html applies it before first paint
 // with the same rules, so keep the two in sync.
 const KEY = 'pocketos.theme'
-const BG = { dark: '#121417', light: '#f3f4f6' }
+const BG = { dark: '#1e2330', light: '#f3f4f6' }
 const media = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null
 
 export function themePref() {
