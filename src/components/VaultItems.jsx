@@ -10,6 +10,11 @@ import { useDialog } from '../lib/dialog'
 // Row/sharing info added by useVault, never encrypted into the item.
 const META = ['id', 'created_at', 'updated_at', 'corrupt', 'owner_id', 'household_ids', 'mine']
 const quickCopyField = (item) => typeOf(item).fields.find((f) => f.copy && f.kind === 'secret' && item[f.key])
+// Folders (LastPass "grouping", kept by the import). Nested LastPass folders are "Parent\\Child".
+const folderOf = (item) => (item.folder || '').trim()
+const folderLabel = (f) => f.split('\\').map((p) => p.trim()).filter(Boolean).join(' › ')
+const OPEN_FOLDERS = 'pocketos.vaultOpenFolders'
+const readOpen = () => { try { return new Set(JSON.parse(localStorage.getItem(OPEN_FOLDERS) || '[]')) } catch { return new Set() } }
 
 // `open` (item being viewed) and `editing` (item being edited; {} = pick a type first) live in
 // VaultModule so the add button and the Security tab can open them; it clears them on lock.
@@ -40,7 +45,24 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [toast, setToast] = useState(null)
+  const [openFolders, setOpenFolders] = useState(readOpen)
   const dialog = useDialog()
+  const folders = useMemo(() => [...new Set(vault.items.map(folderOf).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [vault.items])
+  function toggleFolder(f) {
+    setOpenFolders((cur) => {
+      const next = new Set(cur); if (next.has(f)) next.delete(f); else next.add(f)
+      try { localStorage.setItem(OPEN_FOLDERS, JSON.stringify([...next])) } catch { /* ignore */ }
+      return next
+    })
+  }
+  // Move an item to another folder straight from its view (re-encrypts it with the new folder).
+  async function moveToFolder(item, folder) {
+    const data = Object.fromEntries(Object.entries(item).filter(([k]) => !META.includes(k)))
+    if (folder) data.folder = folder; else delete data.folder
+    await vault.saveItem(data, item.id)
+    setToast(folder ? `Moved to ${folderLabel(folder)}` : 'Removed from its folder'); setTimeout(() => setToast(null), 2000)
+  }
 
   const counts = useMemo(() => {
     const c = {}
@@ -65,6 +87,28 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
   }
 
   const usedTypes = VAULT_TYPES.filter((t) => counts[t.id])
+  const groupByFolder = (list) => {
+    const g = new Map(folders.map((f) => [f, []])); g.set('', [])
+    for (const i of list) g.get(folderOf(i))?.push(i)
+    return [...g].filter(([, items]) => items.length)
+  }
+  const row = (i) => {
+    const t = typeOf(i)
+    const qc = quickCopyField(i)
+    return (
+      <div className="txn vault-row" key={i.id} role="button" tabIndex={0} onClick={() => setOpen(i)} onKeyDown={(e) => e.key === 'Enter' && setOpen(i)}>
+        <TypeBadge item={i} />
+        <span className="grow">
+          <div className="ellipsis">{itemTitle(i)}</div>
+          <div className="muted small ellipsis">{itemSubtitle(i) || t.label}{query.trim() && i.folder && <> · {folderLabel(i.folder)}</>}</div>
+        </span>
+        <ShareTags item={i} member={member} households={households} by={byHousehold(i)} />
+        {qc && (
+          <button className="btn icon" title={`Copy ${qc.label.toLowerCase()}`} aria-label={`Copy ${qc.label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); copy(i[qc.key], qc.label) }}><CopyIcon /></button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <section>
@@ -79,31 +123,34 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
           ))}
         </div>
       )}
-      <div className="card list">
-        {shown.map((i) => {
-          const t = typeOf(i)
-          const qc = quickCopyField(i)
+      {/* Not searching: grouped into folders (tap to open; open ones are remembered). Searching: one flat list. */}
+      {query.trim() || !folders.length ? (
+        <div className="card list">{shown.map(row)}</div>
+      ) : (
+        groupByFolder(shown).map(([f, items]) => {
+          const isOpen = openFolders.has(f || '\u0000')
           return (
-            <div className="txn vault-row" key={i.id} role="button" tabIndex={0} onClick={() => setOpen(i)} onKeyDown={(e) => e.key === 'Enter' && setOpen(i)}>
-              <TypeBadge item={i} />
-              <span className="grow">
-                <div className="ellipsis">{itemTitle(i)}</div>
-                <div className="muted small ellipsis">{itemSubtitle(i) || t.label}{i.folder && <> · {i.folder}</>}</div>
-              </span>
-              <ShareTags item={i} member={member} households={households} by={byHousehold(i)} />
-              {qc && (
-                <button className="btn icon" title={`Copy ${qc.label.toLowerCase()}`} aria-label={`Copy ${qc.label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); copy(i[qc.key], qc.label) }}><CopyIcon /></button>
-              )}
+            <div className="card list vault-folder" key={f || '-'}>
+              <button type="button" className={`vault-folder-head ${isOpen ? 'open' : ''}`} aria-expanded={isOpen} onClick={() => toggleFolder(f || '\u0000')}>
+                <span aria-hidden="true">{f ? '📁' : '🗂️'}</span>
+                <span className="grow ellipsis">{f ? folderLabel(f) : 'No folder'}</span>
+                <span className="muted small">{items.length}</span>
+                <span className="vault-folder-caret" aria-hidden="true">›</span>
+              </button>
+              {isOpen && items.map(row)}
             </div>
           )
-        })}
-        {shown.length === 0 && (
+        })
+      )}
+      {shown.length === 0 && (
+        <div className="card list">
           <p className="muted pad">{vault.items.length ? 'No items match.' : 'Your vault is empty. Tap + to add a password, card, bank account, ID and more — or import from LastPass in Security.'}</p>
-        )}
-      </div>
+        </div>
+      )}
 
       {open && !editing && (
         <ItemView item={open} copy={copy} onClose={() => setOpen(null)} onEdit={() => setEditing(open)}
+          folders={folders} onMove={(f) => moveToFolder(open, f)}
           readOnly={member && !open.mine} sharedBy={sharedBy} by={byHousehold(open)}
           share={member ? null : { households, members, onChange: (ids) => vault.shareItem(open.id, ids) }}
           onDelete={async () => {
@@ -116,7 +163,7 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
         <TypePicker onClose={() => setEditing(null)} onPick={(type) => setEditing({ type })} />
       )}
       {editing && (editing.id || editing.type) && (
-        <ItemForm initial={editing} onClose={() => setEditing(null)} onBack={editing.id ? null : () => setEditing({})}
+        <ItemForm initial={editing} folders={folders} onClose={() => setEditing(null)} onBack={editing.id ? null : () => setEditing({})}
           onSave={async (data) => {
             await vault.saveItem(data, editing.id)
             setEditing(null)
@@ -218,7 +265,7 @@ function ShareWith({ item, share, by }) {
   )
 }
 
-function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by, share }) {
+function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by, share, folders = [], onMove }) {
   const t = typeOf(item)
   const [breach, setBreach] = useState(null) // null | 'checking' | number | error text
 
@@ -254,7 +301,8 @@ function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, sharedBy, b
               )
             })}
             {!t.notesFirst && notes}
-            {item.folder && <Field label="Folder" value={item.folder} />}
+            {readOnly ? (item.folder && <Field label="Folder" value={folderLabel(item.folder)} />)
+              : <FolderPicker value={folderOf(item)} folders={folders} onChange={onMove} />}
             {item.password && (
               <div className="small">
                 {breach === null && <button type="button" className="btn link small" onClick={check}>Check if this password was in a data breach</button>}
@@ -277,6 +325,32 @@ function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, sharedBy, b
         </div>
       </div>
     </div>
+  )
+}
+
+// The item's folder, changeable right here: pick one of the vault's folders, none, or type a new one.
+function FolderPicker({ value, folders, onChange }) {
+  const dialog = useDialog()
+  const [busy, setBusy] = useState(false)
+  const list = value && !folders.includes(value) ? [...folders, value] : folders
+  async function pick(e) {
+    let next = e.target.value
+    if (next === '__new') {
+      next = (await dialog.prompt({ title: 'New folder', label: 'Folder name', placeholder: 'e.g. Banking', confirmLabel: 'Move here' }))?.trim()
+      if (!next) return
+    }
+    if (next === value) return
+    setBusy(true)
+    try { await onChange(next) } finally { setBusy(false) }
+  }
+  return (
+    <label className="vault-folder-pick">Folder
+      <select value={value} onChange={pick} disabled={busy}>
+        <option value="">No folder</option>
+        {list.map((f) => <option key={f} value={f}>{folderLabel(f)}</option>)}
+        <option value="__new">+ New folder…</option>
+      </select>
+    </label>
   )
 }
 
@@ -306,7 +380,8 @@ function TotpField({ totp, copy }) {
 
 const DATE_RE = { date: /^\d{4}-\d{2}-\d{2}$/, month: /^\d{4}-\d{2}$/ }
 
-function ItemForm({ initial, onClose, onBack, onSave }) {
+function ItemForm({ initial, folders = [], onClose, onBack, onSave }) {
+  const folderListId = useId()
   const t = typeOf(initial)
   // Keep every key the item already has (e.g. extra fields from an import); META is dropped on save.
   const [form, setForm] = useState(() => ({ title: '', folder: '', notes: '', ...initial, type: t.id }))
@@ -357,7 +432,8 @@ function ItemForm({ initial, onClose, onBack, onSave }) {
           onGenerate={fl.key === 'password' ? () => setForm((f) => ({ ...f, password: generatePassword() })) : null} />)}
         {!t.notesFirst && notes}
         <label>Folder
-          <input placeholder="e.g. Banking" value={form.folder || ''} onChange={set('folder')} />
+          <input placeholder="e.g. Banking" list={folderListId} value={form.folder || ''} onChange={set('folder')} />
+          <datalist id={folderListId}>{folders.map((f) => <option key={f} value={f}>{folderLabel(f)}</option>)}</datalist>
         </label>
         {error && <div className="alert error">{error}</div>}
         <div className="actions">

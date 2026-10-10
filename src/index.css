@@ -555,6 +555,13 @@ input[type=range] { padding: 0; border: none; background: none; accent-color: va
 .view-head { display: flex; align-items: center; gap: 12px; }
 .view-head h3 { margin: 0; }
 textarea.masked { -webkit-text-security: disc; }
+.vault-folder { padding: 0; margin-bottom: 10px; overflow: hidden; }
+.vault-folder-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; border: none; background: none; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; min-height: 52px; }
+.vault-folder-head .muted { font-family: var(--font-mono); font-weight: 500; }
+.vault-folder-caret { color: var(--muted); font-size: 18px; transition: transform .2s; }
+.vault-folder-head.open .vault-folder-caret { transform: rotate(90deg); }
+.vault-folder .vault-row { padding-left: 16px; padding-right: 12px; border-top: 1px solid var(--line); }
+.vault-folder-pick select { margin-top: 2px; }
 .type-chips { display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 12px; padding-bottom: 4px; scrollbar-width: none; }
 .type-chips button { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 99px; padding: 6px 12px; font-size: 13px; cursor: pointer; min-height: 36px; }
 .type-chips button svg { width: 16px; height: 16px; }
