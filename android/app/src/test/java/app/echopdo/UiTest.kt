@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -94,6 +95,34 @@ class UiTest {
         waitFor { ShadowToast.getTextOfLatestToast() != null }
         assertTrue(ShadowToast.getTextOfLatestToast().contains("offline"))
         assertTrue(act.isFinishing)
+    }
+
+    // Category picker: type to filter; a new name shows "+ Add" and is picked straight away (offline here,
+    // so it isn't saved to the household's list — the entry still keeps the name).
+    @Test fun quickAddSearchOrAddCategory() {
+        val act = Robolectric.buildActivity(QuickAddActivity::class.java, Intent(ctx, QuickAddActivity::class.java).putExtra("direction", "out")).setup().get()
+        val root = act.window.decorView
+        val search = findHint(root, "🔍  Search or add category")!!
+        search.setText("fu"); ShadowLooper.idleMainLooper()
+        assertNotNull(find(root, "⛽  Fuel")); assertNull(find(root, "🥦  Groceries"))
+        search.setText("Chai"); ShadowLooper.idleMainLooper()
+        root.measure(View.MeasureSpec.makeMeasureSpec(root.width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(root.height, View.MeasureSpec.EXACTLY))
+        root.layout(0, 0, root.width, root.height)
+        shot(root, "1b-quickadd-addcat")
+        click(root, "+ Add “Chai”")
+        assertEquals("", search.text.toString())
+        assertNotNull(find(root, "🏷️  Chai")); assertNotNull(find(root, "🥦  Groceries"))
+        shot(root, "1c-quickadd-added")
+        listOf("4", "0").forEach { click(root, it) }
+        click(root, "Save")
+        waitFor { Store.queue(ctx).length() == 1 }
+        assertEquals("Chai", Store.queue(ctx).getJSONObject(0).getString("category"))
+    }
+
+    private fun findHint(root: View, hint: String): android.widget.EditText? {
+        if (root is android.widget.EditText && root.hint?.toString() == hint) return root
+        if (root is ViewGroup) for (i in 0 until root.childCount) findHint(root.getChildAt(i), hint)?.let { return it }
+        return null
     }
 
     @Test fun quickAddBudgetAndReceived() {

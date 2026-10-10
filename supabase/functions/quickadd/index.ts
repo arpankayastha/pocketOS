@@ -19,6 +19,7 @@
 //                                              transaction against its auto Plan line; a hand-entered expense
 //                                              on that card within ±25 % is taken over instead) → { bill: true, id, … }
 //   { action: 'unbill', token, id }          → undo that (deletes the transaction, or restores the taken-over one)
+//   { action: 'add_category', token, direction, name } → a Hisab category typed in the sheet → { name, icon }
 // Transfers are not spending: a capture whose payee is marked is_self, or one that pairs with an
 // opposite capture of the same amount (±1 day) on a different account, becomes status 'transfer'.
 // With the phone's auto_capture on (default), a capture is filed on arrival: the payee's
@@ -78,6 +79,21 @@ function guessName(payee: string | null, direction: string) {
   if (direction === 'in') return /refund|reversal|cashback/i.test(p) ? 'Refund' : 'Cash in'
   return GUESS.find(([re]) => re.test(p))?.[1] || 'Other'
 }
+
+// A new category's icon from its name (same list as guessIcon in src/lib/hisab.js).
+const ICON_GUESS: [RegExp, string][] = [
+  [/milk|dairy|doodh/i, '🥛'], [/veg|sabji|sabzi/i, '🥦'], [/fruit/i, '🍎'], [/tea|chai|coffee|cafe/i, '☕'],
+  [/snack|nasto|nasta|farsan/i, '🍿'], [/bakery|bread|cake/i, '🥐'], [/sweet|mithai/i, '🍬'], [/food|restaurant|lunch|dinner|swiggy|zomato/i, '🍽️'],
+  [/grocer|kirana|ration/i, '🛒'], [/petrol|fuel|cng|diesel/i, '⛽'], [/medic|pharma|doctor|hospital|dawa/i, '💊'],
+  [/rent|house|home/i, '🏠'], [/school|fees|tuition|class/i, '🎓'], [/kid|toy|baby/i, '🧸'], [/pet|dog|cat/i, '🐾'],
+  [/gym|fitness|yoga/i, '💪'], [/movie|cinema|film/i, '🎬'], [/phone|mobile|recharge|internet|wifi/i, '📱'],
+  [/electric|light bill/i, '💡'], [/gas|cylinder/i, '🔥'], [/water/i, '💧'], [/bus|train|metro|rail/i, '🚆'],
+  [/auto|cab|taxi|uber|ola|rapido|travel/i, '🚕'], [/laundry|dhobi|iron/i, '🧺'], [/salon|hair|parlou?r|beauty/i, '💇'],
+  [/gift/i, '🎁'], [/temple|mandir|puja|pooja|dan/i, '🛕'], [/cloth|dress|saree/i, '👕'], [/shoe|chappal/i, '👟'],
+  [/book|stationery|pen/i, '📚'], [/repair|service|plumber|electrician/i, '🔧'], [/flower|phool/i, '💐'], [/parking|toll/i, '🅿️'],
+  [/shopping|amazon|flipkart/i, '🛍️'], [/insurance|lic/i, '🛡️'], [/maid|help|bai/i, '🧹'], [/party|celebrat/i, '🎉'],
+]
+const guessIcon = (name: string) => ICON_GUESS.find(([re]) => re.test(name))?.[1] || '🏷️'
 
 const payeeKey = (p: string) => 'payee:' + p.trim().toLowerCase()
 const acctKey = (bank: string | null, hint: string) => `acct:${(bank || '').toLowerCase()}:${hint}`
@@ -255,8 +271,10 @@ Deno.serve(async (req) => {
     // Frequent entries: the same category + amount seen at least twice recently (Hisab only).
     const counts = new Map<string, { direction: string, amount: number, category: string, source: string | null, n: number }>()
     const sources = new Map<string, number>()
+    const catUse = { out: new Map<string, number>(), in: new Map<string, number>() }
     for (const e of recent.data || []) {
       if (e.source) sources.set(e.source, (sources.get(e.source) || 0) + 1)
+      if (e.category) { const m = e.direction === 'in' ? catUse.in : catUse.out; m.set(e.category, (m.get(e.category) || 0) + 1) }
       if (!e.category) continue
       const k = `${e.direction}|${e.category}|${Number(e.amount)}`
       const c = counts.get(k) || { direction: e.direction, amount: Number(e.amount), category: e.category, source: e.source, n: 0 }
@@ -269,7 +287,9 @@ Deno.serve(async (req) => {
     return json({
       device: { name: dev.name, default_target: dev.default_target },
       household: { name: hh.data?.name || '', color: hh.data?.color || null },
-      hisab: { books: bookList.map((b) => ({ id: b.id, name: b.name, kind: b.kind })), out: outCats, in: inCats, sources: sourceList },
+      hisab: { books: bookList.map((b) => ({ id: b.id, name: b.name, kind: b.kind })), out: outCats, in: inCats, sources: sourceList,
+        // Category names by how often they were used lately, for the picker's order.
+        used: { out: [...catUse.out.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n), in: [...catUse.in.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n) } },
       budget: {
         expense: (cats.data || []).filter((c) => c.kind === 'expense').map(({ id, name, color }) => ({ id, name, color })),
         income: (cats.data || []).filter((c) => c.kind === 'income').map(({ id, name, color }) => ({ id, name, color })),
@@ -383,6 +403,30 @@ Deno.serve(async (req) => {
     if (row.bill_original) await db.from('transactions').update({ ...row.bill_original, recurring_item_id: null, bill_original: null }).eq('id', row.id)
     else await db.from('transactions').delete().eq('id', row.id)
     return json({ ok: true })
+  }
+
+  if (action === 'add_category') {
+    const direction = body.direction === 'in' ? 'in' : 'out'
+    const name = clean(body.name, 40)?.replace(/\s+/g, ' ')
+    if (!name) return json({ error: 'Enter a name.' }, 400)
+    const { data: existing } = await db.from('hisab_categories').select('name, icon, position, direction').eq('household_id', hid)
+    const list: { name: string, icon: string, position: number, direction: string }[] = existing || []
+    // A household that never opened Hisab gets the starting set first (as the web app would).
+    if (!list.length) {
+      const seed = [...OUT.map(([n, i], k) => ({ direction: 'out', name: n, icon: i, position: k })), ...IN.map(([n, i], k) => ({ direction: 'in', name: n, icon: i, position: k }))]
+        .map((r) => ({ ...r, household_id: hid, user_id: dev.user_id }))
+      await db.from('hisab_categories').upsert(seed, { onConflict: 'household_id,direction,name', ignoreDuplicates: true })
+      list.push(...seed)
+    }
+    const mine = list.filter((c) => c.direction === direction)
+    const same = mine.find((c) => c.name.toLowerCase() === name.toLowerCase())
+    if (same) return json({ name: same.name, icon: same.icon, existed: true })
+    const icon = guessIcon(name)
+    const { error } = await db.from('hisab_categories').upsert({
+      household_id: hid, user_id: dev.user_id, direction, name, icon, position: mine.reduce((m, c) => Math.max(m, c.position ?? 0), -1) + 1,
+    }, { onConflict: 'household_id,direction,name', ignoreDuplicates: true })
+    if (error) return json({ error: error.message }, 500)
+    return json({ name, icon })
   }
 
   if (action === 'capture') {

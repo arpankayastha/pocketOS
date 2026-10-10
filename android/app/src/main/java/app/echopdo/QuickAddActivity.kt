@@ -6,16 +6,20 @@ import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.GridLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -41,6 +45,12 @@ class QuickAddActivity : Activity() {
     private var busy = false
     private var capture: JSONObject? = null   // a payment read from a bank SMS (fixed amount/date)
     private var always = false                // file this payee like this automatically from now on
+    // Hisab category picker: "search or add" box + a two-row strip that scrolls sideways.
+    private var catQuery = ""
+    private var catSearch: EditText? = null
+    private var catHolder: LinearLayout? = null
+    private var curCats: List<Pair<String, String>> = emptyList()   // (name, icon) for this direction
+    private val addedCats = mutableMapOf<String, MutableList<Pair<String, String>>>() // added here, until config refreshes
 
     private lateinit var title: TextView
     private lateinit var targetSeg: Segmented
@@ -84,7 +94,7 @@ class QuickAddActivity : Activity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        expr = ""; category = null; categoryName = null; accountId = null; source = null; bookId = null; date = LocalDate.now(); always = false
+        expr = ""; category = null; categoryName = null; catQuery = ""; catSearch?.setText(""); accountId = null; source = null; bookId = null; date = LocalDate.now(); always = false
         target = Store.defaultTarget(this)
         applyIntent(intent)
         note.setText(capture?.optString("payee")?.takeIf { it.isNotEmpty() && it != "null" } ?: "")
@@ -155,7 +165,7 @@ class QuickAddActivity : Activity() {
         sheet.addView(banner, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
 
         dirSeg = Segmented(this, listOf("Spent", "Received"), listOf(C.neg, C.pos)) { i ->
-            direction = if (i == 0) "out" else "in"; category = null; categoryName = null; render()
+            direction = if (i == 0) "out" else "in"; category = null; categoryName = null; catQuery = ""; catSearch?.setText(""); render()
         }
         sheet.addView(dirSeg, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
 
@@ -304,15 +314,15 @@ class QuickAddActivity : Activity() {
             }
         }
         pickers.addView(section("Category"))
-        val f = flow()
-        for (i in 0 until cats.length()) {
-            val cat = cats.getJSONObject(i)
-            val name = cat.optString("name")
-            f.addView(chip("${cat.optString("icon")}  $name", category == name) {
-                if (category == name) { category = null; categoryName = null } else { category = name; categoryName = name }
-                render()
-            })
-        }
+        val listed = (0 until cats.length()).map { cats.getJSONObject(it).let { c -> c.optString("name") to c.optString("icon") } }
+        curCats = listed + addedCats[direction].orEmpty().filter { a -> listed.none { it.first.equals(a.first, true) } }
+        val search = catSearchField()
+        (search.parent as? ViewGroup)?.removeView(search)
+        pickers.addView(search, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val holder = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        catHolder = holder
+        pickers.addView(holder, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
+        fillCategories()
         val sources = h.optJSONArray("sources") ?: JSONArray()
         pickers.addView(section(if (direction == "in") "Received in" else "Paid by"))
         val fs = flow()
@@ -342,6 +352,106 @@ class QuickAddActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun catSearchField(): EditText = catSearch ?: EditText(this).apply {
+        hint = "🔍  Search or add category"
+        setHintTextColor(C.muted); setTextColor(C.text)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        background = rounded(C.card2, dp(12).toFloat(), C.line, dp(1))
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+        imeOptions = EditorInfo.IME_ACTION_DONE
+        maxLines = 1
+        addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) { val q = s?.toString().orEmpty(); if (q != catQuery) { catQuery = q; fillCategories() } }
+        })
+        setOnEditorActionListener { _, _, _ ->
+            val term = catQuery.trim()
+            val hits = curCats.filter { it.first.contains(term, true) }
+            when {
+                term.isEmpty() -> hideKeyboard()
+                hits.any { it.first.equals(term, true) } -> pickCategory(hits.first { it.first.equals(term, true) }.first)
+                hits.size == 1 -> pickCategory(hits[0].first)
+                else -> addCategory(term)
+            }
+            true
+        }
+    }.also { catSearch = it }
+
+    /** The chips: picked first, then most used lately, then the household's order; filtered by the search. */
+    private fun fillCategories() {
+        val holder = catHolder ?: return
+        holder.removeAllViews()
+        val used = cfg()?.optJSONObject("hisab")?.optJSONObject("used")?.optJSONArray(direction)
+        val usedList = (0 until (used?.length() ?: 0)).map { used!!.optString(it) }
+        fun rank(n: String) = if (n == category) -1 else usedList.indexOf(n).let { if (it < 0) Int.MAX_VALUE else it }
+        val term = catQuery.trim()
+        val shown = curCats.withIndex().sortedWith(compareBy({ rank(it.value.first) }, { it.index })).map { it.value }
+            .filter { term.isEmpty() || it.first.contains(term, true) }
+        val chips = mutableListOf<View>()
+        if (term.isNotEmpty() && curCats.none { it.first.equals(term, true) }) {
+            chips += chip("+ Add “$term”", false) { addCategory(term) }.apply {
+                setTextColor(C.accent); background = rounded(C.accent2, dp(20).toFloat(), C.accent, dp(1))
+            }
+        }
+        for ((name, icon) in shown) chips += chip("$icon  $name", category == name) {
+            if (category == name) { category = null; categoryName = null; render() } else pickCategory(name)
+        }
+        if (chips.isEmpty()) { holder.addView(label("No match", 13f, C.muted).apply { setPadding(dp(4), dp(10), 0, dp(10)) }); return }
+        // Two rows, filled column by column, that scroll sideways together.
+        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        chips.forEach { (it as TextView).maxLines = 1 }
+        chips.forEachIndexed { i, v -> (if (i % 2 == 0) top else bottom).addView(v, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) }) }
+        rows.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        rows.addView(bottom, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
+        holder.addView(HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(rows, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun pickCategory(name: String) {
+        category = name; categoryName = name
+        catQuery = ""; catSearch?.setText("")
+        hideKeyboard()
+        render()
+    }
+
+    /** A new category: picked at once; saved to the household's list in the background (if that fails the
+     *  entry still keeps the name — categories are free text on an entry). */
+    private fun addCategory(name: String) {
+        val clean = name.trim().replace(Regex("\\s+"), " ").take(40)
+        if (clean.isEmpty()) return
+        val dir = direction
+        addedCats.getOrPut(dir) { mutableListOf() }.add(clean to "🏷️")
+        pickCategory(clean)
+        Thread {
+            val res = runCatching { Api.call(applicationContext, JSONObject().put("action", "add_category").put("direction", dir).put("name", clean)) }.getOrNull()
+                ?: return@Thread
+            val icon = res.optString("icon").ifEmpty { "🏷️" }
+            val saved = res.optString("name").ifEmpty { clean }
+            // Keep it in the cached picker list so it's there next time, even before the config refreshes.
+            Store.config(applicationContext)?.let { c ->
+                val arr = c.optJSONObject("hisab")?.optJSONArray(dir)
+                if (arr != null && (0 until arr.length()).none { arr.getJSONObject(it).optString("name").equals(saved, true) }) {
+                    arr.put(JSONObject().put("name", saved).put("icon", icon)); Store.saveConfig(applicationContext, c)
+                }
+            }
+            runOnUiThread {
+                addedCats[dir]?.replaceAll { if (it.first == clean) saved to icon else it }
+                if (category == clean) { category = saved; categoryName = saved }
+                render()
+            }
+        }.start()
+    }
+
+    private fun hideKeyboard() {
+        catSearch?.let { (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(it.windowToken, 0); it.clearFocus() }
     }
 
     private fun budgetPickers(b: JSONObject) {
