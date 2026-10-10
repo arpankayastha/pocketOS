@@ -561,6 +561,11 @@ textarea.masked { -webkit-text-security: disc; }
 .vault-folder-caret { color: var(--muted); font-size: 18px; transition: transform .2s; }
 .vault-folder-head.open .vault-folder-caret { transform: rotate(90deg); }
 .vault-folder .vault-row { padding-left: 16px; padding-right: 12px; border-top: 1px solid var(--line); }
+.vault-folder-edit { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: var(--muted); }
+.vault-folder-edit:hover { background: var(--card-2); color: var(--text); }
+.vault-folder-edit svg { width: 16px; height: 16px; }
+.vault-merge { display: grid; gap: 6px; }
+.vault-merge .chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 140px; overflow-y: auto; }
 .vault-folder-pick select { margin-top: 2px; }
 .type-chips { display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 12px; padding-bottom: 4px; scrollbar-width: none; }
 .type-chips button { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 99px; padding: 6px 12px; font-size: 13px; cursor: pointer; min-height: 36px; }

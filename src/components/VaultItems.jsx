@@ -56,6 +56,23 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
       return next
     })
   }
+  // Rename a folder (subfolders follow). Renaming to another folder's name merges the two;
+  // an empty name takes the items out of any folder. A member can only change their own items.
+  const [editingFolder, setEditingFolder] = useState(null)
+  async function renameFolder(from, to) {
+    const isIn = (f) => f === from || f.startsWith(from + '\\')
+    const list = vault.items.filter((i) => isIn(folderOf(i)) && !i.corrupt && (!member || i.mine)).map((i) => {
+      const data = Object.fromEntries(Object.entries(i).filter(([k]) => !META.includes(k)))
+      const next = to ? to + folderOf(i).slice(from.length) : ''
+      if (next) data.folder = next; else delete data.folder
+      return { id: i.id, data }
+    })
+    await vault.updateItems(list)
+    if (openFolders.has(from)) toggleFolder(from)
+    if (to && !openFolders.has(to)) toggleFolder(to)
+    setToast(to ? `${list.length} item${list.length === 1 ? '' : 's'} now in ${folderLabel(to)}` : `${list.length} item${list.length === 1 ? '' : 's'} taken out of the folder`)
+    setTimeout(() => setToast(null), 2500)
+  }
   // Move an item to another folder straight from its view (re-encrypts it with the new folder).
   async function moveToFolder(item, folder) {
     const data = Object.fromEntries(Object.entries(item).filter(([k]) => !META.includes(k)))
@@ -135,6 +152,9 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
                 <span aria-hidden="true">{f ? '📁' : '🗂️'}</span>
                 <span className="grow ellipsis">{f ? folderLabel(f) : 'No folder'}</span>
                 <span className="muted small">{items.length}</span>
+                {f && <span role="button" tabIndex={0} className="vault-folder-edit" aria-label={`Rename ${folderLabel(f)}`}
+                  onClick={(e) => { e.stopPropagation(); setEditingFolder(f) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setEditingFolder(f) } }}><PencilIcon /></span>}
                 <span className="vault-folder-caret" aria-hidden="true">›</span>
               </button>
               {isOpen && items.map(row)}
@@ -169,6 +189,11 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
             setEditing(null)
             setOpen(editing.id ? { id: editing.id, ...data } : null)
           }} />
+      )}
+      {editingFolder && (
+        <FolderSheet folder={editingFolder} folders={folders} count={vault.items.filter((i) => folderOf(i) === editingFolder).length}
+          onClose={() => setEditingFolder(null)}
+          onSave={async (to) => { await renameFolder(editingFolder, to); setEditingFolder(null) }} />
       )}
       {toast && <div className="toast" role="status">{toast}</div>}
     </section>
@@ -324,6 +349,49 @@ function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, sharedBy, b
           {!item.corrupt && !readOnly && <button type="button" className="btn primary" onClick={onEdit}><PencilIcon /> Edit</button>}
         </div>
       </div>
+    </div>
+  )
+}
+
+// Rename a folder, or merge it into another by picking that one's name.
+function FolderSheet({ folder, folders, count, onClose, onSave }) {
+  const [name, setName] = useState(folder)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const others = folders.filter((f) => f !== folder && !f.startsWith(folder + '\\'))
+  const target = name.trim()
+  const merging = target && target !== folder && folders.some((f) => f.toLowerCase() === target.toLowerCase())
+  async function save(to) {
+    setBusy(true); setError(null)
+    // Merging into an existing folder keeps that folder's exact spelling.
+    const exact = to && (folders.find((f) => f.toLowerCase() === to.toLowerCase()) || to)
+    try { await onSave(exact) } catch (err) { setError(err.message); setBusy(false) }
+  }
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <form className="card modal" onMouseDown={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (target && target !== folder) save(target) }}>
+        <h3>📁 {folderLabel(folder)}</h3>
+        <p className="muted small" style={{ margin: 0 }}>{count} item{count === 1 ? '' : 's'}. Rename it, or tap another folder to move everything there.</p>
+        <label>Folder name<input autoFocus value={name} onChange={(e) => setName(e.target.value)} /></label>
+        {others.length > 0 && (
+          <div className="vault-merge">
+            <span className="muted small">Merge into</span>
+            <div className="chips">
+              {others.map((f) => (
+                <button type="button" key={f} className={`chip chip-btn ${target.toLowerCase() === f.toLowerCase() ? 'on' : ''}`} onClick={() => setName(f)}>{folderLabel(f)}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {merging && <div className="muted small">Its items join <b>{folderLabel(target)}</b> and this folder goes away.</div>}
+        {error && <div className="alert error">{error}</div>}
+        <div className="actions">
+          <button type="button" className="btn ghost" disabled={busy} onClick={() => save('')}>Remove folder</button>
+          <span className="spacer" />
+          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={busy || !target || target === folder}>{busy ? 'Saving…' : merging ? 'Merge' : 'Rename'}</button>
+        </div>
+      </form>
     </div>
   )
 }

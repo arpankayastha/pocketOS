@@ -253,6 +253,19 @@ export function useVault(session, { householdId } = {}) {
     await loadItems()
   }, [loadItems])
 
+  // Re-save several existing items at once (e.g. renaming or merging a folder): encrypt each, update
+  // in small parallel batches, reload once.
+  const updateItems = useCallback(async (list) => {
+    for (let i = 0; i < list.length; i += 10) {
+      await Promise.all(list.slice(i, i + 10).map(async ({ id, data }) => {
+        const payload = await encryptItem(cryptoKey.current, id, data)
+        const { error } = await supabase.from('vault_items').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', id)
+        if (error) throw new Error(error.message)
+      }))
+    }
+    await loadItems()
+  }, [loadItems])
+
   // Generic encryption with the vault key, for other modules (e.g. Will) that store their own
   // rows: `seal(id, data)` → { iv, ciphertext }, `unseal(row)` → data. `id` is bound as AAD.
   const seal = useCallback((id, data) => encryptItem(cryptoKey.current, id, data), [])
@@ -300,7 +313,7 @@ export function useVault(session, { householdId } = {}) {
     status, error, lockedByUser, unlockers, fingerprintUnlockers, items, hasRecovery: unlockers.some((u) => u.kind === 'recovery'),
     setup, unlockWithPassword, unlockWithRecovery, unlockWithFingerprint, checkPassword,
     addFingerprint, removeUnlocker, changePassword, regenerateRecovery,
-    saveItem, deleteItem, importItems, seal, unseal, lock, lockNow, touch, verifyUser,
+    saveItem, updateItems, deleteItem, importItems, seal, unseal, lock, lockNow, touch, verifyUser,
     shareItem, enableHouseholdVault, disableHouseholdVault,
   }
 }
