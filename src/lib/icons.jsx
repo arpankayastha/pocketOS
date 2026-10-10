@@ -1,27 +1,15 @@
-import { useId } from 'react'
-
+// eChopdo logo: an open hisab book with ₹ on its page, Slate indigo on charcoal.
 // eChopdo logo: a stack of ledger pages (the family chopdo, kept safe), cyan → blue → violet.
 // Keep in sync with public/favicon.svg, public/icons/*.svg (+ PNGs) and the splash in index.html.
+// The eChopdo logo: an open hisab book with ₹ on its page, Slate indigo on charcoal (same as public/icons/source.svg).
 export function BrandMark({ size = 24 }) {
-  const id = useId()
-  const bg = `${id}bg`, pg = `${id}pg`
-  const url = (x) => `url(#${CSS.escape(x)})`
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" className="brand-mark">
-      <defs>
-        <linearGradient id={bg} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="512">
-          <stop offset="0" stopColor="#0d1526" /><stop offset="1" stopColor="#05070d" />
-        </linearGradient>
-        <linearGradient id={pg} gradientUnits="userSpaceOnUse" x1="142" y1="126" x2="370" y2="402">
-          <stop offset="0" stopColor="#22d3ee" /><stop offset=".55" stopColor="#3b82f6" /><stop offset="1" stopColor="#8b5cf6" />
-        </linearGradient>
-      </defs>
-      <rect width="512" height="512" rx="112" fill={url(bg)} />
-      <rect x="150" y="116" width="220" height="270" rx="30" fill="#3b82f6" opacity=".25" transform="rotate(-10 260 251)" />
-      <rect x="150" y="116" width="220" height="270" rx="30" fill="#8b5cf6" opacity=".45" transform="rotate(-4 260 251)" />
-      <rect x="142" y="126" width="228" height="276" rx="30" fill={url(pg)} />
-      <path d="M186 196H300M186 244H326M186 292H262" stroke="#05070d" strokeWidth="18" strokeLinecap="round" opacity=".8" />
-      <circle cx="316" cy="340" r="22" fill="#05070d" opacity=".85" />
+      <rect width="512" height="512" rx="112" fill="#1a1d21" />
+      <path d="M88 172c58-30 118-30 168 6v226c-50-34-110-34-168-6z" fill="#8a98de" />
+      <path d="M424 172c-58-30-118-30-168 6v226c50-34 110-34 168-6z" fill="#5d6dc4" />
+      <path d="M122 238h96M122 272h96M122 306h62" fill="none" stroke="#1a1d21" strokeWidth="12" strokeLinecap="round" opacity=".45" />
+      <path d="M296 236h82M296 266h82M306 236c46 0 46 60 0 60h-6l62 66" fill="none" stroke="#1a1d21" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

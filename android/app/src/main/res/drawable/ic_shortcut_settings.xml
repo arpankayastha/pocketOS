@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item><shape android:shape="oval"><solid android:color="#0d0f14" /><size android:width="48dp" android:height="48dp" /></shape></item>
+    <item><shape android:shape="oval"><solid android:color="#1a1d21" /><size android:width="48dp" android:height="48dp" /></shape></item>
     <item android:left="12dp" android:top="12dp" android:right="12dp" android:bottom="12dp">
         <vector android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-            <path android:fillColor="#60a5fa" android:pathData="M4,5h16a2,2 0,0 1,2 2v10a2,2 0,0 1,-2 2H4a2,2 0,0 1,-2 -2V7a2,2 0,0 1,2 -2zM4,8v1.2l8,4.6l8,-4.6V8l-8,4.6z" />
+            <path android:fillColor="#8f9de0" android:pathData="M4,5h16a2,2 0,0 1,2 2v10a2,2 0,0 1,-2 2H4a2,2 0,0 1,-2 -2V7a2,2 0,0 1,2 -2zM4,8v1.2l8,4.6l8,-4.6V8l-8,4.6z" />
         </vector>
     </item>
 </layer-list>

@@ -11,6 +11,7 @@ import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor, householdColor } from '../lib/colors'
 import { attachDigits, isCard, loadUnlinked, parseDigits, setHidden } from '../lib/instruments'
 import { money } from '../lib/format'
+import { setThemePref, themePref } from '../lib/theme'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock, vault }) {
   const dialog = useDialog()
@@ -19,6 +20,9 @@ export default function Settings({ accounts, categories, refresh, households, ac
       <div style={{ gridColumn: '1 / -1' }}>
         {member ? (appLock ? <FingerprintCard appLock={appLock} /> : null)
           : <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} vault={vault} />}
+      </div>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <Appearance />
       </div>
       {vault?.status === 'unlocked' && (
         <div style={{ gridColumn: '1 / -1' }}>
@@ -50,6 +54,23 @@ export default function Settings({ accounts, categories, refresh, households, ac
         </div>
       </div>
     </section>
+  )
+}
+
+// Dark (default) / Light / System — per device, applied at once (src/lib/theme.js).
+const THEMES = [['dark', 'Dark'], ['light', 'Light'], ['system', 'System']]
+function Appearance() {
+  const [pref, setPref] = useState(themePref)
+  const pick = (v) => { setPref(v); setThemePref(v) }
+  return (
+    <Collapsible id="appearance" title="Appearance" summary={THEMES.find(([v]) => v === pref)[1] + (pref === 'system' ? ' (follows this phone)' : '')}>
+      <div className="seg seg3" role="radiogroup" aria-label="Theme">
+        {THEMES.map(([v, label]) => (
+          <button key={v} type="button" role="radio" aria-checked={pref === v} className={pref === v ? 'on' : ''} onClick={() => pick(v)}>{label}</button>
+        ))}
+      </div>
+      <p className="muted small" style={{ margin: '8px 0 0' }}>Just for this phone. System follows your phone's dark / light setting.</p>
+    </Collapsible>
   )
 }
 

@@ -13,8 +13,8 @@ export default defineConfig({
         name: 'eChopdo',
         short_name: 'eChopdo',
         description: 'eChopdo — the family chopdo, now digital: budget, dues, hisab, passwords and records in one safe place.',
-        theme_color: '#050608',
-        background_color: '#050608',
+        theme_color: '#121417',
+        background_color: '#121417',
         display: 'standalone',
         start_url: '/',
         icons: [
