@@ -3,12 +3,13 @@ import { shiftMonth } from './format'
 
 // Horizontal swipe detection for phones. Returns touch handlers to spread on a container.
 // Ignores swipes that start in form fields, sliders, or open modals, and mostly-vertical drags (scrolling).
-export function useSwipe({ onLeft, onRight, threshold = 60 }) {
+// `ignore`: a selector for areas that handle their own swipe (or scroll sideways), e.g. a date header.
+export function useSwipe({ onLeft, onRight, threshold = 60, ignore }) {
   const start = useRef(null)
   return {
     onTouchStart(e) {
       const t = e.touches[0]
-      const skip = e.target.closest('input, textarea, select, .modal-bg, .no-swipe')
+      const skip = e.target.closest('input, textarea, select, .modal-bg, .no-swipe') || (ignore && e.target.closest(ignore))
       start.current = skip || e.touches.length > 1 ? null : { x: t.clientX, y: t.clientY }
     },
     onTouchEnd(e) {

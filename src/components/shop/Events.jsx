@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useDialog } from '../../lib/dialog'
 import { durLabel, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
+import { useSwipe } from '../../lib/useSwipe'
 
 // Events with bookable slots — GTA VI launch now, anything later. Everything about an event (dates,
 // hours, slot length, how many per slot, price, advance) is set here by the admin; staff book slots
@@ -56,6 +57,13 @@ export default function Events({ householdId, admin, toast }) {
     setDay((cur) => (days.includes(cur) ? cur : days.find((d) => d >= today) || days[0]))
   }, [ev])
 
+  const allDays = ev ? eventDays(ev) : []
+  const di = allDays.indexOf(day)
+  const daySwipe = useSwipe({
+    ignore: '.gx-scroll',
+    onLeft: () => { if (di >= 0 && di < allDays.length - 1) setDay(allDays[di + 1]) },
+    onRight: () => { if (di > 0) setDay(allDays[di - 1]) },
+  })
   if (events === null) return <div className="card muted small">Loading…</div>
 
   const slots = ev && day ? daySlots(ev, day) : []
@@ -89,7 +97,7 @@ export default function Events({ householdId, admin, toast }) {
           </div>
         </div>
         <Chips scroll options={eventDays(ev).map((d) => [d, dayChip(d)])} value={day} onChange={setDay} />
-        <div className="gx-slots">
+        <div className="gx-slots gx-dateswipe" {...daySwipe}>
           {slots.map((t) => {
             const here = bookings.filter((b) => new Date(b.slot_start).getTime() === t.getTime())
             const full = here.length >= ev.capacity

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { addDays, dayLabel, dayStart, dayTotals, durLabel, hoursLabel, minutesLeft, sessionTotal, timeLabel, useDay, useNow, rs } from '../../lib/shop'
 import { DrawerCard } from './Cash'
+import { useSwipe } from '../../lib/useSwipe'
 
 // Admin's first screen: today's money, sessions, hours by system, who is on shift, and the drawer.
 export default function Today({ shop: live, householdId, onOpen }) {
@@ -11,6 +12,7 @@ export default function Today({ shop: live, householdId, onOpen }) {
   const past = useDay(householdId, day)
   const shop = back ? { ...live, ...(past || { sessions: [], cash: [], advances: [], shifts: [] }) } : live
   const t = dayTotals(shop, day || dayStart())
+  const daySwipe = useSwipe({ ignore: '.gx-scroll', onLeft: () => setBack((b) => Math.max(0, b - 1)), onRight: () => setBack((b) => b + 1) })
   const total = t.cash + t.online
   const staff = useStaffNames(householdId)
   const byKind = shop.systems.map((s) => ({
@@ -22,6 +24,7 @@ export default function Today({ shop: live, householdId, onOpen }) {
 
   return (
     <section>
+      <div className="gx-dateswipe" {...daySwipe}>
       <div className="gx-daynav">
         <button className="btn icon" aria-label="Previous day" onClick={() => setBack(back + 1)}>‹</button>
         <b>{back === 0 ? 'Today' : back === 1 ? 'Yesterday' : dayLabel(day)}</b>
@@ -33,6 +36,7 @@ export default function Today({ shop: live, householdId, onOpen }) {
         <div className="gx-big">{rs(total)}</div>
         <div className="small"><span className="pos">Cash {rs(t.cash)}</span> · <span className="gx-ps">Online {rs(t.online)}</span></div>
         <div className="gx-bar cash"><i style={{ width: `${total ? (t.cash / total) * 100 : 0}%` }} /></div>
+      </div>
       </div>
       <div className="gx-kpis">
         <div className="gx-kpi"><b>{t.sessions}</b><span>Sessions done</span></div>

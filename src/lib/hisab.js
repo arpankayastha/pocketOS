@@ -6,16 +6,15 @@ import { today } from './format'
 // "daily" book (created on first visit) plus any number of occasion books. Category and
 // source are free text on each entry; the pickers below are just the starting set.
 
+// GRANDXGAMER café cash book defaults (seeded once per shop; editable in Money ⚙ → Hisab categories).
 export const CATEGORIES = [
-  { name: 'Shopping', icon: '🛍️' }, { name: 'Clothes', icon: '👗' }, { name: 'Food', icon: '🍽️' },
-  { name: 'Groceries', icon: '🥦' }, { name: 'Sweets', icon: '🍬' }, { name: 'Gifts', icon: '🎁' },
-  { name: 'Puja', icon: '🪔' }, { name: 'Decor', icon: '🎉' }, { name: 'Flowers', icon: '💐' },
-  { name: 'Travel', icon: '🚕' }, { name: 'Fuel', icon: '⛽' }, { name: 'Beauty', icon: '💄' },
-  { name: 'Medical', icon: '💊' }, { name: 'Home', icon: '🏠' }, { name: 'Other', icon: '📦' },
+  { name: 'Snacks stock', icon: '🍟' }, { name: 'Cold drinks', icon: '🥤' }, { name: 'Tea & water', icon: '☕' },
+  { name: 'Electricity', icon: '💡' }, { name: 'Internet', icon: '🌐' }, { name: 'Rent', icon: '🏠' },
+  { name: 'Staff salary', icon: '💵' }, { name: 'Repairs', icon: '🔧' }, { name: 'Games & subscriptions', icon: '🎮' },
+  { name: 'Cleaning', icon: '🧹' }, { name: 'Prizes & events', icon: '🏆' }, { name: 'Other', icon: '🧾' },
 ]
 export const IN_CATEGORIES = [
-  { name: 'Shagun', icon: '🧧' }, { name: 'Gift', icon: '🎁' }, { name: 'Refund', icon: '↩️' },
-  { name: 'Cash in', icon: '💵' }, { name: 'Other', icon: '📦' },
+  { name: 'Gaming', icon: '🕹️' }, { name: 'F&B sales', icon: '🍫' }, { name: 'Events', icon: '🏆' }, { name: 'Other income', icon: '💵' },
 ]
 export const SOURCES = ['Cash', 'UPI', 'Card']
 

@@ -4,6 +4,7 @@ import { generatePin, manageMembers } from '../../lib/members'
 import { useDialog } from '../../lib/dialog'
 import { dayLabel, durLabel, hoursLabel, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions } from './ui'
+import { useSwipe } from '../../lib/useSwipe'
 
 // Admin: staff logins, their hours this month (from clock in / out) × hourly rate = salary so far,
 // and fixing shifts (a missed clock-out, a wrong time).
@@ -37,6 +38,7 @@ export default function Staff({ householdId, toast }) {
     return { ...m, own, minutes, pay: (minutes / 60) * Number(m.hourly_rate), on: own.find((s) => !s.clock_out) }
   })
   const removed = shifts.filter((s) => !s.user_id)
+  const monthSwipe = useSwipe({ onLeft: () => setMonth((m) => Math.min(0, m + 1)), onRight: () => setMonth((m) => m - 1) })
   const totalPay = rows.reduce((a, r) => a + r.pay, 0)
 
   async function setRate(m) {
@@ -63,11 +65,13 @@ export default function Staff({ householdId, toast }) {
   return (
     <section>
       {error && <div className="alert error">{error}</div>}
-      <Chips options={[[0, 'This month'], [-1, 'Last month']]} value={month} onChange={setMonth} />
+      <div className="gx-dateswipe" {...monthSwipe}>
+      <Chips options={[[0, 'This month'], [-1, 'Last month']]} value={month < -1 ? null : month} onChange={setMonth} />
       <div className="card" style={{ marginTop: 12 }}>
         <div className="muted small">Salary · {start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}{month === 0 ? ' so far' : ''}</div>
         <div className="gx-big">{rs(totalPay)}</div>
-        <div className="muted small">{hoursLabel(rows.reduce((a, r) => a + r.minutes, 0))} · {rows.length} staff</div>
+        <div className="muted small">{hoursLabel(rows.reduce((a, r) => a + r.minutes, 0))} · {rows.length} staff · swipe for other months</div>
+      </div>
       </div>
       {staff === null ? <div className="card muted small">Loading…</div> : rows.length === 0 && (
         <div className="card"><p className="muted" style={{ margin: 0 }}>No staff logins yet. Add one for each employee: they sign in with a username and PIN, then clock in and run the Floor.</p></div>

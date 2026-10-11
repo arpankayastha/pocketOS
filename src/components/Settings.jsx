@@ -7,8 +7,7 @@ import { loadCategories as loadHisabCategories } from '../lib/hisab'
 import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
 import { PALETTE, nextColor } from '../lib/colors'
-import { attachDigits, isCard, loadUnlinked, parseDigits, setHidden } from '../lib/instruments'
-import { money } from '../lib/format'
+import { isCard, parseDigits } from '../lib/instruments'
 import { setThemePref, themePref } from '../lib/theme'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, email, member, appLock, vault }) {
@@ -201,6 +200,8 @@ export function FingerprintCard({ appLock }) {
   )
 }
 
+const EMOJI_PICKS = ['🎮', '🕹️', '🖥️', '🎧', '🍟', '🥤', '☕', '🍫', '💡', '🌐', '🏠', '🧾', '🔧', '🧹', '💵', '📦', '🎁', '🏆', '📱', '↩️']
+
 // Owner: the icon grid shown when adding a Hisab entry, per household — add, rename, reorder, remove.
 // Removing one doesn't touch old entries (they keep their category text).
 function HisabCategories({ householdId, householdName }) {
@@ -307,7 +308,6 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
   return (
     <Collapsible id="accounts" title="Accounts" summary={`${accounts.length} account${accounts.length === 1 ? '' : 's'}`}>
       <p className="muted small" style={{ marginTop: -6 }}>Give your bank accounts and cards their last digits (as bank SMS show them), and cards their bill and due days: card spends then build that card's bill in Plan, and bank spends count against this month.</p>
-      <FromSms accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
       {accounts.map((a) => (
         <div className="line" key={a.id}>
           <button type="button" className="line-btn" onClick={() => setEditing(a)}>
@@ -331,116 +331,6 @@ function Accounts({ accounts, activeHouseholdId, refresh }) {
       {editing && <AccountEditor account={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />}
     </Collapsible>
   )
-}
-
-// Bank + digits seen in this household's SMS that no account claims yet: link each to an
-// account (or make one), choosing bank or card. Past payments with those digits follow.
-function FromSms({ accounts, activeHouseholdId, refresh }) {
-  const [rows, setRows] = useState(null)
-  const [linking, setLinking] = useState(null)
-  const [showHidden, setShowHidden] = useState(false)
-  const [error, setError] = useState(null)
-  const load = useCallback(() => {
-    if (!activeHouseholdId) return
-    loadUnlinked(activeHouseholdId).then(setRows).catch((err) => setError(err.message))
-  }, [activeHouseholdId])
-  useEffect(() => { load() }, [load, accounts])
-  const hide = (r, hidden) => setHidden(activeHouseholdId, r, hidden).then(load).catch((err) => setError(err.message))
-  if (error) return <div className="alert error">{error}</div>
-  if (!rows?.length) return null
-  const shown = rows.filter((r) => !r.hidden), hidden = rows.filter((r) => r.hidden)
-  return (
-    <div className="sms-found">
-      <div className="muted small caps">Found in your SMS</div>
-      {!shown.length && <div className="muted small">Nothing new to link.</div>}
-      {shown.map((r) => (
-        <div key={`${r.bank}:${r.digits}`} className="sms-found-row">
-          <button type="button" className="grow sms-found-main" onClick={() => setLinking(r)}>
-            <b>{r.bank || 'Bank'} ••{r.digits}</b> <span className="muted small">{r.card ? 'card' : 'account'}</span>
-            <div className="muted small">{r.n} payment{r.n === 1 ? '' : 's'} · {money(r.total)} · last {new Date(`${r.last_seen}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
-          </button>
-          <button type="button" className="chip chip-btn" onClick={() => setLinking(r)}>Link</button>
-          <button type="button" className="chip chip-btn" title="Closed account / not mine" onClick={() => hide(r, true)}>Hide</button>
-        </div>
-      ))}
-      {hidden.length > 0 && (
-        <button type="button" className="sms-hidden-toggle muted small" onClick={() => setShowHidden((v) => !v)}>
-          {showHidden ? 'Hide' : 'Show'} {hidden.length} hidden
-        </button>
-      )}
-      {showHidden && hidden.map((r) => (
-        <div key={`h-${r.bank}:${r.digits}`} className="sms-found-row hidden-row">
-          <span className="grow muted small">{r.bank || 'Bank'} ••{r.digits} · {r.n} payment{r.n === 1 ? '' : 's'}</span>
-          <button type="button" className="chip chip-btn" onClick={() => hide(r, false)}>Unhide</button>
-        </div>
-      ))}
-      {linking && <LinkDigits row={linking} accounts={accounts} activeHouseholdId={activeHouseholdId}
-        onClose={() => setLinking(null)} onDone={() => { setLinking(null); refresh(); load() }} />}
-    </div>
-  )
-}
-
-function LinkDigits({ row, accounts, activeHouseholdId, onClose, onDone }) {
-  const [accountId, setAccountId] = useState('')
-  const [name, setName] = useState(`${row.bank || 'Bank'} ${row.card ? 'card' : 'account'}`)
-  const [type, setType] = useState(row.card ? 'card' : 'bank')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-  async function save(e) {
-    e.preventDefault()
-    setBusy(true); setError(null)
-    try {
-      await attachDigits({ householdId: activeHouseholdId, accountId: accountId || null, name, type, bank: row.bank, digits: row.digits,
-        color: nextColor(accounts.map((a) => a.color)) })
-      onDone()
-    } catch (err) { setError(err.message); setBusy(false) }
-  }
-  return (
-    <div className="modal-bg" onMouseDown={onClose}>
-      <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{row.bank} ••{row.digits}</h3>
-        <p className="muted small">{row.n} payment{row.n === 1 ? '' : 's'} so far. Link these digits to one of your accounts, or add it as a new one.</p>
-        <label>Account
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            <option value="">+ New account</option>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name.trim()} ({a.type})</option>)}
-          </select>
-        </label>
-        {!accountId && (
-          <>
-            <label>Name<input required value={name} onChange={(e) => setName(e.target.value)} /></label>
-            <div className="seg">
-              <button type="button" className={type === 'bank' ? 'on' : ''} onClick={() => setType('bank')}>Bank account</button>
-              <button type="button" className={type === 'card' ? 'on' : ''} onClick={() => setType('card')}>Credit card</button>
-            </div>
-            {type === 'card' && <p className="muted small">After adding, tap the card to set its bill and due days.</p>}
-          </>
-        )}
-        {error && <div className="alert error">{error}</div>}
-        <div className="actions">
-          <span className="spacer" />
-          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={busy}>{busy ? 'Linking…' : 'Link'}</button>
-        </div>
-      </form>
-    </div>
-  )
-}
-
-// Asks (in-app) and deletes; resolves true if deleted. Says how much is linked to it first.
-async function deleteAccount(account, dialog) {
-  const [t, r] = await Promise.all([
-    supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('account_id', account.id),
-    supabase.from('recurring_items').select('id', { count: 'exact', head: true }).eq('account_id', account.id),
-  ])
-  const linked = [t.count && `${t.count} transaction${t.count === 1 ? '' : 's'}`, r.count && `${r.count} plan item${r.count === 1 ? '' : 's'}`].filter(Boolean)
-  const message = linked.length
-    ? `${linked.join(' and ')} ${linked.length === 1 && (t.count || r.count) === 1 ? 'uses' : 'use'} it. ${linked.length === 1 && (t.count || r.count) === 1 ? "It's" : "They're"} kept, just no longer linked to an account.`
-    : 'Nothing is linked to it.'
-  if (!await dialog.confirm({ title: `Delete account "${account.name}"?`, message })) return false
-  const { error } = await supabase.from('accounts').delete().eq('id', account.id)
-  if (error) throw error
-  return true
 }
 
 function AccountEditor({ account, onClose, onSaved }) {

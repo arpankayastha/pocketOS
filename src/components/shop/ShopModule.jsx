@@ -3,6 +3,7 @@ import Topbar from '../Topbar'
 import PillNav from '../PillNav'
 import { ListSkeleton } from '../Skeleton'
 import { useBackAction } from '../../lib/backNav'
+import { useSwipe } from '../../lib/useSwipe'
 import { useShop, useShopId } from '../../lib/shop'
 import { CalendarIcon, CashIcon, ClockIcon, HomeIcon, MonitorIcon, SettingsIcon, UsersIcon } from '../../lib/icons'
 import Floor from './Floor'
@@ -40,6 +41,13 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   const timer = useRef(null)
   const toast = useCallback((m) => { setMsg(m); clearTimeout(timer.current); timer.current = setTimeout(() => setMsg(null), 2800) }, [])
 
+  // Swipe left/right anywhere moves between tabs; date headers (.gx-dateswipe) and sideways chip rows swipe themselves.
+  const at = tabs.findIndex((t) => t.id === tab)
+  const swipe = useSwipe({
+    ignore: '.gx-dateswipe, .gx-scroll',
+    onLeft: () => { if (at >= 0 && at < tabs.length - 1) setTab(tabs[at + 1].id) },
+    onRight: () => { if (at > 0) setTab(tabs[at - 1].id) },
+  })
   const props = { shop, householdId, toast }
   let body
   if (!householdId || shop.loading) body = <ListSkeleton />
@@ -64,7 +72,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
           ))}
         </nav>
       </Topbar>
-      <main className="content fade-in gx">{body}</main>
+      <main className="content fade-in gx" {...swipe}>{body}</main>
       <PillNav tabs={tabs} tab={tab} setTab={setTab} />
       {msg && <div className="toast" role="status">{msg}</div>}
     </div>
