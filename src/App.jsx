@@ -13,7 +13,7 @@ import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/
 import { isMember, memberName, markFingerprint } from './lib/members'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
-import { MODULES } from './lib/modules'
+import { MODULES, SHOP, VAULT } from './lib/modules'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
@@ -28,18 +28,18 @@ const Plan = lazy(() => import('./components/Plan'))
 const Dues = lazy(() => import('./components/Dues'))
 const Hisab = lazy(() => import('./components/Hisab'))
 const Settings = lazy(() => import('./components/Settings'))
-const CaptureInbox = lazy(() => import('./components/CaptureInbox'))
 const VaultItems = lazy(() => import('./components/VaultItems'))
 const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
-const WillModule = lazy(() => import('./components/will/WillModule'))
+const loadShop = () => import('./components/shop/ShopModule')
+const ShopModule = lazy(loadShop)
 function preloadBudget() {
+  loadShop()
   loadDashboard()
-  import('./components/Charts')
 }
 
-// eChopdo is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
+// GRANDXGAMER is a shell of independent modules (Shop, Money, Vault — lib/modules.js); each renders its own tabs.
 const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
 
 // Accounts & Categories ('settings') isn't a tab: it opens from the ⚙ button in the header.
@@ -84,16 +84,15 @@ export default function App() {
 
 // Same look as the pre-JS splash in index.html (classes styled there), shown while the session loads.
 function Splash() {
-  return <div className="splash" aria-label="Loading eChopdo"><BrandMark size={76} /><span>eChopdo</span></div>
+  return <div className="splash" aria-label="Loading GRANDXGAMER"><BrandMark size={76} /><span>GRANDXGAMER</span></div>
 }
 
 function Shell({ session }) {
   const [module, setModuleState] = useState(() => {
     const saved = localStorage.getItem(ACTIVE_MODULE_KEY)
-    return MODULES.some((m) => m.id === saved) ? saved : 'budget'
+    return MODULES.some((m) => m.id === saved) ? saved : 'shop'
   })
-  // The hidden Will module is never remembered, so the app always reopens on Budget / Vault.
-  const setModule = (id) => { setModuleState(id); if (MODULES.some((m) => m.id === id)) localStorage.setItem(ACTIVE_MODULE_KEY, id) }
+  const setModule = (id) => { setModuleState(id); localStorage.setItem(ACTIVE_MODULE_KEY, id) }
   // Vault state lives here, not in VaultModule, so switching modules doesn't lock the vault.
   const vault = useVault(session)
   useEffect(() => { preloadBudget() }, []) // fetch Home while the unlock screen is up
@@ -109,27 +108,14 @@ function Shell({ session }) {
     if (appLockOn && (vault.status === 'locked' || vault.status === 'unlocked')) disableAppLock()
   }, [appLockOn, disableAppLock, vault.status])
 
-  useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
+  useBackButton(() => { setToast('Press back again to close GRANDXGAMER'); setTimeout(() => setToast(null), 2000) })
   useOfferFingerprint(vault, dialog, setToast)
-  useBackAction(module !== 'budget', () => setModule('budget'), 1)
-
-  // Hidden Will: press and hold the logo, then confirm with a fingerprint (master password if
-  // this device has no fingerprint set up).
-  async function openWill() {
-    if (module === 'will' || vault.status !== 'unlocked') return
-    try {
-      if (!await vault.verifyUser()) {
-        const pw = await dialog.prompt({ title: 'Confirm it’s you', label: 'Vault master password', inputType: 'password', confirmLabel: 'Open' })
-        if (!pw || !await vault.checkPassword(pw)) return
-      }
-      setModule('will')
-    } catch { /* fingerprint cancelled */ }
-  }
+  useBackAction(module !== 'shop', () => setModule('shop'), 1)
 
   if (vault.status === 'loading') {
     return vault.error ? (
       <div className="auth-wrap"><div className="card auth">
-        <div className="brand big"><BrandMark size={28} />eChopdo</div>
+        <div className="brand big"><BrandMark size={28} />GRANDXGAMER</div>
         <div className="alert error">Couldn't reach the server: {vault.error}</div>
         <button className="btn primary" onClick={() => location.reload()}>Try again</button>
       </div></div>
@@ -138,21 +124,21 @@ function Shell({ session }) {
   if (vault.status === 'locked') return <UnlockScreen vault={vault} onRecovered={() => { setMustResetPassword(true); setModule('vault') }} />
   if (vault.status === 'setup' && appLock.locked) return <AppLockScreen appLock={appLock} vault={vault} />
 
-  const topbar = { module, setModule, onSecret: openWill }
+  const topbar = { module, setModule }
   return (
     // Any tap or key press counts as activity for the vault's idle auto-lock, in every module.
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
-        : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
-        : <BudgetModule topbar={topbar} email={session.user.email} vault={vault} />}
+        : module === 'budget' ? <BudgetModule topbar={topbar} email={memberName(session)} vault={vault} />
+        : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} userId={session.user.id} email={memberName(session)} vault={vault} appLock={appLock} /></Suspense>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
 }
 
-// A household member's app: their household's Budget, plus the family Vault once the owner
-// enables it for them (then ONE vault fingerprint opens both, like the owner's app). Without a
-// vault they're behind the per-device app lock (fingerprint, PIN as backup). No Will.
+// A staff login's app: the Shop (no Money), plus the shop Vault once the admin enables it for them
+// (then ONE vault fingerprint opens both, like the admin's app). Without a vault they're behind the
+// per-device app lock (fingerprint, PIN as backup).
 const SETUP_SKIPPED_KEY = 'pocketos.fingerprintSkipped'
 const MEMBER_INFO_KEY = 'pocketos.memberInfo'
 function MemberShell({ session }) {
@@ -161,16 +147,16 @@ function MemberShell({ session }) {
   // device so the app opens instantly; refreshed from the server on every start.
   const [info, setInfo] = useState(() => { try { return JSON.parse(localStorage.getItem(MEMBER_INFO_KEY)) } catch { return null } })
   useEffect(() => {
-    supabase.from('household_members').select('start_tab, household_id, hisab_only').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
+    supabase.from('household_members').select('household_id, role').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
       if (!data) return
       try { localStorage.setItem(MEMBER_INFO_KEY, JSON.stringify(data)) } catch { /* ignore */ }
-      setInfo((cur) => (cur ? { ...cur, household_id: data.household_id, hisab_only: data.hisab_only } : data))
+      setInfo(data)
     })
   }, [session.user.id])
   const vault = useVault(session, { householdId: info?.household_id })
   const appLock = useAppLock(session)
   const dialog = useDialog()
-  const [module, setModule] = useState('budget')
+  const [module, setModule] = useState('shop')
   const [skipped, setSkipped] = useState(() => { try { return !!sessionStorage.getItem(SETUP_SKIPPED_KEY) } catch { return false } })
   const [toast, setToast] = useState(null)
   const vaultOn = vault.status === 'locked' || vault.status === 'unlocked'
@@ -178,9 +164,9 @@ function MemberShell({ session }) {
   // With a vault, its fingerprint is the one lock — switch the separate app lock off.
   const { enabled: appLockOn, disable: disableAppLock } = appLock
   useEffect(() => { if (appLockOn && vaultOn) disableAppLock() }, [appLockOn, vaultOn, disableAppLock])
-  useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
+  useBackButton(() => { setToast('Press back again to close GRANDXGAMER'); setTimeout(() => setToast(null), 2000) })
   useOfferFingerprint(vault, dialog, setToast)
-  useBackAction(module !== 'budget', () => setModule('budget'), 1)
+  useBackAction(module !== 'shop', () => setModule('shop'), 1)
 
   if (vault.status === 'loading' || !info) return <Splash />
   if (vault.status === 'locked') return <UnlockScreen vault={vault} onRecovered={() => {}} />
@@ -191,11 +177,11 @@ function MemberShell({ session }) {
     }
     if (appLock.locked) return <MemberLockScreen appLock={appLock} session={session} />
   }
-  const topbar = { module, setModule, member: !vaultOn }
+  const topbar = { module, setModule, modules: vaultOn ? [SHOP, VAULT] : [SHOP] }
   return (
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' && vaultOn ? <VaultModule topbar={topbar} vault={vault} member />
-        : <BudgetModule topbar={topbar} email={memberName(session)} member appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} startTab={info.hisab_only ? 'hisab' : info.start_tab || 'dashboard'} hisabOnly={!!info.hisab_only} />}
+        : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} member memberHouseholdId={info.household_id} userId={session.user.id} email={memberName(session)} appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} /></Suspense>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -215,7 +201,7 @@ function useOfferFingerprint(vault, dialog, setToast) {
     try { if (localStorage.getItem(FP_OFFER_KEY)) return } catch { /* ignore */ }
     platformAuthenticatorAvailable().then(async (ok) => {
       if (!ok) return
-      const yes = await dialog.confirm({ title: 'Use your fingerprint next time?', message: 'Unlock eChopdo on this phone with your fingerprint instead of typing the master password. You can change this any time in ⚙ → Security.', confirmLabel: 'Use fingerprint', cancelLabel: 'Not now', danger: false })
+      const yes = await dialog.confirm({ title: 'Use your fingerprint next time?', message: 'Unlock GRANDXGAMER on this phone with your fingerprint instead of typing the master password. You can change this any time in ⚙ → Security.', confirmLabel: 'Use fingerprint', cancelLabel: 'Not now', danger: false })
       if (!yes) { try { localStorage.setItem(FP_OFFER_KEY, '1') } catch { /* ignore */ } return }
       try { await addFingerprint(deviceName()); setToast('Fingerprint unlock is on'); setTimeout(() => setToast(null), 2500) }
       catch (err) { dialog.alert({ title: "Couldn't turn on fingerprint", message: describeWebAuthnError(err) }) }
@@ -229,8 +215,8 @@ function UnlockScreen({ vault, onRecovered }) {
     <div className="auth-wrap">
       <div className="auth-glow" />
       <div className="unlock-wrap">
-        <div className="brand big unlock-brand"><BrandMark size={28} />eChopdo</div>
-        <VaultGate vault={vault} title="Unlock eChopdo" onRecovered={onRecovered} onRecoveryCode={() => {}} />
+        <div className="brand big unlock-brand"><BrandMark size={28} />GRANDXGAMER</div>
+        <VaultGate vault={vault} title="Unlock GRANDXGAMER" onRecovered={onRecovered} onRecoveryCode={() => {}} />
       </div>
     </div>
   )
@@ -286,10 +272,6 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
         {data.error && <div className="alert error">Database error: {data.error}. Did you run <code>supabase/schema.sql</code>?</div>}
         {data.loading ? (tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />) : (
           <Suspense fallback={tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />}>
-            {['dashboard', 'transactions', 'hisab'].includes(tab) && data.activeHouseholdId && (
-              <CaptureInbox householdId={data.activeHouseholdId} categories={data.categories} accounts={data.accounts}
-                onFiled={() => { setDataVersion((v) => v + 1); data.refresh() }} />
-            )}
             {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}

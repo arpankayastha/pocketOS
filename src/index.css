@@ -1,12 +1,12 @@
 :root {
-  /* Theme "Slate": quiet neutral greys + one soft indigo accent (replaced Cyber Blue, Oct 2026 — the user
-     found it too vibrant). Dark is the default; light via ⚙ Settings → Appearance (html[data-theme]), or
-     "System" which follows the phone. Keep the two token sets below in sync. */
-  --bg: #1e2330; --card: #262c3a; --card-2: #2f3646; --text: #e7eaf0; --muted: #a1a9b9; --line: #3a4254;
-  --accent: #9aa7e6; --accent-bg: #8190d8; --on-accent: #151827; --accent-2: #343c5c;
+  /* GRANDXGAMER theme: dark violet-ink + one amber accent (from the approved prototype). Dark is the
+     default; light via ⚙ → Appearance (html[data-theme]), or "System" which follows the phone.
+     Keep the two token sets below in sync. */
+  --bg: #16131f; --card: #1f1b2b; --card-2: #29243a; --text: #efedf6; --muted: #a39eb8; --line: #3a3350;
+  --accent: #ffb93b; --accent-bg: #ffb93b; --on-accent: #2a1d04; --accent-2: #3b2f1c;
   --pos: #7cc29b; --neg: #e09393; --warn: #ddb36a; --transfer: #8cbde0;
   --accent-grad: linear-gradient(var(--accent-bg), var(--accent-bg));
-  --focus-ring: #b0bbee;
+  --focus-ring: #ffcf73;
   --glow: 0 0 0 transparent;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / .2);
   --shadow-md: 0 4px 16px rgb(0 0 0 / .22), 0 1px 2px rgb(0 0 0 / .15);
@@ -19,10 +19,10 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 :root[data-theme="light"] {
-  --bg: #f3f4f6; --card: #ffffff; --card-2: #eceef2; --text: #1f2329; --muted: #6b7380; --line: #dde1e7;
-  --accent: #4b5bb8; --accent-bg: #4b5bb8; --on-accent: #ffffff; --accent-2: #e3e6f6;
+  --bg: #f4f3f7; --card: #ffffff; --card-2: #eceaf1; --text: #1f1b29; --muted: #6c6779; --line: #dfdbe6;
+  --accent: #8a5300; --accent-bg: #b06d00; --on-accent: #ffffff; --accent-2: #f6e8cf;
   --pos: #2c7a52; --neg: #b54848; --warn: #a8781a; --transfer: #2e6f9a;
-  --focus-ring: #4b5bb8;
+  --focus-ring: #b06d00;
   --shadow-sm: 0 1px 2px rgb(20 24 40 / .06);
   --shadow-md: 0 4px 16px rgb(20 24 40 / .08), 0 1px 2px rgb(20 24 40 / .05);
   --shadow-lg: 0 16px 40px rgb(20 24 40 / .14), 0 2px 8px rgb(20 24 40 / .06);
@@ -840,3 +840,59 @@ details.section[open] .chev { transform: rotate(90deg); }
 
 .hh-check { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .hh-check input { width: 22px; height: 22px; flex: none; accent-color: var(--accent-bg); }
+
+/* ---------------------------------------------------------------- Shop module (GRANDXGAMER) */
+.gx section { display: grid; gap: 12px; }
+.gx section > .card { margin-bottom: 0; }
+.gx-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.gx-scroll::-webkit-scrollbar { display: none; }
+.gx-scroll .chip { flex: none; }
+.gx .chip-btn.on, .modal .chip-btn.on { background: var(--accent-bg); border-color: var(--accent-bg); color: var(--on-accent); font-weight: 700; }
+.gx-pill { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 4px 9px; background: var(--card-2); color: var(--muted); }
+.gx-pill.free { background: color-mix(in srgb, var(--pos) 16%, transparent); color: var(--pos); }
+.gx-pill.busy { background: color-mix(in srgb, var(--neg) 16%, transparent); color: var(--neg); }
+.gx-pill.ending { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.gx-pill.over { background: var(--neg); color: var(--on-accent); }
+.gx-pill.ps, .gx-ps { color: var(--transfer); }
+.gx-pill.ps { background: color-mix(in srgb, var(--transfer) 16%, transparent); }
+.gx-sys { display: grid; gap: 10px; padding: 14px; }
+.gx-sys.ending { border-color: color-mix(in srgb, var(--warn) 60%, var(--line)); }
+.gx-sys.over { border-color: var(--neg); }
+.gx-sys-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gx-badge { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--card-2); font-weight: 800; font-size: 13px; letter-spacing: .02em; }
+.gx-badge.ps { color: var(--transfer); }
+.gx-badge.round { border-radius: 50%; color: var(--accent); font-size: 16px; }
+.gx-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gx-free { font-weight: 700; color: var(--pos); }
+.gx-bar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; }
+.gx-bar i { display: block; height: 100%; border-radius: 6px; background: var(--neg); }
+.gx-sys.ending .gx-bar i { background: var(--warn); }
+.gx-bar.cash { margin-top: 10px; height: 8px; background: color-mix(in srgb, var(--transfer) 45%, var(--card-2)); }
+.gx-bar.cash i { background: var(--pos); }
+.gx-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn.gx-ok { background: var(--pos); border-color: transparent; color: var(--on-accent); font-weight: 700; }
+.gx-big { font-size: 34px; font-weight: 800; line-height: 1.1; margin: 4px 0; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.gx-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.gx-kpi { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; display: grid; gap: 2px; }
+.gx-event .gx-kpi { background: var(--card-2); border: 0; }
+.gx-kpi b { font-family: var(--font-mono); font-size: 17px; font-variant-numeric: tabular-nums; }
+.gx-kpi span { font-size: 12px; color: var(--muted); }
+.gx-box { background: var(--card-2); border-radius: 12px; padding: 8px 12px; }
+.gx-sum { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 14px; }
+.gx-sum.strong { font-weight: 800; font-size: 16px; border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 8px; }
+.gx-bars { display: flex; align-items: flex-end; gap: 8px; height: 110px; }
+.gx-bars > div { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+.gx-bars i { display: block; width: 100%; border-radius: 6px 6px 3px 3px; background: var(--accent-bg); }
+.gx-bars i.ps { background: var(--transfer); }
+.gx-clock { display: grid; justify-items: center; text-align: center; gap: 2px; padding: 22px 16px; }
+.gx-clock-btn { width: 150px; height: 150px; border-radius: 50%; border: 0; font-weight: 800; font-size: 22px; letter-spacing: .06em; margin: 14px 0 12px; cursor: pointer; }
+.gx-clock-btn.in { background: var(--pos); color: var(--on-accent); box-shadow: 0 0 0 10px color-mix(in srgb, var(--pos) 18%, transparent); }
+.gx-clock-btn.out { background: var(--neg); color: var(--on-accent); box-shadow: 0 0 0 10px color-mix(in srgb, var(--neg) 18%, transparent); }
+.gx-clock-btn:disabled { opacity: .6; }
+.gx-event-name { font-size: 22px; font-weight: 800; margin: 8px 0 2px; }
+.gx-slots { display: grid; gap: 8px; }
+.gx-slot { padding: 12px 14px; }
+.gx-slot.full { opacity: .85; }
+.gx-attn { border-color: var(--neg); }
+.gx-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gx-linebtn { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); color: inherit; text-align: left; cursor: pointer; font: inherit; }

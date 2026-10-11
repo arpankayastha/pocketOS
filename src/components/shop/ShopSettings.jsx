@@ -1,0 +1,111 @@
+import { useCallback, useEffect, useState } from 'react'
+import { supabase } from '../../lib/supabase'
+import { useDialog } from '../../lib/dialog'
+import { durLabel, rs } from '../../lib/shop'
+import { Appearance, Collapsible, FingerprintCard, SecurityCard, SignOutCard } from '../Settings'
+import { Chips, Sheet, SheetActions } from './ui'
+
+// Shop ⚙: systems and the rate card (admin), then the per-login cards everyone has.
+export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, toast }) {
+  return (
+    <section>
+      {admin && <Systems shop={shop} householdId={householdId} toast={toast} />}
+      {admin && <Rates shop={shop} householdId={householdId} toast={toast} />}
+      <Appearance />
+      {vault?.status === 'unlocked' && <SecurityCard vault={vault} member={member} />}
+      {member && appLock && <FingerprintCard appLock={appLock} />}
+      <SignOutCard email={email} member={member} appLock={appLock} />
+    </section>
+  )
+}
+
+function Systems({ shop, householdId, toast }) {
+  const dialog = useDialog()
+  const [all, setAll] = useState(null)
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('shop_systems').select('*').eq('household_id', householdId).order('sort').order('name')
+    setAll(data || [])
+  }, [householdId])
+  useEffect(() => { load() }, [load])
+  if (all === null) return null
+
+  async function add() {
+    const name = await dialog.prompt({ title: 'New system', label: 'Name (e.g. PC6, PS5-2)', confirmLabel: 'Next' })
+    if (!name?.trim()) return
+    const ps = await dialog.confirm({ title: `${name.trim()}: what is it?`, message: 'PlayStation systems use the PS rates, PCs the PC rates.', confirmLabel: 'PlayStation', cancelLabel: 'PC', danger: false })
+    const { error } = await supabase.from('shop_systems').insert({ household_id: householdId, name: name.trim(), kind: ps ? 'PS' : 'PC', sort: all.length + 1 })
+    if (error) toast(error.message); else { load(); shop.reload() }
+  }
+  async function toggle(s) {
+    const { error } = await supabase.from('shop_systems').update({ active: !s.active }).eq('id', s.id)
+    if (error) toast(error.message); else { load(); shop.reload() }
+  }
+  async function rename(s) {
+    const name = await dialog.prompt({ title: 'Rename', label: 'Name', defaultValue: s.name, confirmLabel: 'Save' })
+    if (!name?.trim() || name.trim() === s.name) return
+    const { error } = await supabase.from('shop_systems').update({ name: name.trim() }).eq('id', s.id)
+    if (error) toast(error.message); else { load(); shop.reload() }
+  }
+  return (
+    <Collapsible id="gx-systems" title="Systems" summary={`${all.filter((s) => s.active).length} on the floor`} defaultOpen>
+      {all.map((s) => (
+        <div key={s.id} className="line">
+          <button type="button" className="btn link" style={{ padding: 0 }} onClick={() => rename(s)}>{s.name}</button>
+          <span className="muted small grow">{s.kind === 'PS' ? 'PlayStation' : 'PC'}</span>
+          <button className="btn small ghost" onClick={() => toggle(s)}>{s.active ? 'On floor' : 'Off'}</button>
+        </div>
+      ))}
+      <button className="btn small" onClick={add}>+ Add system</button>
+    </Collapsible>
+  )
+}
+
+function Rates({ shop, householdId, toast }) {
+  const [adding, setAdding] = useState(false)
+  async function remove(r) {
+    const { error } = await supabase.from('shop_rates').delete().eq('id', r.id)
+    if (error) toast(error.message); else shop.reload()
+  }
+  const kinds = [...new Set(['PC', 'PS', ...shop.rates.map((r) => r.kind)])]
+  return (
+    <Collapsible id="gx-rates" title="Rates" summary={shop.rates.map((r) => `${r.kind} ${durLabel(r.minutes)} ${rs(r.price)}`).join(' · ')} defaultOpen>
+      <p className="muted small" style={{ marginTop: 0 }}>Longer times use the cheapest mix: with 30 min ₹50 and 1 hr ₹80, 1.5 hr is ₹130. Old bills keep the price they had.</p>
+      {kinds.map((k) => (
+        <div key={k}>
+          <div className="caps muted">{k === 'PS' ? 'PlayStation' : k}</div>
+          {shop.rates.filter((r) => r.kind === k).map((r) => (
+            <div key={r.id} className="line">
+              <span>{durLabel(r.minutes)}</span><b className="grow" style={{ textAlign: 'right' }}>{rs(r.price)}</b>
+              <button className="btn small ghost" aria-label="Remove rate" onClick={() => remove(r)}>✕</button>
+            </div>
+          ))}
+        </div>
+      ))}
+      <button className="btn small" onClick={() => setAdding(true)}>+ Add rate</button>
+      {adding && <RateSheet householdId={householdId} onClose={() => setAdding(false)} onDone={() => { setAdding(false); shop.reload() }} />}
+    </Collapsible>
+  )
+}
+
+function RateSheet({ householdId, onClose, onDone }) {
+  const [kind, setKind] = useState('PC')
+  const [minutes, setMinutes] = useState(60)
+  const [price, setPrice] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  async function save() {
+    setBusy(true)
+    const { error } = await supabase.from('shop_rates').upsert({ household_id: householdId, kind, minutes, price: Number(price) }, { onConflict: 'household_id,kind,minutes' })
+    setBusy(false)
+    if (error) setError(error.message); else onDone()
+  }
+  return (
+    <Sheet title="Rate" sub="Adding a time that already has a rate replaces it." onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <Chips options={[['PC', 'PC'], ['PS', 'PlayStation']]} value={kind} onChange={setKind} />
+      <Chips scroll options={[[30, '30 min'], [60, '1 hr'], [120, '2 hr'], [180, '3 hr'], [300, '5 hr']]} value={minutes} onChange={setMinutes} />
+      <label>Price (₹)<input autoFocus inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))} /></label>
+      <SheetActions onClose={onClose} busy={busy} disabled={!price} label="Save rate" />
+    </Sheet>
+  )
+}

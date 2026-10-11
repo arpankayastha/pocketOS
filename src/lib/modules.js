@@ -1,11 +1,8 @@
-import { WalletIcon, VaultIcon, ScrollIcon } from './icons'
+import { WalletIcon, VaultIcon, GamepadIcon } from './icons'
 
-// eChopdo modules, in switcher order.
-export const MODULES = [
-  { id: 'budget', label: 'Budget', icon: WalletIcon },
-  { id: 'vault', label: 'Vault', icon: VaultIcon },
-]
-
-// Hidden module: not in the switcher. Opened by pressing and holding the eChopdo logo,
-// then confirming with a fingerprint. Shown in the switcher only while it's open.
-export const HIDDEN_WILL = { id: 'will', label: 'Will', icon: ScrollIcon }
+// GRANDXGAMER modules, in switcher order. Shop is the café (floor, staff, events, cash); Money is
+// eChopdo's Budget module for the admin only; Vault is shared passwords.
+export const SHOP = { id: 'shop', label: 'Shop', icon: GamepadIcon }
+export const MONEY = { id: 'budget', label: 'Money', icon: WalletIcon }
+export const VAULT = { id: 'vault', label: 'Vault', icon: VaultIcon }
+export const MODULES = [SHOP, MONEY, VAULT]

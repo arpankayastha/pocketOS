@@ -1,15 +1,12 @@
-// eChopdo logo: an open hisab book with ₹ on its page, white pages on Slate indigo.
-// eChopdo logo: a stack of ledger pages (the family chopdo, kept safe), cyan → blue → violet.
+// GRANDXGAMER logo: a dark gamepad with an amber "X" button on an amber square.
 // Keep in sync with public/favicon.svg, public/icons/*.svg (+ PNGs) and the splash in index.html.
-// The eChopdo logo: an open hisab book with ₹ on its page, white pages on Slate indigo (same as public/icons/source.svg).
 export function BrandMark({ size = 24 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" className="brand-mark">
-      <rect width="512" height="512" rx="112" fill="#5d6dc4" />
-      <path d="M88 172c58-30 118-30 168 6v226c-50-34-110-34-168-6z" fill="#ffffff" />
-      <path d="M424 172c-58-30-118-30-168 6v226c50-34 110-34 168-6z" fill="#dfe3f7" />
-      <path d="M122 238h96M122 272h96M122 306h62" fill="none" stroke="#5d6dc4" strokeWidth="12" strokeLinecap="round" opacity=".45" />
-      <path d="M296 236h82M296 266h82M306 236c46 0 46 60 0 60h-6l62 66" fill="none" stroke="#4b5bb8" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+      <rect width="512" height="512" rx="112" fill="#ffb93b" />
+      <path d="M150 182h212c46 0 78 30 86 74l22 112c9 46-41 72-72 41l-50-50H164l-50 50c-31 31-81 5-72-41l22-112c8-44 40-74 86-74z" fill="#1c1726" />
+      <path d="M180 248v52M154 274h52" fill="none" stroke="#ffb93b" strokeWidth="18" strokeLinecap="round" />
+      <path d="M314 250l48 48M362 250l-48 48" fill="none" stroke="#ffb93b" strokeWidth="18" strokeLinecap="round" />
     </svg>
   )
 }
@@ -244,4 +241,20 @@ export function DuesIcon() {
 }
 export function BookIcon() {
   return <svg {...base}><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z" /><path d="M4 19V5M8 7h7M8 11h5" /></svg>
+}
+
+export function GamepadIcon() {
+  return <svg {...base}><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01" /><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6L2 15a3 3 0 0 0 5.2 2.1L9 15h6l1.8 2.1A3 3 0 0 0 22 15l-.7-6.4a4 4 0 0 0-4-3.6z" /></svg>
+}
+export function ClockIcon() {
+  return <svg {...base}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+}
+export function CalendarIcon() {
+  return <svg {...base}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+}
+export function CashIcon() {
+  return <svg {...base}><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" /></svg>
+}
+export function MonitorIcon() {
+  return <svg {...base}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
 }

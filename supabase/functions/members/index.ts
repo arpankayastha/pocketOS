@@ -1,13 +1,13 @@
-// Household member logins (Budget → Accounts & Categories → Households).
-// Only the owner of a household may call this; members are rejected. Uses the service role
+// Staff logins for the shop (Shop → Staff). Several per shop.
+// Only the shop's admin (the household owner) may call this; staff are rejected. Uses the service role
 // (auto-injected env) to create/reset/remove auth users, which the client must never hold.
 //   { action: 'list' }                                  → members of all the caller's households
-//   { action: 'create', householdId, username, pin }    → new login for a household
+//   { action: 'create', householdId, username, pin, name, rate } → new staff login
 //   { action: 'reset_pin', householdId, userId, pin }   → new PIN
 //   { action: 'remove', householdId, userId }           → delete login (their entries stay, re-owned by the caller)
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const EMAIL_DOMAIN = 'members.echopdo.vercel.app'
+const EMAIL_DOMAIN = 'staff.grandxgamer.app'
 const FINANCE_TABLES = ['accounts', 'categories', 'transactions', 'budgets', 'recurring_items', 'dues', 'due_entries', 'hisab_books', 'hisab_entries', 'hisab_categories', 'captures', 'capture_rules']
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -60,8 +60,6 @@ Deno.serve(async (req) => {
     if (!pinOk(body.pin)) return json({ error: 'The PIN must be 6 digits.' }, 400)
     const { data: taken } = await admin.from('household_members').select('household_id').eq('username', username).maybeSingle()
     if (taken) return json({ error: `"${username}" is already used.` }, 409)
-    const { data: existing } = await admin.from('household_members').select('user_id').eq('household_id', hh.id).maybeSingle()
-    if (existing) return json({ error: 'This household already has a login.' }, 409)
     // Sign-ups are closed in SQL (private.block_public_signups): a one-time ticket, which only the
     // service role can write, lets this one member address through.
     const email = `${username}@${EMAIL_DOMAIN}`
@@ -72,7 +70,9 @@ Deno.serve(async (req) => {
       app_metadata: { role: 'member' }, user_metadata: { username },
     })
     if (error || !created.user) return json({ error: error?.message || 'Could not create the login.' }, 400)
-    const { error: err } = await admin.from('household_members').insert({ household_id: hh.id, user_id: created.user.id, username })
+    const rate = Math.max(0, Number(body.rate) || 0)
+    const name = String(body.name || '').trim().slice(0, 40) || null
+    const { error: err } = await admin.from('household_members').insert({ household_id: hh.id, user_id: created.user.id, username, role: 'staff', display_name: name, hourly_rate: rate })
     if (err) { await admin.auth.admin.deleteUser(created.user.id); return json({ error: err.message }, 500) }
     return json({ ok: true, userId: created.user.id })
   }
@@ -88,11 +88,13 @@ Deno.serve(async (req) => {
   if (action === 'remove') {
     if (!await memberOf(userId)) return json({ error: 'Not a member of this household.' }, 404)
     // Rows reference auth.users with on delete cascade: hand the member's entries to the
-    // owner first so removing the login never deletes household data.
+    // owner first so removing the login never deletes shop data. Shifts keep the staff name.
     for (const t of FINANCE_TABLES) {
       const { error } = await admin.from(t).update({ user_id: user.id }).eq('user_id', userId)
       if (error) return json({ error: `${t}: ${error.message}` }, 500)
     }
+    const { data: m } = await admin.from('household_members').select('username, display_name').eq('user_id', userId).maybeSingle()
+    await admin.from('shop_shifts').update({ staff_name: m?.display_name || m?.username || 'Former staff' }).eq('user_id', userId).is('staff_name', null)
     const { error } = await admin.auth.admin.deleteUser(userId)
     if (error) return json({ error: error.message }, 400)
     return json({ ok: true })

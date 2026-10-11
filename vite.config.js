@@ -10,11 +10,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'eChopdo',
-        short_name: 'eChopdo',
-        description: 'eChopdo — the family chopdo, now digital: budget, dues, hisab, passwords and records in one safe place.',
-        theme_color: '#1e2330',
-        background_color: '#1e2330',
+        name: 'GRANDXGAMER',
+        short_name: 'GRANDXGAMER',
+        description: 'GRANDXGAMER — the gaming café: floor, staff, bookings, money and passwords in one app.',
+        theme_color: '#16131f',
+        background_color: '#16131f',
         display: 'standalone',
         start_url: '/',
         icons: [
