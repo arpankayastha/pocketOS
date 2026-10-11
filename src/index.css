@@ -899,3 +899,6 @@ details.section[open] .chev { transform: rotate(90deg); }
 .brand-text { color: var(--accent); text-transform: uppercase; font-family: 'Anton', 'Oswald', 'Impact', sans-serif; font-weight: 400; letter-spacing: .03em; font-size: 1.15em; }
 .brand-mark { object-fit: contain; }
 .brand.big { font-family: 'Anton', 'Oswald', Impact, sans-serif; font-weight: 400; letter-spacing: .03em; color: var(--accent); font-size: 26px; }
+.gx-daynav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gx-daynav .btn.icon { font-size: 22px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); }
+.gx-badge.sm { width: 38px; height: 30px; border-radius: 8px; font-size: 11px; }

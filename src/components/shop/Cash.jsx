@@ -5,12 +5,12 @@ import { Chips, Sheet, SheetActions, SumRow } from './ui'
 
 // The counter drawer for today: opening cash + cash collected (sessions, event advances, cash in)
 // − cash paid out = what should be in the drawer. Online money is shown but isn't in the drawer.
-export function DrawerCard({ shop }) {
-  const t = dayTotals(shop)
+export function DrawerCard({ shop, from }) {
+  const t = dayTotals(shop, from)
   const diff = t.count ? Number(t.count.amount) - t.drawer : null
   return (
     <div className="card">
-      <div className="card-head"><h3>Drawer today</h3>{t.open ? null : <span className="pill">Opening cash not set</span>}</div>
+      <div className="card-head"><h3>Drawer</h3>{t.open ? null : <span className="pill">Opening cash not set</span>}</div>
       <SumRow label="Opening cash" value={rs(t.open?.amount || 0)} />
       <SumRow label="Cash collected" value={`+${rs(t.cash + t.in)}`} tone="pos" />
       <SumRow label="Paid out" value={`−${rs(t.out)}`} tone="neg" />

@@ -94,11 +94,32 @@ export function useShop(householdId) {
   return { ...state, reload }
 }
 
-// Today's money from sessions, event advances and the cash drawer.
-export function dayTotals({ sessions, cash, advances }) {
+// A past day's sessions, cash and event advances (Today's ‹ › day switch). Same shape as useShop's.
+export function useDay(householdId, day) {
+  const [data, setData] = useState(null)
+  const key = day ? day.toISOString() : null
+  useEffect(() => {
+    if (!householdId || !key) { setData(null); return }
+    let live = true
+    const from = key, to = addDays(new Date(key), 1).toISOString()
+    setData(null)
+    Promise.all([
+      supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).lt('started_at', to).neq('status', 'cancelled').order('started_at', { ascending: false }),
+      supabase.from('shop_cash').select('*').eq('household_id', householdId).gte('at', from).lt('at', to).order('at', { ascending: false }),
+      supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status').eq('household_id', householdId).gte('created_at', from).lt('created_at', to).gt('advance_paid', 0),
+    ]).then(([s, c, a]) => {
+      if (live) setData({ sessions: s.data || [], cash: c.data || [], advances: (a.data || []).filter((b) => b.status !== 'cancelled'), shifts: [] })
+    })
+    return () => { live = false }
+  }, [householdId, key])
+  return data
+}
+
+// One day's money from sessions, event advances and the cash drawer (default: today).
+export function dayTotals({ sessions, cash, advances }, from = dayStart()) {
   const t = { cash: 0, online: 0, owed: 0, sessions: 0, fnb: 0, minutes: 0, out: 0, in: 0, open: null, count: null }
   for (const s of sessions) {
-    if (new Date(s.started_at) < dayStart()) continue
+    if (new Date(s.started_at) < from) continue
     t.cash += Number(s.paid_cash); t.online += Number(s.paid_online); t.owed += Number(s.owed)
     t.fnb += Number(s.fnb_before) + Number(s.fnb_while)
     if (s.status === 'closed') { t.sessions++; t.minutes += s.minutes }
