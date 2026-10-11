@@ -5,11 +5,11 @@ import { Chips, Sheet, SheetActions, SumRow } from './ui'
 
 // The counter drawer for today: opening cash + cash collected (sessions, event advances, cash in)
 // − cash paid out = what should be in the drawer. Online money is shown but isn't in the drawer.
-export function DrawerCard({ shop, from }) {
+export function DrawerCard({ shop, from, order }) {
   const t = dayTotals(shop, from)
   const diff = t.count ? Number(t.count.amount) - t.drawer : null
   return (
-    <div className="card">
+    <div className="card" style={{ order }}>
       <div className="card-head"><h3>Drawer</h3>{t.open ? null : <span className="pill">Opening cash not set</span>}</div>
       <SumRow label="Opening cash" value={rs(t.open?.amount || 0)} />
       <SumRow label="Cash collected" value={`+${rs(t.cash + t.in)}`} tone="pos" />
@@ -39,13 +39,16 @@ export default function Cash({ shop, householdId, toast }) {
   ].sort((a, b) => new Date(b.at) - new Date(a.at))
 
   return (
-    <section>
+    <section className="gx-split">
+      <div className="gx-col">
       <DrawerCard shop={shop} />
       <div className="gx-btns">
         <button className="btn primary" style={{ flex: 1 }} onClick={() => setSheet('out')}>− Cash out</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet('in')}>+ Cash in</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet(dayTotals(shop).open ? 'count' : 'open')}>{dayTotals(shop).open ? 'Count' : 'Opening'}</button>
       </div>
+      </div>
+      <div className="gx-col">
       <div className="card">
         <h3>Today</h3>
         {entries.length === 0 ? <div className="muted small">Nothing yet today.</div> : entries.map((e) => (
@@ -54,6 +57,7 @@ export default function Cash({ shop, householdId, toast }) {
             <b className={e.sign > 0 ? 'pos' : e.sign < 0 ? 'neg' : 'muted'}>{e.sign > 0 ? '+' : e.sign < 0 ? '−' : ''}{rs(e.amount)}</b>
           </div>
         ))}
+      </div>
       </div>
       {sheet && <CashSheet kind={sheet} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
     </section>

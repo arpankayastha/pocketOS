@@ -31,7 +31,8 @@ export default function Shift({ householdId, userId, toast }) {
   const week = (shifts || []).reduce((a, s) => a + mins(s), 0)
 
   return (
-    <section>
+    <section className="gx-split even">
+      <div className="gx-col">
       <div className="card gx-clock">
         {error && <div className="alert error">{error}</div>}
         {open ? (<>
@@ -46,6 +47,8 @@ export default function Shift({ householdId, userId, toast }) {
         </>)}
         <p className="muted small" style={{ margin: 0 }}>Forgot to clock out? Ask the admin to fix it.</p>
       </div>
+      </div>
+      <div className="gx-col">
       <div className="card">
         <div className="card-head"><h3>Last 7 days</h3><span className="amt muted small">{hoursLabel(week)}</span></div>
         {shifts === null ? <div className="muted small">Loading…</div> : shifts.length === 0 ? <div className="muted small">No shifts yet.</div> : shifts.map((s) => (
@@ -54,6 +57,7 @@ export default function Shift({ householdId, userId, toast }) {
             <b>{durLabel(mins(s))}</b>
           </div>
         ))}
+      </div>
       </div>
     </section>
   )

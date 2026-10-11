@@ -25,7 +25,7 @@ export default function Floor({ shop, householdId, toast }) {
         const s = running.get(sys.id)
         if (!s) {
           return (
-            <div key={sys.id} className="card gx-sys">
+            <div key={sys.id} className="card gx-sys free">
               <div className="gx-sys-top">
                 <span className={`gx-badge ${sys.kind === 'PS' ? 'ps' : ''}`}>{sys.name}</span>
                 <div className="grow"><div className="gx-free">Free</div><div className="muted small">{sys.kind === 'PS' ? 'PlayStation' : 'PC'}</div></div>

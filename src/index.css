@@ -918,3 +918,77 @@ details.section[open] .chev { transform: rotate(90deg); }
 /* Cards laid out by .grid2 get their spacing from the grid's gap, not their own margin. */
 .grid2 > .card { margin-bottom: 0; }
 .grid2:has(> .card) { gap: 12px; margin-bottom: 12px; }
+
+/* ---------------------------------------------------------------- Shop on laptops (owner's request: "should not feel mobile")
+   .gx-split screens are two columns from 900 px; on phones each .gx-col dissolves (display: contents) and the
+   children's inline `order` keeps the phone sequence. */
+.gx-split { display: grid; gap: 12px; }
+.gx-split > .gx-col { display: contents; }
+@media (min-width: 900px) {
+  .content.gx { max-width: 1240px; }
+  .gx-split { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; gap: 20px; }
+  .gx-split.side-first { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
+  .gx-split.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .gx-split > .gx-col { display: grid; gap: 12px; align-content: start; }
+  .gx-split > .gx-col > * { order: 0 !important; }
+  /* Floor: the shop floor as a grid of systems */
+  .gx-floor { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: stretch; gap: 16px; }
+  .gx-floor > .chips { grid-column: 1 / -1; }
+  .gx-floor .gx-sys { align-content: space-between; min-height: 150px; padding: 18px; }
+  .gx-floor .gx-sys.free .gx-sys-top { flex-wrap: wrap; height: 100%; align-content: space-between; }
+  .gx-floor .gx-sys.free .gx-sys-top > .btn { flex-basis: 100%; min-height: 42px; font-size: 14px; margin-top: 18px; }
+  .gx-badge { width: 52px; height: 52px; font-size: 15px; }
+  /* Events: slots in two columns beside the event */
+  .gx-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Staff cards side by side */
+  .gx-staff-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gx-staff-cards > .card:only-child { grid-column: 1 / -1; }
+  .gx-big { font-size: 40px; }
+  .gx-kpi b { font-size: 20px; }
+  .gx-bars { height: 160px; }
+  .gx-clock { padding: 32px 16px; }
+}
+@media (min-width: 1200px) {
+  .gx-floor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 800px) {
+  /* A row of exactly three tiles (Plan) fills the width instead of leaving a 4th column empty. */
+  .tiles:has(> :nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* Settings on a laptop: two even columns of cards. */
+  .settings-grid { align-items: start; }
+}
+
+/* ---------------------------------------------------------------- Laptop sidebar (owner: "laptop menu needs a redesign")
+   From 1024 px the shared Topbar becomes a fixed left sidebar: brand, module switch, the module's pages as a
+   vertical list, actions (⚙ / lock) pinned at the bottom with labels. Phones and tablets keep the top bar. */
+@media (min-width: 1024px) {
+  .app { padding-left: 252px; }
+  .topbar, .topbar.scrolled {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 252px; z-index: 6;
+    flex-direction: column; align-items: stretch; gap: 20px; padding: 24px 16px 20px;
+    background: var(--card); border: 0; border-right: 1px solid var(--line); box-shadow: none; overflow-y: auto;
+  }
+  .topbar .brand { gap: 10px; padding: 0 6px 4px; }
+  .topbar .brand-mark { width: 36px; height: 36px; }
+  .topbar .brand-text { font-size: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: clip; min-width: 0; }
+  .topbar .brand-member { display: none; }
+  .module-switch { width: 100%; background: var(--bg); }
+  .module-switch button { flex: 1 1 0; min-width: 0; padding: 0 2px; gap: 4px; min-height: 38px; font-size: 12px; letter-spacing: -.01em; }
+  .module-switch .module-label { overflow: visible; }
+  .module-switch svg { width: 15px; height: 15px; }
+  .topbar .tabs { display: flex; flex-direction: column; flex: 0 0 auto; gap: 4px; overflow: visible; padding-top: 4px; border-top: 1px solid var(--line); }
+  .topbar .tabs::before { content: 'Pages'; font: 600 11px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 14px 12px 8px; }
+  .topbar .tab { width: 100%; justify-content: flex-start; gap: 12px; padding: 10px 12px; min-height: 44px; font-size: 15px; border-radius: 10px; color: var(--text); }
+  .topbar .tab svg { width: 20px; height: 20px; color: var(--muted); }
+  .topbar .tab:hover:not(.active) { background: var(--card-2); }
+  .topbar .tab.active { background: var(--accent-bg); color: var(--on-accent); }
+  .topbar .tab.active svg { color: var(--on-accent); }
+  .topbar-right { margin: auto 0 0; flex-direction: column; align-items: stretch; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .topbar-right .btn.icon { width: 100%; justify-content: flex-start; gap: 12px; padding: 10px 12px; min-height: 44px; border-radius: 10px; border: 0; background: none; color: var(--text); }
+  .topbar-right .btn.icon:hover, .topbar-right .btn.icon.on { background: var(--card-2); }
+  .topbar-right .btn.icon.on { color: var(--accent); }
+  .settings-btn::after { content: 'Settings'; font-size: 15px; }
+  .lock-btn::after { content: 'Lock vault'; font-size: 15px; }
+  .content { padding-top: 32px; }
+  .toast { left: calc(50% + 126px); }
+}

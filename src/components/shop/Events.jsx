@@ -78,7 +78,8 @@ export default function Events({ householdId, admin, toast }) {
   }
 
   return (
-    <section>
+    <section className="gx-split side-first">
+      <div className="gx-col">
       {error && <div className="alert error">{error}</div>}
       {events.length > 1 && <Chips scroll options={events.map((e) => [e.id, e.name + (e.active ? '' : ' (off)')])} value={eventId} onChange={setEventId} />}
       {!ev ? (
@@ -96,6 +97,11 @@ export default function Events({ householdId, admin, toast }) {
             <div className="gx-kpi"><b>{rs(advance)}</b><span>Advance taken</span></div>
           </div>
         </div>
+        {admin && <button className="btn block gx-new-event" style={{ order: 9 }} onClick={() => setSheet({ kind: 'event', event: null })}>+ New event</button>}
+      </>)}
+      </div>
+      <div className="gx-col">
+      {ev && (<>
         <Chips scroll options={eventDays(ev).map((d) => [d, dayChip(d)])} value={day} onChange={setDay} />
         <div className="gx-slots gx-dateswipe" {...daySwipe}>
           {slots.map((t) => {
@@ -125,7 +131,8 @@ export default function Events({ householdId, admin, toast }) {
           })}
         </div>
       </>)}
-      {admin && <button className="btn block" style={{ marginTop: 8 }} onClick={() => setSheet({ kind: 'event', event: null })}>+ New event</button>}
+      {!ev && admin && <button className="btn block" onClick={() => setSheet({ kind: 'event', event: null })}>+ New event</button>}
+      </div>
       {sheet?.kind === 'book' && <BookSheet ev={ev} slot={sheet.slot} householdId={householdId} onClose={() => setSheet(null)} onDone={done} />}
       {sheet?.kind === 'event' && <EventSheet event={sheet.event} householdId={householdId} onClose={() => setSheet(null)}
         onDone={(msg, id) => { if (id) setEventId(id); done(msg) }} />}

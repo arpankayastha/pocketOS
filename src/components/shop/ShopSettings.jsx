@@ -8,14 +8,18 @@ import { Chips, Sheet, SheetActions } from './ui'
 // Shop ⚙: systems and the rate card (admin), then the per-login cards everyone has.
 export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, toast }) {
   return (
-    <section>
-      {admin && <Systems shop={shop} householdId={householdId} toast={toast} />}
-      {admin && <Rates shop={shop} householdId={householdId} toast={toast} />}
+    <section className="gx-split even">
+      {admin && <div className="gx-col">
+        <Systems shop={shop} householdId={householdId} toast={toast} />
+        <Rates shop={shop} householdId={householdId} toast={toast} />
+      </div>}
+      <div className="gx-col">
       {admin && <LoginPassword toast={toast} />}
       <Appearance />
       {vault?.status === 'unlocked' && <SecurityCard vault={vault} member={member} />}
       {member && appLock && <FingerprintCard appLock={appLock} />}
       <SignOutCard email={email} member={member} appLock={appLock} />
+      </div>
     </section>
   )
 }

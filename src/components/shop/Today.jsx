@@ -23,8 +23,9 @@ export default function Today({ shop: live, householdId, onOpen }) {
   const overdue = shop.sessions.filter((s) => s.status === 'running' && minutesLeft(s, now) <= 0)
 
   return (
-    <section>
-      <div className="gx-dateswipe" {...daySwipe}>
+    <section className="gx-split">
+      <div className="gx-col">
+      <div className="gx-dateswipe" style={{ order: 1 }} {...daySwipe}>
       <div className="gx-daynav">
         <button className="btn icon" aria-label="Previous day" onClick={() => setBack(back + 1)}>‹</button>
         <b>{back === 0 ? 'Today' : back === 1 ? 'Yesterday' : dayLabel(day)}</b>
@@ -38,21 +39,7 @@ export default function Today({ shop: live, householdId, onOpen }) {
         <div className="gx-bar cash"><i style={{ width: `${total ? (t.cash / total) * 100 : 0}%` }} /></div>
       </div>
       </div>
-      <div className="gx-kpis">
-        <div className="gx-kpi"><b>{t.sessions}</b><span>Sessions done</span></div>
-        <div className="gx-kpi"><b>{hoursLabel(t.minutes)}</b><span>Played</span></div>
-        <div className="gx-kpi"><b>{rs(t.fnb)}</b><span>F&amp;B</span></div>
-        <div className="gx-kpi"><b className={t.owed ? 'neg' : ''}>{rs(t.owed)}</b><span>Owed</span></div>
-      </div>
-      {overdue.length > 0 && (
-        <div className="card gx-attn">
-          <h3>Time up</h3>
-          {overdue.map((s) => (
-            <div key={s.id} className="line"><span>{s.system_name} · {s.customer_name}</span><button className="btn small" onClick={() => onOpen('floor')}>Floor</button></div>
-          ))}
-        </div>
-      )}
-      <div className="card">
+      <div className="card" style={{ order: 4 }}>
         <div className="card-head"><h3>Hours played by system</h3><span className="muted small amt">{hoursLabel(t.minutes)}</span></div>
         <div className="gx-bars">
           {byKind.map((b) => (
@@ -64,27 +51,44 @@ export default function Today({ shop: live, householdId, onOpen }) {
           ))}
         </div>
       </div>
-      <Sessions sessions={shop.sessions} />
-      {back === 0 && <div className="card">
+      <Sessions sessions={shop.sessions} order={5} />
+      </div>
+      <div className="gx-col">
+      <div className="gx-kpis" style={{ order: 2 }}>
+        <div className="gx-kpi"><b>{t.sessions}</b><span>Sessions done</span></div>
+        <div className="gx-kpi"><b>{hoursLabel(t.minutes)}</b><span>Played</span></div>
+        <div className="gx-kpi"><b>{rs(t.fnb)}</b><span>F&amp;B</span></div>
+        <div className="gx-kpi"><b className={t.owed ? 'neg' : ''}>{rs(t.owed)}</b><span>Owed</span></div>
+      </div>
+      {overdue.length > 0 && (
+        <div className="card gx-attn" style={{ order: 3 }}>
+          <h3>Time up</h3>
+          {overdue.map((s) => (
+            <div key={s.id} className="line"><span>{s.system_name} · {s.customer_name}</span><button className="btn small" onClick={() => onOpen('floor')}>Floor</button></div>
+          ))}
+        </div>
+      )}
+      {back === 0 && <div className="card" style={{ order: 6 }}>
         <h3>On shift now</h3>
         {shop.shifts.length === 0 ? <div className="muted small">Nobody is clocked in.</div> : (
           <div className="chips">{shop.shifts.map((s) => <span key={s.id} className="pill gx-pill free">{staff[s.user_id] || 'Staff'} · since {timeLabel(s.clock_in)}</span>)}</div>
         )}
       </div>}
-      <DrawerCard shop={shop} from={day || dayStart()} />
+      <DrawerCard shop={shop} from={day || dayStart()} order={7} />
+      </div>
     </section>
   )
 }
 
 // The day's sessions, newest first — the old sheet's rows.
-function Sessions({ sessions }) {
+function Sessions({ sessions, order }) {
   const [all, setAll] = useState(false)
   const rows = sessions.filter((s) => s.status === 'closed')
   if (!rows.length) return null
   const shown = all ? rows : rows.slice(0, 8)
   const mode = (s) => Number(s.owed) > 0 ? `owes ${rs(s.owed)}` : Number(s.paid_cash) && Number(s.paid_online) ? 'cash + online' : Number(s.paid_online) ? 'online' : 'cash'
   return (
-    <div className="card">
+    <div className="card" style={{ order }}>
       <div className="card-head"><h3>Sessions</h3><span className="muted small">{rows.length}</span></div>
       {shown.map((s) => (
         <div key={s.id} className="line">

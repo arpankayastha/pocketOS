@@ -13,22 +13,22 @@ import { setThemePref, themePref } from '../lib/theme'
 export default function Settings({ accounts, categories, refresh, activeHouseholdId, email, member, appLock, vault }) {
   return (
     <section className="grid2 settings-grid">
-      <div style={{ gridColumn: '1 / -1' }}>
+      <div>
         <Appearance />
       </div>
       {vault?.status === 'unlocked' && (
-        <div style={{ gridColumn: '1 / -1' }}>
+        <div>
           <SecurityCard vault={vault} member={member} />
         </div>
       )}
       <Accounts accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
       {!member && activeHouseholdId && (
-        <div style={{ gridColumn: '1 / -1' }}>
+        <div>
           <HisabCategories key={activeHouseholdId} householdId={activeHouseholdId} />
         </div>
       )}
       <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
-      <div style={{ gridColumn: '1 / -1' }}>
+      <div>
         <SignOutCard email={email} member={member} appLock={appLock} />
       </div>
     </section>

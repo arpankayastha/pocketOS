@@ -275,3 +275,68 @@ alter table public.shop_shifts add column if not exists staff_name text;
 alter table public.shop_shifts alter column user_id drop not null;
 alter table public.shop_shifts drop constraint if exists shop_shifts_user_id_fkey;
 alter table public.shop_shifts add constraint shop_shifts_user_id_fkey foreign key (user_id) references auth.users(id) on delete set null;
+
+-- ---------------------------------------------------------------------------------------------
+-- Floor takings go into the Cashbook automatically (owner's choice): per shop and day, one Shop-book
+-- "money in" entry for cash and one for online (UPI), kept equal to that day's session payments.
+-- Recomputed on every session change, so ending, extending or removing a session corrects the day.
+-- Days are Indian dates of the session start. Hand edits to these two entries get overwritten.
+alter table public.hisab_entries add column if not exists shop_takings text check (shop_takings in ('cash', 'online'));
+create unique index if not exists hisab_entries_shop_takings on public.hisab_entries (household_id, occurred_on, shop_takings) where shop_takings is not null;
+
+create or replace function private.sync_floor_takings(p_household uuid, p_day date) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_owner uuid; v_book uuid; v_cash numeric; v_online numeric; v_n int; v_cash_acct uuid; v_bank_acct uuid; m text; amt numeric;
+begin
+  if p_household is null or p_day is null then return; end if;
+  select user_id into v_owner from public.households where id = p_household;
+  select id into v_book from public.hisab_books where household_id = p_household and kind = 'daily' order by created_at limit 1;
+  if v_book is null then
+    insert into public.hisab_books (user_id, household_id, name, kind) values (v_owner, p_household, 'Shop', 'daily') returning id into v_book;
+  end if;
+  select coalesce(sum(paid_cash), 0), coalesce(sum(paid_online), 0), count(*) into v_cash, v_online, v_n
+    from public.shop_sessions
+    where household_id = p_household and status <> 'cancelled' and (started_at at time zone 'Asia/Kolkata')::date = p_day;
+  select id into v_cash_acct from public.accounts where household_id = p_household and type = 'cash' order by created_at limit 1;
+  select id into v_bank_acct from public.accounts where household_id = p_household and type = 'bank' order by created_at limit 1;
+  foreach m in array array['cash', 'online'] loop
+    amt := case m when 'cash' then v_cash else v_online end;
+    if amt > 0 then
+      insert into public.hisab_entries (user_id, household_id, book_id, direction, amount, occurred_on, category, source, note, account_id, shop_takings)
+      values (v_owner, p_household, v_book, 'in', amt, p_day, 'Floor takings', case m when 'cash' then 'Cash' else 'UPI' end,
+              format('Floor takings · %s session%s', v_n, case when v_n = 1 then '' else 's' end),
+              case m when 'cash' then v_cash_acct else v_bank_acct end, m)
+      on conflict (household_id, occurred_on, shop_takings) where shop_takings is not null
+      do update set amount = excluded.amount, note = excluded.note, book_id = excluded.book_id;
+    else
+      delete from public.hisab_entries where household_id = p_household and occurred_on = p_day and shop_takings = m;
+    end if;
+  end loop;
+end $$;
+revoke execute on function private.sync_floor_takings(uuid, date) from public, anon, authenticated;
+
+create or replace function private.floor_takings_trigger() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op in ('UPDATE', 'DELETE') then
+    perform private.sync_floor_takings(old.household_id, (old.started_at at time zone 'Asia/Kolkata')::date);
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform private.sync_floor_takings(new.household_id, (new.started_at at time zone 'Asia/Kolkata')::date);
+  end if;
+  return null;
+end $$;
+revoke execute on function private.floor_takings_trigger() from public, anon, authenticated;
+drop trigger if exists shop_sessions_floor_takings on public.shop_sessions;
+create trigger shop_sessions_floor_takings after insert or update or delete on public.shop_sessions
+  for each row execute function private.floor_takings_trigger();
+
+-- The Cashbook category for it.
+insert into public.hisab_categories (user_id, household_id, direction, name, icon, position)
+select h.user_id, h.id, 'in', 'Floor takings', '🕹️', 0 from public.households h
+on conflict (household_id, direction, name) do nothing;
+
+-- Fill in the days already recorded.
+select private.sync_floor_takings(s.household_id, (s.started_at at time zone 'Asia/Kolkata')::date)
+from (select distinct household_id, started_at from public.shop_sessions) s;

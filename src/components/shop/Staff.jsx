@@ -63,21 +63,30 @@ export default function Staff({ householdId, toast }) {
   }
 
   return (
-    <section>
+    <section className="gx-split side-first">
+      <div className="gx-col">
       {error && <div className="alert error">{error}</div>}
-      <div className="gx-dateswipe" {...monthSwipe}>
+      <div className="gx-dateswipe" style={{ order: 1 }} {...monthSwipe}>
       <Chips options={[[0, 'This month'], [-1, 'Last month']]} value={month < -1 ? null : month} onChange={setMonth} />
-      <div className="card" style={{ marginTop: 12 }}>
+      <div className="card">
         <div className="muted small">Salary · {start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}{month === 0 ? ' so far' : ''}</div>
         <div className="gx-big">{rs(totalPay)}</div>
         <div className="muted small">{hoursLabel(rows.reduce((a, r) => a + r.minutes, 0))} · {rows.length} staff · swipe for other months</div>
       </div>
       </div>
+      {removed.length > 0 && (
+        <div className="card" style={{ order: 4 }}><h3>Former staff</h3>{removed.map((s) => (
+          <div key={s.id} className="line"><span>{s.staff_name} · {dayLabel(s.clock_in)}</span><b>{durLabel(mins(s))}</b></div>
+        ))}</div>
+      )}
+      <button className="btn primary block" style={{ order: 5 }} onClick={() => setSheet({ kind: 'add' })}>+ Add staff login</button>
+      </div>
+      <div className="gx-col gx-staff-cards">
       {staff === null ? <div className="card muted small">Loading…</div> : rows.length === 0 && (
-        <div className="card"><p className="muted" style={{ margin: 0 }}>No staff logins yet. Add one for each employee: they sign in with a username and PIN, then clock in and run the Floor.</p></div>
+        <div className="card" style={{ order: 2 }}><p className="muted" style={{ margin: 0 }}>No staff logins yet. Add one for each employee: they sign in with a username and PIN, then clock in and run the Floor.</p></div>
       )}
       {rows.map((m) => (
-        <div key={m.user_id} className="card">
+        <div key={m.user_id} className="card" style={{ order: 3 }}>
           <div className="gx-sys-top">
             <span className="gx-badge round">{(m.display_name || m.username)[0].toUpperCase()}</span>
             <div className="grow">
@@ -107,12 +116,7 @@ export default function Staff({ householdId, toast }) {
           )}
         </div>
       ))}
-      {removed.length > 0 && (
-        <div className="card"><h3>Former staff</h3>{removed.map((s) => (
-          <div key={s.id} className="line"><span>{s.staff_name} · {dayLabel(s.clock_in)}</span><b>{durLabel(mins(s))}</b></div>
-        ))}</div>
-      )}
-      <button className="btn primary block" onClick={() => setSheet({ kind: 'add' })}>+ Add staff login</button>
+      </div>
       {sheet?.kind === 'add' && <AddStaff householdId={householdId} onClose={() => setSheet(null)} onCreated={(username, pin) => { load(); setSheet({ kind: 'login', username, pin }) }} />}
       {sheet?.kind === 'login' && <LoginDetails {...sheet} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'shift' && <ShiftEditor shift={sheet.shift} name={sheet.name} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
