@@ -41,7 +41,7 @@ export default function Cash({ shop, householdId, toast }) {
   return (
     <section>
       <DrawerCard shop={shop} />
-      <div className="gx-btns" style={{ marginBottom: 16 }}>
+      <div className="gx-btns">
         <button className="btn primary" style={{ flex: 1 }} onClick={() => setSheet('out')}>− Cash out</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet('in')}>+ Cash in</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet(dayTotals(shop).open ? 'count' : 'open')}>{dayTotals(shop).open ? 'Count' : 'Opening'}</button>

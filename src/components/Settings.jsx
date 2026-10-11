@@ -12,7 +12,7 @@ import { setThemePref, themePref } from '../lib/theme'
 
 export default function Settings({ accounts, categories, refresh, activeHouseholdId, email, member, appLock, vault }) {
   return (
-    <section className="grid2">
+    <section className="grid2 settings-grid">
       <div style={{ gridColumn: '1 / -1' }}>
         <Appearance />
       </div>

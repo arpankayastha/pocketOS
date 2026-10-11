@@ -57,7 +57,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
       <div className="tiles">
         <Tile label="Expected income" value={loaded ? money(money_.income) : null} tone="pos" />
         <Tile label="Expected expense" value={loaded ? money(money_.commitments) : null} tone="neg" />
-        <Tile label="Expected net" value={loaded ? money(money_.income - money_.commitments) : null} />
+        <Tile wide label="Expected net" value={loaded ? money(money_.income - money_.commitments) : null} />
       </div>
 
       <div className="card">
@@ -156,9 +156,9 @@ function Row({ label, value, note, tone }) {
   )
 }
 
-function Tile({ label, value, sub, tone }) {
+function Tile({ label, value, sub, tone, wide }) {
   return (
-    <div className="card tile">
+    <div className={`card tile ${wide ? 'tile-wide' : ''}`}>
       <div className="muted small">{label}</div>
       {value === null ? <div className="skel" style={{ width: '75%', height: 22 }} /> : <div className={`big-num ${tone || ''}`}>{value}</div>}
       {sub && <div className="muted small">{sub}</div>}

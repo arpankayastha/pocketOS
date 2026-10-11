@@ -1,7 +1,8 @@
 const currency = import.meta.env.VITE_CURRENCY || 'INR'
 const locale = import.meta.env.VITE_LOCALE || 'en-IN'
 
-const fmt = new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 })
+// Whole rupees everywhere (the café never deals in paise), same as the Shop screens.
+const fmt = new Intl.NumberFormat(locale, { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtShort = new Intl.NumberFormat(locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 })
 
 export const money = (n) => fmt.format(Number(n) || 0)

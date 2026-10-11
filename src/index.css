@@ -72,7 +72,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .btn.google:hover:not(:disabled) { background: #f7f7f7; }
 .btn.passkey { display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--card-2); color: var(--text); font-weight: 600; padding: 11px 14px; }
 
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-bottom: 12px; box-shadow: var(--shadow-sm); }
 .alert { padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
 .alert.error { background: color-mix(in srgb, var(--neg) 12%, transparent); color: var(--neg); }
 .alert.ok { background: color-mix(in srgb, var(--pos) 12%, transparent); color: var(--pos); }
@@ -902,3 +902,19 @@ details.section[open] .chev { transform: rotate(90deg); }
 .gx-daynav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .gx-daynav .btn.icon { font-size: 22px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); }
 .gx-badge.sm { width: 38px; height: 30px; border-radius: 8px; font-size: 11px; }
+
+/* One spacing rhythm: in Shop screens and the ⚙ settings grids, cards sit in grids whose `gap` sets the
+   space between them — a card's own bottom margin would double it (or vanish inside wrappers). */
+.gx .card, .settings-grid .card { margin-bottom: 0; }
+.settings-grid { gap: 12px; }
+.gx-dateswipe { display: grid; gap: 12px; }
+.gx-slots { gap: 8px; }
+.gx-kpi { padding: 12px 18px; }
+.gx-daynav { min-height: 44px; }
+@media (max-width: 799px) { .tiles .tile-wide { grid-column: 1 / -1; } }
+.tiles > .card { margin-bottom: 0; }
+.tiles { margin-bottom: 12px; }
+@media (max-width: 799px) { .tiles { gap: 12px; } }
+/* Cards laid out by .grid2 get their spacing from the grid's gap, not their own margin. */
+.grid2 > .card { margin-bottom: 0; }
+.grid2:has(> .card) { gap: 12px; margin-bottom: 12px; }
