@@ -37,18 +37,34 @@ object Captures {
     var lastError: String? = null
 
     fun handle(ctx: Context, sender: String?, text: String, smsTime: Long, notify: Boolean = true, refresh: Boolean = true): Boolean {
+        // Personal SMS (a phone number) are never looked at, nor logged.
         if (!SmsParser.fromBank(sender)) return false
-        val t = SmsParser.parse(sender, text) ?: SmsParser.billPayment(sender, text) ?: return false
+        val d = SmsParser.decide(sender, text)
+        val log = { outcome: String, detail: String -> runCatching { Store.logSms(ctx, smsTime, sender, text, outcome, detail) } }
+        val t = d.txn ?: run {
+            log(if (d.reason.contains("OTP", true) || d.reason.contains("password", true) || d.reason.contains("verification", true)) "otp" else d.outcome, d.reason)
+            return false
+        }
+        val what = "${d.reason} · ${Calc.money(t.amount)}${t.accountHint?.let { " · ••$it" } ?: ""}"
         // Key without "|" (the list separator): a reference, else a hash of sender + text.
-        if (!Store.markSeen(ctx, t.ref ?: "h" + Integer.toHexString("$sender $text".hashCode()))) return false
+        if (!Store.markSeen(ctx, t.ref ?: "h" + Integer.toHexString("$sender $text".hashCode()))) { log("sent", "$what · already sent"); return false }
         val req = body(t, smsTime)
         try {
             val res = Api.call(ctx, JSONObject(req.toString()))
             if (notify && !res.optBoolean("duplicate")) show(ctx, res)
+            log("sent", what + when {
+                res.optBoolean("duplicate") -> " · already in eChopdo"
+                res.optBoolean("transfer") -> " · between your own accounts (not added)"
+                res.optBoolean("matched") -> " · matched an entry added by hand"
+                res.optBoolean("unmatched") -> " · card not set up in eChopdo"
+                else -> " · added"
+            })
         } catch (e: IOException) {
             Store.enqueue(ctx, req); SyncWorker.schedule(ctx); lastError = "offline — queued"
+            log("sent", "$what · offline, will send later")
         } catch (e: ApiError) {
             lastError = e.message
+            log("error", "$what · ${e.message}")
             if (e.unpaired) QuickWidget.refreshAll(ctx)
         }
         if (refresh) runCatching { Api.refreshConfig(ctx) }
@@ -70,7 +86,7 @@ object Captures {
                 val sender = c.getString(0); val text = c.getString(1) ?: ""
                 if (!SmsParser.fromBank(sender)) continue
                 fromBanks++
-                if (SmsParser.parse(sender, text) != null) payments++
+                if (SmsParser.decide(sender, text).txn != null) payments++
                 if (handle(ctx, sender, text, c.getLong(2), notify = false, refresh = false)) sent++
             }
         }

@@ -159,6 +159,24 @@ class SmsParserTest {
         assertNull(SmsParser.parse("AD-FEDBNK-T", "Get a pre-approved loan up to Rs 5,00,000. Apply now."))
     }
 
+    @Test fun fdClosureCreditWithPromoLine() {
+        val t = p("AX-KOTAKB-S", "Rs.2,50,000.00 is credited to your A/c XX1234 on 03-10-26 towards closure of Fixed Deposit. Get a loan against FD at attractive rates - Kotak Bank")
+        assertEquals("in", t.direction); assertEquals(250000.0, t.amount, 0.0); assertEquals("1234", t.accountHint)
+    }
+
+    @Test fun proceedsTransferredToAccountIsIncoming() {
+        val t = p("VM-SBIINB", "Your FD no XXXX9876 has been closed and proceeds of Rs 1,20,500.00 transferred to your A/c XX1234 on 04-10-26. -SBI")
+        assertEquals("in", t.direction); assertEquals(120500.0, t.amount, 0.0); assertEquals("1234", t.accountHint)
+    }
+
+    @Test fun decideGivesReasons() {
+        assertEquals("skip", SmsParser.decide("AD-FEDBNK-T", "Get a pre-approved loan up to Rs 5,00,000. Apply now.").outcome)
+        assertEquals("skip", SmsParser.decide("+919000000001", "Rs 500 debited from A/c XX1234").outcome)
+        assertEquals("payment", SmsParser.decide("VM-HDFCBK", "Rs.499.00 spent on HDFC Bank Card x1111 at DEMO MART on 2026-09-20.").outcome)
+        val u = SmsParser.decide("VM-HDFCBK", "Your account statement for September is ready.")
+        assertEquals("unknown", u.outcome); assertNull(u.txn); assertTrue(u.reason.isNotEmpty())
+    }
+
     @Test fun senderFilter() {
         assertTrue(SmsParser.fromBank("JK-BOBSMS-S")); assertTrue(SmsParser.fromBank("AD-FEDBNK-T")); assertTrue(SmsParser.fromBank("JD-ICICIT-S"))
         assertTrue(SmsParser.fromBank("VM-HDFCBK")); assertTrue(SmsParser.fromBank("BZ-PAYTMB"))

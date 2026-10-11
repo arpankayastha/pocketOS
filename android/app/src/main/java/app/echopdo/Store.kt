@@ -53,6 +53,26 @@ object Store {
     fun setSmsStatus(ctx: Context, s: String) { prefs(ctx).edit().putString("smsStatus", s).apply() }
     fun setSmsEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("sms", on).apply() }
 
+    // ----- SMS log (on this phone only, never uploaded) -----
+    // The last 300 bank / service SMS and what eChopdo did with each, so a missed payment can be
+    // explained (and copied to report it). OTP texts are never kept.
+    private fun logPrefs(ctx: Context) = ctx.getSharedPreferences("echopdo_smslog", Context.MODE_PRIVATE)
+    @Synchronized fun smsLog(ctx: Context): JSONArray =
+        logPrefs(ctx).getString("log", null)?.let { runCatching { JSONArray(it) }.getOrNull() } ?: JSONArray()
+    @Synchronized fun logSms(ctx: Context, at: Long, sender: String?, text: String, outcome: String, detail: String) {
+        val key = "${sender.orEmpty()}|$at|${text.hashCode()}"
+        val old = smsLog(ctx)
+        val next = JSONArray()
+        next.put(JSONObject().put("key", key).put("at", at).put("sender", sender.orEmpty()).put("outcome", outcome).put("detail", detail)
+            .put("text", if (outcome == "otp") "" else text.take(600)))
+        // Newest first; one row per SMS (a look-back re-reads the same SMS: keep the latest outcome).
+        for (i in 0 until old.length()) { val r = old.getJSONObject(i); if (r.optString("key") != key && next.length() < 300) next.put(r) }
+        // Keep it sorted by SMS time, newest first.
+        val rows = (0 until next.length()).map { next.getJSONObject(it) }.sortedByDescending { it.optLong("at") }
+        logPrefs(ctx).edit().putString("log", JSONArray(rows).toString()).apply()
+    }
+    fun clearSmsLog(ctx: Context) { logPrefs(ctx).edit().remove("log").apply() }
+
     /** Forget which SMS were sent (for "Resync"; the server still refuses real duplicates). */
     fun clearSeen(ctx: Context) { prefs(ctx).edit().remove("seen").apply() }
 

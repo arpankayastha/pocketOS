@@ -20,11 +20,39 @@ data class BankTxn(
 // Dr/Cr words, account digits, payee, reference) so small wording changes still work.
 // OTPs, offers, reminders and "will be debited" notices are ignored.
 object SmsParser {
-    private val SKIP = Regex(
+    // Never a transaction: OTPs, reminders, requests, failures.
+    private val HARD_SKIP = Regex(
         "(?i)\\bOTP\\b|one[- ]time password|verification code|will be debited|is due|due on|due date|minimum amount|" +
             "request(ed)? (money|payment)|collect request|has requested|mandate|autopay (set|registered|created)|" +
-            "offer|cashback|reward points?|pre-?approved|loan|failed|declined|reversed|refund initiated"
+            "failed|declined|reversed|refund initiated"
     )
+    // Promotional words. Banks add lines like "Avail a loan against your FD" or "earn reward points"
+    // to real credit/debit SMS, so these only skip a message that isn't clearly a transaction.
+    private val SOFT_SKIP = Regex("(?i)offer|cashback|reward points?|pre-?approved|\\bloan\\b")
+    private val CLEAR_TXN = Regex("(?i)\\b(credited|debited|deposited|withdrawn|received|sent|spent)\\b")
+    private fun clearlyTxn(t: String) = CLEAR_TXN.containsMatchIn(t) && AMOUNT.containsMatchIn(t) &&
+        ACCT.any { it.containsMatchIn(t) }
+
+    /** What the phone did with one SMS and why — shown in the app's SMS log. */
+    data class Decision(val txn: BankTxn?, val outcome: String, val reason: String)
+
+    fun decide(sender: String?, body: String): Decision {
+        val text = body.replace(Regex("\\s+"), " ").trim()
+        if (!fromBank(sender)) return Decision(null, "skip", "Not a bank or service sender")
+        HARD_SKIP.find(text)?.let { return Decision(null, "skip", "Not a payment (“${it.value}”)") }
+        billPayment(sender, body)?.let { return Decision(it, "bill", "Card bill paid") }
+        if (isCardBillPayment(text)) return Decision(null, "skip", "Card bill payment from the bank side (the card's own SMS marks it paid)")
+        if (!clearlyTxn(text)) SOFT_SKIP.find(text)?.let { return Decision(null, "skip", "Looks like an offer (“${it.value}”)") }
+        parse(sender, body)?.let { return Decision(it, "payment", if (it.direction == "in") "Money in" else "Money out") }
+        val why = when {
+            !AMOUNT.containsMatchIn(text) -> "No amount found"
+            !OUT_WORDS.containsMatchIn(text) && !IN_WORDS.containsMatchIn(text) -> "No debited / credited word"
+            ACCT.none { it.containsMatchIn(text) } -> "No account or card number"
+            else -> "Couldn't read it"
+        }
+        return Decision(null, "unknown", why)
+    }
+
     // Paying a credit card bill moves money, it isn't spending (each card purchase is already
     // counted): the card's "payment received" SMS and the bank's "paid towards credit card" one.
     private val CARD_BILL = Regex(
@@ -83,7 +111,8 @@ object SmsParser {
 
     fun parse(sender: String?, body: String): BankTxn? {
         val text = body.replace(Regex("\\s+"), " ").trim()
-        if (SKIP.containsMatchIn(text) || isCardBillPayment(text)) return null
+        if (HARD_SKIP.containsMatchIn(text) || isCardBillPayment(text)) return null
+        if (!clearlyTxn(text) && SOFT_SKIP.containsMatchIn(text)) return null
         val bank = bankName(sender)
         val bankish = BANKISH.containsMatchIn(sender?.uppercase(Locale.ROOT).orEmpty())
         return icici(text) ?: bob(text) ?: federal(text) ?: kotak(text) ?: generic(text, bank, bankish)
@@ -169,6 +198,8 @@ object SmsParser {
         Regex("(?i)\\b(?:card|a/?c|acct|account)\\s+(?:no\\.?\\s*)?(\\d{4})\\b"),                // Card 1234, a/c 3333
     )
     private val OUT_WORDS = Regex("(?i)\\b(debited|debit|dr|spent|paid|sent|withdrawn|withdrawal|purchase|transferred|deducted|charged|used)\\b")
+    private val TO_ACCOUNT = Regex("(?i)\\b(credited|transferred|deposited|added|paid)\\s+(?:in)?to\\s+(?:your\\s+)?(?:a/?c|acct|account|savings|sb)\\b")
+    private val FROM_ACCOUNT = Regex("(?i)\\b(debited|withdrawn|transferred|deducted)\\s+from\\s+(?:your\\s+)?(?:a/?c|acct|account|savings|sb)\\b")
     private val IN_WORDS = Regex("(?i)\\b(credited|cr|received|deposited|refunded|added)\\b")
     private val AMOUNT_WORD = Regex("(?i)(?:debited|credited|withdrawn|deposited)\\s+(?:by|with|for)\\s+(?:rs\\.?|inr|₹)?\\s*([0-9][0-9,]*(?:\\.\\d{1,2})?)")
     private val NOT_AMOUNT = Regex("(?i)(bal|balance|limit|lmt|avl|available|outstanding|due|total)[^0-9]{0,6}$")
@@ -191,6 +222,9 @@ object SmsParser {
         val plain = t.replace(Regex("(?i)(credit|debit)\\s+card"), "card")
         val out = OUT_WORDS.find(plain); val inn = IN_WORDS.find(plain)
         val direction = when {
+            // "… transferred / credited to your A/c XX1234" is money in; "… debited from your A/c" is out.
+            TO_ACCOUNT.containsMatchIn(plain) && !FROM_ACCOUNT.containsMatchIn(plain) -> "in"
+            FROM_ACCOUNT.containsMatchIn(plain) && !TO_ACCOUNT.containsMatchIn(plain) -> "out"
             out != null && (inn == null || out.range.first < inn.range.first) -> "out"
             inn != null -> "in"
             else -> return null

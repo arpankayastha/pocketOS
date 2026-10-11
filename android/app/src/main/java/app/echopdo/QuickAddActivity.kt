@@ -104,6 +104,8 @@ class QuickAddActivity : Activity() {
     private fun applyIntent(i: Intent?) {
         direction = if (i?.getStringExtra("direction") == "in") "in" else "out"
         i?.getStringExtra("target")?.let { if (it == "hisab" || it == "budget") target = it }
+        i?.getStringExtra("amount")?.toDoubleOrNull()?.let { a -> expr = if (a == Math.floor(a)) a.toLong().toString() else a.toString() }
+        i?.getStringExtra("date")?.let { d -> runCatching { LocalDate.parse(d) }.getOrNull()?.let { date = it } }
         capture = i?.getStringExtra("capture")?.let { runCatching { JSONObject(it) }.getOrNull() }
         capture?.let { c ->
             direction = if (c.optString("direction") == "in") "in" else "out"
