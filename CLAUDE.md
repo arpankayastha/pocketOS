@@ -26,7 +26,7 @@ Plan and prototype the owner approved for feedback (11 Oct 2026): https://claude
 - `.env` (gitignored): `VITE_SUPABASE_URL=https://mziclowcokswuulqifbj.supabase.co`, `VITE_SUPABASE_ANON_KEY` = the project's publishable key, `VITE_CURRENCY=INR`, `VITE_LOCALE=en-IN`.
 
 ## Deployment
-- Vercel: its own project (`grandxgamer`) importing this repo with **Production Branch = `grandxgamer`** and the four `VITE_*` vars above. Separate from eChopdo's `pocket-os` project.
+- Vercel: its own project (`grandxgamer`, Hobby, under arpankayastha) importing this repo; production branch is set in **Settings → Environments → Production → Branch Tracking** = `grandxgamer` (Vercel moved it off the Git page); the four `VITE_*` vars above are set there. A push to `grandxgamer` deploys. Separate from eChopdo's `pocket-os` project.
 
 ## Locking, one fingerprint
 - Once the vault exists, the **whole app** sits behind the vault unlock: `Shell` shows `UnlockScreen` (VaultGate, auto fingerprint prompt) while `vault.status === 'locked'`, so Shop and Money are protected too, and one fingerprint opens Shop, Money and Vault — never ask twice. The old separate app lock (`useAppLock`) only applies when no vault is set up, and is switched off automatically once one is (it caused the double prompt).
