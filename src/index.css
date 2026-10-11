@@ -1,12 +1,12 @@
 :root {
-  /* GRANDXGAMER theme: dark violet-ink + one amber accent (from the approved prototype). Dark is the
+  /* GRANDXGAMER theme: the channel's look — near-black with the brand red (#f84030) and its ember glow. Dark is the
      default; light via ⚙ → Appearance (html[data-theme]), or "System" which follows the phone.
      Keep the two token sets below in sync. */
-  --bg: #16131f; --card: #1f1b2b; --card-2: #29243a; --text: #efedf6; --muted: #a39eb8; --line: #3a3350;
-  --accent: #ffb93b; --accent-bg: #ffb93b; --on-accent: #2a1d04; --accent-2: #3b2f1c;
-  --pos: #7cc29b; --neg: #e09393; --warn: #ddb36a; --transfer: #8cbde0;
+  --bg: #0f0d0e; --card: #191516; --card-2: #241e1f; --text: #f3eeee; --muted: #a89b9b; --line: #352c2d;
+  --accent: #ff6a4f; --accent-bg: #e8372a; --on-accent: #ffffff; --accent-2: #3a1c18;
+  --pos: #7cc29b; --neg: #f0a090; --warn: #ddb36a; --transfer: #8cbde0;
   --accent-grad: linear-gradient(var(--accent-bg), var(--accent-bg));
-  --focus-ring: #ffcf73;
+  --focus-ring: #ff8a70;
   --glow: 0 0 0 transparent;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / .2);
   --shadow-md: 0 4px 16px rgb(0 0 0 / .22), 0 1px 2px rgb(0 0 0 / .15);
@@ -19,10 +19,10 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 :root[data-theme="light"] {
-  --bg: #f4f3f7; --card: #ffffff; --card-2: #eceaf1; --text: #1f1b29; --muted: #6c6779; --line: #dfdbe6;
-  --accent: #8a5300; --accent-bg: #b06d00; --on-accent: #ffffff; --accent-2: #f6e8cf;
+  --bg: #f6f2f1; --card: #ffffff; --card-2: #efe8e7; --text: #1e1615; --muted: #75696a; --line: #e4dad9;
+  --accent: #b8291c; --accent-bg: #d4321f; --on-accent: #ffffff; --accent-2: #fbe1dc;
   --pos: #2c7a52; --neg: #b54848; --warn: #a8781a; --transfer: #2e6f9a;
-  --focus-ring: #b06d00;
+  --focus-ring: #d4321f;
   --shadow-sm: 0 1px 2px rgb(20 24 40 / .06);
   --shadow-md: 0 4px 16px rgb(20 24 40 / .08), 0 1px 2px rgb(20 24 40 / .05);
   --shadow-lg: 0 16px 40px rgb(20 24 40 / .14), 0 2px 8px rgb(20 24 40 / .06);
@@ -896,3 +896,5 @@ details.section[open] .chev { transform: rotate(90deg); }
 .gx-attn { border-color: var(--neg); }
 .gx-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gx-linebtn { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.brand-text { color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
+.brand-mark { filter: drop-shadow(0 0 6px color-mix(in srgb, #f84030 35%, transparent)); }

@@ -13,8 +13,8 @@ export default defineConfig({
         name: 'GRANDXGAMER',
         short_name: 'GRANDXGAMER',
         description: 'GRANDXGAMER — the gaming café: floor, staff, bookings, money and passwords in one app.',
-        theme_color: '#16131f',
-        background_color: '#16131f',
+        theme_color: '#0f0d0e',
+        background_color: '#0f0d0e',
         display: 'standalone',
         start_url: '/',
         icons: [

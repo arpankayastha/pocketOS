@@ -1,12 +1,24 @@
-// GRANDXGAMER logo: a dark gamepad with an amber "X" button on an amber square.
-// Keep in sync with public/favicon.svg, public/icons/*.svg (+ PNGs) and the splash in index.html.
+import { useId } from 'react'
+
+// GRANDXGAMER logo: the red "GX" with the L-shaped underline from the channel's wordmark, glowing on
+// black (brand red #f84030, from youtube.com/@grandxgamerss). Keep in sync with public/favicon.svg,
+// public/icons/*.svg (+ PNGs) and the splash in index.html.
 export function BrandMark({ size = 24 }) {
+  const id = `gx-glow-${useId().replace(/:/g, '')}`
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" className="brand-mark">
-      <rect width="512" height="512" rx="112" fill="#ffb93b" />
-      <path d="M150 182h212c46 0 78 30 86 74l22 112c9 46-41 72-72 41l-50-50H164l-50 50c-31 31-81 5-72-41l22-112c8-44 40-74 86-74z" fill="#1c1726" />
-      <path d="M180 248v52M154 274h52" fill="none" stroke="#ffb93b" strokeWidth="18" strokeLinecap="round" />
-      <path d="M314 250l48 48M362 250l-48 48" fill="none" stroke="#ffb93b" strokeWidth="18" strokeLinecap="round" />
+      <defs>
+        <filter id={id} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="14" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      <rect width="512" height="512" rx="112" fill="#0f0b0b" />
+      <g filter={`url(#${id})`} fill="none" stroke="#f84030">
+        <path d="M250 186A78 78 0 1 0 262 270V250H206" strokeWidth="40" />
+        <path d="M300 172l112 168M412 172L300 340" strokeWidth="40" />
+        <path d="M98 118V398H422" strokeWidth="22" />
+      </g>
     </svg>
   )
 }
