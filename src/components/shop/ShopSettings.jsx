@@ -11,6 +11,7 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
     <section>
       {admin && <Systems shop={shop} householdId={householdId} toast={toast} />}
       {admin && <Rates shop={shop} householdId={householdId} toast={toast} />}
+      {admin && <LoginPassword toast={toast} />}
       <Appearance />
       {vault?.status === 'unlocked' && <SecurityCard vault={vault} member={member} />}
       {member && appLock && <FingerprintCard appLock={appLock} />}
@@ -107,5 +108,40 @@ function RateSheet({ householdId, onClose, onDone }) {
       <label>Price (₹)<input autoFocus inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))} /></label>
       <SheetActions onClose={onClose} busy={busy} disabled={!price} label="Save rate" />
     </Sheet>
+  )
+}
+
+// Admin's own sign-in password (staff use PINs the admin resets in Staff). Checks the current one first.
+function LoginPassword({ toast }) {
+  const [cur, setCur] = useState('')
+  const [next, setNext] = useState('')
+  const [again, setAgain] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  async function save(e) {
+    e.preventDefault()
+    setError(null)
+    if (next.length < 8) { setError('Use at least 8 characters.'); return }
+    if (next !== again) { setError('The two new passwords don’t match.'); return }
+    setBusy(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const check = await supabase.auth.signInWithPassword({ email: user.email, password: cur })
+    if (check.error) { setBusy(false); setError('The current password is wrong.'); return }
+    const { error } = await supabase.auth.updateUser({ password: next })
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    setCur(''); setNext(''); setAgain('')
+    toast('Password changed')
+  }
+  return (
+    <Collapsible id="gx-password" title="Sign-in password" summary="Change the admin password">
+      <form className="stack" onSubmit={save}>
+        {error && <div className="alert error">{error}</div>}
+        <label>Current password<input type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} required /></label>
+        <label>New password<input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} required /></label>
+        <label>New password again<input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} required /></label>
+        <button className="btn primary" disabled={busy || !cur || !next}>{busy ? 'Saving…' : 'Change password'}</button>
+      </form>
+    </Collapsible>
   )
 }
