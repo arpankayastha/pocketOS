@@ -36,6 +36,19 @@
   </head>
   <body>
     <div id="root"><div class="splash" aria-label="Loading GRANDXGAMER"><img src="/brand/mark.png" alt="" aria-hidden="true"><span>GRANDXGAMER</span></div></div>
+    <script>
+      // Self-repair (owner got stuck on the splash after an update): if the app's code hasn't started
+      // within 12 s — usually an old offline copy asking for files a new deploy replaced — drop the
+      // offline copy and reload once per tab. main.jsx sets window.__gxStarted.
+      window.__gxRecover = function () {
+        try { if (sessionStorage.getItem('gx.recovered')) return; sessionStorage.setItem('gx.recovered', '1'); } catch (e) { return; }
+        var jobs = [];
+        if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+        if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+        Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+      };
+      setTimeout(function () { if (!window.__gxStarted) window.__gxRecover(); }, 12000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
