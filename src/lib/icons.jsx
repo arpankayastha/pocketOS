@@ -1,26 +1,8 @@
-import { useId } from 'react'
-
-// GRANDXGAMER logo: the red "GX" with the L-shaped underline from the channel's wordmark, glowing on
-// black (brand red #f84030, from youtube.com/@grandxgamerss). Keep in sync with public/favicon.svg,
-// public/icons/*.svg (+ PNGs) and the splash in index.html.
+// GRANDXGAMER logo: the café's own triangle mark (the "A" of GRAND, from its Instagram), brick red
+// #b13a3e — public/brand/mark.png, cut from the owner's post. App icons (public/icons/*.png, favicon.svg)
+// put it on black; regenerate them all together if the mark changes.
 export function BrandMark({ size = 24 }) {
-  const id = `gx-glow-${useId().replace(/:/g, '')}`
-  return (
-    <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" className="brand-mark">
-      <defs>
-        <filter id={id} x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="14" result="b" />
-          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-      </defs>
-      <rect width="512" height="512" rx="112" fill="#0f0b0b" />
-      <g filter={`url(#${id})`} fill="none" stroke="#f84030">
-        <path d="M250 186A78 78 0 1 0 262 270V250H206" strokeWidth="40" />
-        <path d="M300 172l112 168M412 172L300 340" strokeWidth="40" />
-        <path d="M98 118V398H422" strokeWidth="22" />
-      </g>
-    </svg>
-  )
+  return <img src="/brand/mark.png" width={size} height={size} alt="" aria-hidden="true" className="brand-mark" />
 }
 
 const base = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }

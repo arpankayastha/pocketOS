@@ -1,12 +1,12 @@
 :root {
-  /* GRANDXGAMER theme: the channel's look — near-black with the brand red (#f84030) and its ember glow. Dark is the
+  /* GRANDXGAMER theme: near-black (the channel banner) with the logo's brick red #b13a3e. Dark is the
      default; light via ⚙ → Appearance (html[data-theme]), or "System" which follows the phone.
      Keep the two token sets below in sync. */
   --bg: #0f0d0e; --card: #191516; --card-2: #241e1f; --text: #f3eeee; --muted: #a89b9b; --line: #352c2d;
-  --accent: #ff6a4f; --accent-bg: #e8372a; --on-accent: #ffffff; --accent-2: #3a1c18;
+  --accent: #ec6a64; --accent-bg: #b13a3e; --on-accent: #ffffff; --accent-2: #3a1c1d;
   --pos: #7cc29b; --neg: #f0a090; --warn: #ddb36a; --transfer: #8cbde0;
   --accent-grad: linear-gradient(var(--accent-bg), var(--accent-bg));
-  --focus-ring: #ff8a70;
+  --focus-ring: #ec6a64;
   --glow: 0 0 0 transparent;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / .2);
   --shadow-md: 0 4px 16px rgb(0 0 0 / .22), 0 1px 2px rgb(0 0 0 / .15);
@@ -20,9 +20,9 @@
 }
 :root[data-theme="light"] {
   --bg: #f6f2f1; --card: #ffffff; --card-2: #efe8e7; --text: #1e1615; --muted: #75696a; --line: #e4dad9;
-  --accent: #b8291c; --accent-bg: #d4321f; --on-accent: #ffffff; --accent-2: #fbe1dc;
+  --accent: #a3333a; --accent-bg: #b13a3e; --on-accent: #ffffff; --accent-2: #f8e1e1;
   --pos: #2c7a52; --neg: #b54848; --warn: #a8781a; --transfer: #2e6f9a;
-  --focus-ring: #d4321f;
+  --focus-ring: #b13a3e;
   --shadow-sm: 0 1px 2px rgb(20 24 40 / .06);
   --shadow-md: 0 4px 16px rgb(20 24 40 / .08), 0 1px 2px rgb(20 24 40 / .05);
   --shadow-lg: 0 16px 40px rgb(20 24 40 / .14), 0 2px 8px rgb(20 24 40 / .06);
@@ -896,5 +896,6 @@ details.section[open] .chev { transform: rotate(90deg); }
 .gx-attn { border-color: var(--neg); }
 .gx-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gx-linebtn { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); color: inherit; text-align: left; cursor: pointer; font: inherit; }
-.brand-text { color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
-.brand-mark { filter: drop-shadow(0 0 6px color-mix(in srgb, #f84030 35%, transparent)); }
+.brand-text { color: var(--accent); text-transform: uppercase; font-family: 'Anton', 'Oswald', 'Impact', sans-serif; font-weight: 400; letter-spacing: .03em; font-size: 1.15em; }
+.brand-mark { object-fit: contain; }
+.brand.big { font-family: 'Anton', 'Oswald', Impact, sans-serif; font-weight: 400; letter-spacing: .03em; color: var(--accent); font-size: 26px; }

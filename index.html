@@ -12,7 +12,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>GRANDXGAMER</title>
     <script>
       /* Theme before first paint (same rules as src/lib/theme.js): dark by default, or the saved choice. */
@@ -27,15 +27,15 @@
       html, body { margin: 0; background: #0f0d0e; }
       html[data-theme="light"], html[data-theme="light"] body { background: #f6f2f1; }
       .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px; background: #0f0d0e;
-        font: 700 22px 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: -.01em; color: #f3eeee; }
-      html[data-theme="light"] .splash { background: #f6f2f1; color: #1f2329; }
-      .splash svg { width: 76px; height: 76px; border-radius: 20px; animation: splash-pulse 1.6s ease-in-out infinite; }
+        font: 400 26px 'Anton', 'Oswald', Impact, sans-serif; letter-spacing: .03em; color: #ec6a64; }
+      html[data-theme="light"] .splash { background: #f6f2f1; color: #b13a3e; }
+      .splash img { width: 76px; height: 76px; border-radius: 20px; animation: splash-pulse 1.6s ease-in-out infinite; }
       @keyframes splash-pulse { 50% { transform: scale(.95); opacity: .85; } }
-      @media (prefers-reduced-motion: reduce) { .splash svg { animation: none; } }
+      @media (prefers-reduced-motion: reduce) { .splash img { animation: none; } }
     </style>
   </head>
   <body>
-    <div id="root"><div class="splash" aria-label="Loading GRANDXGAMER"><svg viewBox="0 0 512 512" aria-hidden="true"><defs><filter id="gx-splash" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect width="512" height="512" rx="112" fill="#0f0b0b"/><g filter="url(#gx-splash)" fill="none" stroke="#f84030"><path d="M250 186A78 78 0 1 0 262 270V250H206" stroke-width="40"/><path d="M300 172l112 168M412 172L300 340" stroke-width="40"/><path d="M98 118V398H422" stroke-width="22"/></g></svg><span>GRANDXGAMER</span></div></div>
+    <div id="root"><div class="splash" aria-label="Loading GRANDXGAMER"><img src="/brand/mark.png" alt="" aria-hidden="true"><span>GRANDXGAMER</span></div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
