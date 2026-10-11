@@ -41,18 +41,6 @@ export default function Staff({ householdId, toast }) {
   const monthSwipe = useSwipe({ onLeft: () => setMonth((m) => Math.min(0, m + 1)), onRight: () => setMonth((m) => m - 1) })
   const totalPay = rows.reduce((a, r) => a + r.pay, 0)
 
-  async function setRate(m) {
-    const v = await dialog.prompt({ title: `Hourly rate · ${m.display_name || m.username}`, label: '₹ per hour', defaultValue: String(Number(m.hourly_rate) || ''), confirmLabel: 'Save' })
-    if (v === null) return
-    const { error } = await supabase.from('household_members').update({ hourly_rate: Number(v) || 0 }).eq('household_id', householdId).eq('user_id', m.user_id)
-    if (error) toast(error.message); else load()
-  }
-  async function resetPin(m) {
-    if (!await dialog.confirm({ title: `New PIN for ${m.display_name || m.username}?`, message: 'The old PIN stops working. Their fingerprint unlock keeps working on their phone.', confirmLabel: 'New PIN', danger: false })) return
-    const pin = generatePin()
-    try { await manageMembers('reset_pin', { householdId, userId: m.user_id, pin }); setSheet({ kind: 'login', username: m.username, pin, reset: true }) }
-    catch (e) { toast(e.message) }
-  }
   async function remove(m) {
     if (!await dialog.confirm({ title: `Remove ${m.display_name || m.username}?`, message: 'Their login stops working. Their shifts stay in the records with their name.', confirmLabel: 'Remove', danger: true })) return
     try { await manageMembers('remove', { householdId, userId: m.user_id }); toast('Login removed'); load() } catch (e) { toast(e.message) }
@@ -95,13 +83,13 @@ export default function Staff({ householdId, toast }) {
             </div>
           </div>
           <div className="gx-sum" style={{ marginTop: 8 }}>
-            <button type="button" className="btn link" style={{ padding: 0, minHeight: 0 }} onClick={() => setRate(m)}>{hoursLabel(m.minutes)} × {Number(m.hourly_rate) ? `${rs(m.hourly_rate)}/h` : 'set rate'}</button>
+            <span className="muted">{hoursLabel(m.minutes)} × {Number(m.hourly_rate) ? `${rs(m.hourly_rate)}/h` : 'no rate set'}</span>
             <b className="amt">{rs(m.pay)}</b>
           </div>
           <div className="gx-btns" style={{ marginTop: 8 }}>
             <button className="btn small" onClick={() => setOpen(open === m.user_id ? null : m.user_id)}>{open === m.user_id ? 'Hide shifts' : `Shifts (${m.own.length})`}</button>
             {m.on && <button className="btn small" onClick={() => clockOutNow(m.on)}>Clock out now</button>}
-            <button className="btn small ghost" onClick={() => resetPin(m)}>New PIN</button>
+            <button className="btn small ghost" onClick={() => setSheet({ kind: 'edit', member: m })}>Edit</button>
             <button className="btn small danger-ghost" onClick={() => remove(m)}>Remove</button>
           </div>
           {open === m.user_id && (
@@ -118,6 +106,8 @@ export default function Staff({ householdId, toast }) {
       ))}
       </div>
       {sheet?.kind === 'add' && <AddStaff householdId={householdId} onClose={() => setSheet(null)} onCreated={(username, pin) => { load(); setSheet({ kind: 'login', username, pin }) }} />}
+      {sheet?.kind === 'edit' && <EditStaff householdId={householdId} member={sheet.member} onClose={() => setSheet(null)}
+        onDone={(msg, login) => { load(); if (login) setSheet({ kind: 'login', ...login, reset: true }); else { setSheet(null); toast(msg) } }} />}
       {sheet?.kind === 'login' && <LoginDetails {...sheet} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'shift' && <ShiftEditor shift={sheet.shift} name={sheet.name} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
     </section>
@@ -128,11 +118,12 @@ function AddStaff({ householdId, onClose, onCreated }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [rate, setRate] = useState('')
+  const [pin, setPin] = useState(() => generatePin())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   async function save() {
+    if (!/^\d{6}$/.test(pin)) { setError('The PIN must be 6 digits.'); return }
     setBusy(true); setError(null)
-    const pin = generatePin()
     try {
       await manageMembers('create', { householdId, username: username.trim().toLowerCase(), pin, name: name.trim(), rate: Number(rate) || 0 })
       onCreated(username.trim().toLowerCase(), pin)
@@ -143,11 +134,45 @@ function AddStaff({ householdId, onClose, onCreated }) {
       {error && <div className="alert error">{error}</div>}
       <label>Name<input autoFocus value={name} onChange={(e) => { setName(e.target.value); if (!username || username === slug(name)) setUsername(slug(e.target.value)) }} placeholder="Full name" /></label>
       <label>Username<input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))} autoCapitalize="none" spellCheck={false} /></label>
-      <label>Hourly rate (₹)<input inputMode="numeric" value={rate} onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ''))} placeholder="e.g. 60" /></label>
-      <SheetActions onClose={onClose} busy={busy} disabled={username.length < 3} label="Create login" />
+      <div className="grid2">
+        <label>6-digit PIN<input className="mono" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+        <label>Hourly rate (₹)<input inputMode="numeric" value={rate} onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ''))} placeholder="e.g. 60" /></label>
+      </div>
+      <SheetActions onClose={onClose} busy={busy} disabled={username.length < 3 || pin.length !== 6} label="Create login" />
     </Sheet>
   )
 }
+// Admin: change a staff member's name, hourly rate, or set a new PIN (left empty = keep the PIN).
+function EditStaff({ householdId, member, onClose, onDone }) {
+  const [name, setName] = useState(member.display_name || '')
+  const [rate, setRate] = useState(String(Number(member.hourly_rate) || ''))
+  const [pin, setPin] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  async function save() {
+    if (pin && !/^\d{6}$/.test(pin)) { setError('A new PIN must be 6 digits, or leave it empty.'); return }
+    setBusy(true); setError(null)
+    const { error } = await supabase.from('household_members').update({ display_name: name.trim() || null, hourly_rate: Number(rate) || 0 })
+      .eq('household_id', householdId).eq('user_id', member.user_id)
+    if (error) { setError(error.message); setBusy(false); return }
+    if (pin) {
+      try { await manageMembers('reset_pin', { householdId, userId: member.user_id, pin }) } catch (e) { setError(e.message); setBusy(false); return }
+      onDone('Saved', { username: member.username, pin })
+    } else onDone('Saved')
+  }
+  return (
+    <Sheet title={`Edit · ${member.display_name || member.username}`} sub={`Username @${member.username}. A new hourly rate also applies to this month's hours.`} onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <label>Name<input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></label>
+      <div className="grid2">
+        <label>Hourly rate (₹)<input inputMode="numeric" value={rate} onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ''))} placeholder="e.g. 60" /></label>
+        <label>New PIN<input className="mono" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Keep current" /></label>
+      </div>
+      <SheetActions onClose={onClose} busy={busy} disabled={pin.length > 0 && pin.length !== 6} label="Save" />
+    </Sheet>
+  )
+}
+
 const slug = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '').slice(0, 32)
 
 function LoginDetails({ username, pin, reset, onClose }) {

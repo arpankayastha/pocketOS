@@ -962,9 +962,9 @@ details.section[open] .chev { transform: rotate(90deg); }
 .topbar-pages { display: contents; }
 
 /* ---------------------------------------------------------------- Laptop sidebar (owner: "laptop menu needs a redesign")
-   From 1024 px the shared Topbar becomes a fixed left sidebar: brand, module switch, the module's pages as a
+   From 960 px (also Chrome's "Desktop site" on a phone, which lays out at 980 px) the shared Topbar becomes a fixed left sidebar: brand, module switch, the module's pages as a
    vertical list, actions (⚙ / lock) pinned at the bottom with labels. Phones and tablets keep the top bar. */
-@media (min-width: 1024px) {
+@media (min-width: 960px) {
   .app { padding-left: 252px; }
   .topbar, .topbar.scrolled {
     position: fixed; top: 0; left: 0; bottom: 0; width: 252px; z-index: 6;
