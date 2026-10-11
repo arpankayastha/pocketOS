@@ -4,6 +4,8 @@ The app for the GRANDXGAMER gaming café (owner: Shashank): the counter floor (P
 
 Plan and prototype the owner approved for feedback (11 Oct 2026): https://claude.ai/artifact/Lo72U61SZWdZF8WRmMy6vD — phase 1 (this) = shop without Excel; phase 2 (before 19 Nov) = customer logins (mobile + passkey, added at the counter), live availability, self-booking; phase 3 = tournaments, Excel export, Android app (TWA + self-update like eChopdo's, package to be `app.grandxgamer`; `android/` is still the eChopdo app, untouched).
 
+**Parked (owner, 11 Oct 2026):** an Insurance section for the owner's Tata AIA advisor business (family cover map, payout/life-event calendar, shared book) was discussed and put on hold — don't start it or re-pitch it until the owner brings it up after testing. Also pending: the Floor takings → Cashbook trigger at the end of `shop.sql` is written but **not applied** (the migration was cancelled twice); apply it when the owner says so.
+
 ## Logins and roles
 - **Admin** = owner of the shop household (`households.user_id`). Bootstrapped in SQL as username `shashank` (password set by the owner, changeable in ⚙ → Sign-in password; `shashank@staff.grandxgamer.app`, `app_metadata.role = 'admin'`, not `member`). Sees Shop · Money · Vault.
 - **Staff** = `household_members` with `role = 'staff'` (+ `display_name`, `hourly_rate`), username + 6-digit PIN logins made by the **`members` Edge Function** (several per shop; `create` takes name + rate; `remove` keeps their shifts with `staff_name`). `app_metadata.role = 'member'` → `MemberShell`: Shop only (+ Vault once the admin enables it), never Money.
