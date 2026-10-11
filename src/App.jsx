@@ -251,12 +251,12 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   return (
     <div className="app">
       <Topbar {...topbar} right={data.households.length > 0 && (<>
-        <HouseholdMenu member={member} households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
+        {data.households.length > 1 && <HouseholdMenu member={member} households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
           onCreate={async () => {
             const name = await dialog.prompt({ title: 'New household', label: 'Name', placeholder: "e.g. Parents' Home", confirmLabel: 'Create' })
             if (name) data.createHousehold(name)
           }}
-          onManage={() => setTab('settings')} />
+          onManage={() => setTab('settings')} />}
         <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Accounts & Categories" title="Accounts & Categories"
           onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon /></button>
       </>)}>
