@@ -18,7 +18,8 @@ export default function Topbar({ module, setModule, modules = MODULES, children,
     <header className={`topbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="brand"><BrandMark size={28} /><span className="brand-text">GRANDXGAMER</span></div>
       {modules.length > 1 ? <ModuleSwitch module={module} setModule={setModule} modules={modules} /> : <div className="brand-member">GRANDXGAMER</div>}
-      {children}
+      {/* On laptops the pages sit under a heading with the section's name (sidebar); elsewhere this wrapper is invisible. */}
+      <div className="topbar-pages" data-title={(modules.find((m) => m.id === module) || modules[0])?.label}>{children}</div>
       <div className="topbar-right">{right}</div>
     </header>
   )

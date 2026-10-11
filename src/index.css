@@ -958,6 +958,9 @@ details.section[open] .chev { transform: rotate(90deg); }
   .settings-grid { align-items: start; }
 }
 
+/* Pages wrapper in the Topbar: invisible except in the laptop sidebar. */
+.topbar-pages { display: contents; }
+
 /* ---------------------------------------------------------------- Laptop sidebar (owner: "laptop menu needs a redesign")
    From 1024 px the shared Topbar becomes a fixed left sidebar: brand, module switch, the module's pages as a
    vertical list, actions (⚙ / lock) pinned at the bottom with labels. Phones and tablets keep the top bar. */
@@ -972,12 +975,19 @@ details.section[open] .chev { transform: rotate(90deg); }
   .topbar .brand-mark { width: 36px; height: 36px; }
   .topbar .brand-text { font-size: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: clip; min-width: 0; }
   .topbar .brand-member { display: none; }
-  .module-switch { width: 100%; background: var(--bg); }
-  .module-switch button { flex: 1 1 0; min-width: 0; padding: 0 2px; gap: 4px; min-height: 38px; font-size: 12px; letter-spacing: -.01em; }
-  .module-switch .module-label { overflow: visible; }
-  .module-switch svg { width: 15px; height: 15px; }
-  .topbar .tabs { display: flex; flex-direction: column; flex: 0 0 auto; gap: 4px; overflow: visible; padding-top: 4px; border-top: 1px solid var(--line); }
-  .topbar .tabs::before { content: 'Pages'; font: 600 11px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 14px 12px 8px; }
+  /* Sections (Shop / Money / Vault) as a list, not the phone's pill switch */
+  .module-switch { width: 100%; flex-direction: column; gap: 2px; padding: 0; background: none; border: 0; box-shadow: none; }
+  .module-switch .module-thumb { display: none; }
+  .module-switch button { width: 100%; justify-content: flex-start; gap: 12px; padding: 10px 12px; min-height: 44px; border-radius: 10px;
+    font-size: 15px; font-weight: 600; color: var(--muted); }
+  .module-switch button svg { width: 20px; height: 20px; }
+  .module-switch button:hover:not(.on) { background: var(--card-2); color: var(--text); }
+  .module-switch button.on { background: var(--card-2); color: var(--text); }
+  .module-switch button.on svg { color: var(--accent); }
+  .module-switch .module-label { max-width: none !important; opacity: 1 !important; margin: 0 !important; }
+  .topbar-pages { display: grid; gap: 4px; border-top: 1px solid var(--line); padding-top: 6px; }
+  .topbar-pages::before { content: attr(data-title); font: 600 11px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 14px 12px 6px; }
+  .topbar .tabs { display: flex; flex-direction: column; flex: 0 0 auto; gap: 4px; overflow: visible; }
   .topbar .tab { width: 100%; justify-content: flex-start; gap: 12px; padding: 10px 12px; min-height: 44px; font-size: 15px; border-radius: 10px; color: var(--text); }
   .topbar .tab svg { width: 20px; height: 20px; color: var(--muted); }
   .topbar .tab:hover:not(.active) { background: var(--card-2); }
