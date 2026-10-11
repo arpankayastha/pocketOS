@@ -48,7 +48,7 @@ const BUDGET_TABS = [
   { id: 'transactions', label: 'Entries', icon: ListIcon },
   { id: 'plan', label: 'Plan', icon: PlanIcon },
   { id: 'dues', label: 'Dues', icon: DuesIcon },
-  { id: 'hisab', label: 'Hisab', icon: BookIcon },
+  { id: 'hisab', label: 'Cashbook', icon: BookIcon },
 ]
 
 const VAULT_TABS = [
@@ -295,7 +295,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
             <button className="fab-option expense" onClick={() => { setFabOpen(false); setQuickAddKind('expense') }}>Expense</button>
           </div>
         )}
-        <button className={`fab ${fabOpen ? 'open' : ''}`} aria-label={tab === 'hisab' ? 'Add Hisab entry' : 'Add transaction'}
+        <button className={`fab ${fabOpen ? 'open' : ''}`} aria-label={tab === 'hisab' ? 'Add cash book entry' : 'Add transaction'}
           onClick={() => (tab === 'hisab' ? setHisabAdd((n) => n + 1) : setFabOpen((v) => !v))}><PlusIcon /></button>
       </div>
 

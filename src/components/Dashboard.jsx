@@ -80,7 +80,7 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
         <div className="card plan-left">
           <div className="muted small">Left to spend this month</div>
           <div className={`plan-left-num ${m.left < 0 ? 'neg' : 'pos'}`}>{money(m.left)}</div>
-          <div className="muted small">Income {money(m.income)}{m.received > 0 ? ` + received ${money(m.received)}` : ''} − plan {money(m.commitments)} − bank &amp; cash spends {money(m.spends + m.oneOffs)}. Card spends count on their bill; occasion books are left out.</div>
+          <div className="muted small">Income {money(m.income)}{m.received > 0 ? ` + received ${money(m.received)}` : ''} − plan {money(m.commitments)} − bank &amp; cash spends {money(m.spends + m.oneOffs)}. Card spends count on their bill; event books are left out.</div>
         </div>
       )}
       {isPlan && m && (
@@ -92,7 +92,7 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
       )}
       {!isNow && !isPlan && (
         <div className="card plan-left">
-          <div className="muted small">Spent in {monthLabel(month)} · Hisab Daily</div>
+          <div className="muted small">Spent in {monthLabel(month)} · shop cash book</div>
           <div className="plan-left-num neg">{money(spent)}</div>
           {received > 0 && <div className="muted small">Received {money(received)}</div>}
         </div>
@@ -105,7 +105,7 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
         {!isPlan && (
           <div className="card">
             <h3>Where the money went <span className="muted small">{money(spent)}</span></h3>
-            {breakdown.length === 0 ? <div className="empty-chart muted" style={{ height: 160 }}>No Daily spends this month.</div> : (
+            {breakdown.length === 0 ? <div className="empty-chart muted" style={{ height: 160 }}>No shop spends this month.</div> : (
               <div className="pie-wrap">
                 <DonutChart data={breakdown} />
                 <ul className="legend">

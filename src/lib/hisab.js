@@ -81,7 +81,7 @@ export async function loadBooks(householdId) {
   if (b.error || e.error) throw b.error || e.error
   let books = b.data
   if (!books.some((x) => x.kind === 'daily')) {
-    const { data, error } = await supabase.from('hisab_books').insert({ household_id: householdId, name: 'Daily', kind: 'daily' }).select('*').single()
+    const { data, error } = await supabase.from('hisab_books').insert({ household_id: householdId, name: 'Shop', kind: 'daily' }).select('*').single()
     if (error) throw error
     books = [data, ...books]
   }

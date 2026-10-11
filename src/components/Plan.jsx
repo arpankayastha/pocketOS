@@ -82,7 +82,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
             ? (bill?.statement
               ? `${bill.open ? `${bill.count} spend${bill.count === 1 ? '' : 's'} so far · closes ${shortDate(bill.statement)}` : `Statement ${shortDate(bill.statement)} · ${bill.count} spend${bill.count === 1 ? '' : 's'}`} · due ${shortDate(bill.due)}`
               : 'No bill due this month')
-            : `${cat?.name || 'Uncategorised'}${it.day_of_month ? ` · due ${it.day_of_month}` : ''}${actual?.fromHisab ? ` · paid${it.onCard ? ' by card' : ''} (Hisab)` : ''}`
+            : `${cat?.name || 'Uncategorised'}${it.day_of_month ? ` · due ${it.day_of_month}` : ''}${actual?.fromHisab ? ` · paid${it.onCard ? ' by card' : ''} (cash book)` : ''}`
           return (
             <Fragment key={it.id}>
               <div className={`txn ${it.auto_card ? 'plan-card' : ''}`} onClick={it.auto_card && bill?.count ? () => setOpen(open === it.id ? null : it.id) : undefined}>
@@ -132,15 +132,15 @@ function LeftSheet({ m, accName, onClose }) {
         <h3>Left to spend: <span className={m.left < 0 ? 'neg' : 'pos'}>{money(m.left)}</span></h3>
         <div className="left-sec">Income</div>
         {lines('income').map((i) => <Row key={i.id} label={i.name} value={i.counted} tone="pos" note={i.actual ? 'received' : 'expected'} />)}
-        {m.received > 0 && <Row label="Received (Hisab Daily)" value={m.received} tone="pos" />}
+        {m.received > 0 && <Row label="Received (shop cash book)" value={m.received} tone="pos" />}
         <div className="left-sec">Plan this month</div>
         {lines('expense').map((i) => <Row key={i.id} label={`${i.auto_card ? '💳 ' : ''}${i.name}`} value={-i.counted}
           note={i.onCard ? 'on a card bill' : i.actual ? 'paid' : i.auto_card ? 'card bill' : 'expected'} />)}
-        <div className="left-sec">Spent from bank / cash (Hisab Daily)</div>
+        <div className="left-sec">Spent from bank / cash (shop cash book)</div>
         {Object.entries(m.byAccount).map(([id, v]) => <Row key={id} label={id === 'none' ? 'Not linked to an account' : accName(id) || 'Account'} value={-v} />)}
         {!Object.keys(m.byAccount).length && <div className="muted small">Nothing yet</div>}
         {m.oneOffs > 0 && <><div className="left-sec">Other Budget expenses</div><Row label="One-off entries" value={-m.oneOffs} /></>}
-        <p className="muted small">Card spends aren&apos;t taken off here — they make up that card&apos;s bill in the month it&apos;s due. Occasion books (house, wedding…) are left out.</p>
+        <p className="muted small">Card spends aren&apos;t taken off here — they make up that card&apos;s bill in the month it&apos;s due. Event books (a tournament, a launch…) are left out.</p>
         <div className="actions"><span className="spacer" /><button type="button" className="btn" onClick={onClose}>Done</button></div>
       </div>
     </div>

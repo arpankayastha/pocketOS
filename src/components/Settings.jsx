@@ -10,7 +10,7 @@ import { PALETTE, nextColor } from '../lib/colors'
 import { isCard, parseDigits } from '../lib/instruments'
 import { setThemePref, themePref } from '../lib/theme'
 
-export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, email, member, appLock, vault }) {
+export default function Settings({ accounts, categories, refresh, activeHouseholdId, email, member, appLock, vault }) {
   return (
     <section className="grid2">
       <div style={{ gridColumn: '1 / -1' }}>
@@ -24,7 +24,7 @@ export default function Settings({ accounts, categories, refresh, households, ac
       <Accounts accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
       {!member && activeHouseholdId && (
         <div style={{ gridColumn: '1 / -1' }}>
-          <HisabCategories key={activeHouseholdId} householdId={activeHouseholdId} householdName={households.find((h) => h.id === activeHouseholdId)?.name} />
+          <HisabCategories key={activeHouseholdId} householdId={activeHouseholdId} />
         </div>
       )}
       <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
@@ -204,7 +204,7 @@ const EMOJI_PICKS = ['🎮', '🕹️', '🖥️', '🎧', '🍟', '🥤', '☕'
 
 // Owner: the icon grid shown when adding a Hisab entry, per household — add, rename, reorder, remove.
 // Removing one doesn't touch old entries (they keep their category text).
-function HisabCategories({ householdId, householdName }) {
+function HisabCategories({ householdId }) {
   const dialog = useDialog()
   const [list, setList] = useState(null)
   const [dir, setDir] = useState('out')
@@ -244,16 +244,16 @@ function HisabCategories({ householdId, householdName }) {
     load()
   }
   async function remove(c) {
-    if (!await dialog.confirm({ title: `Remove "${c.name}"?`, message: 'It leaves the Hisab picker. Entries already saved with it keep it.', confirmLabel: 'Remove' })) return
+    if (!await dialog.confirm({ title: `Remove "${c.name}"?`, message: 'It leaves the cash book picker. Entries already saved with it keep it.', confirmLabel: 'Remove' })) return
     const { error } = await supabase.from('hisab_categories').delete().eq('id', c.id)
     if (error) return setError(error.message)
     load()
   }
 
   return (
-    <Collapsible id="hisab-categories" title="Hisab categories"
+    <Collapsible id="hisab-categories" title="Cash book categories"
       summary={list ? `${list.filter((c) => c.direction === 'out').length} spent · ${list.filter((c) => c.direction === 'in').length} received` : null}>
-      <p className="muted small">The icons shown when adding a Hisab entry{householdName ? ` in ${householdName}` : ''}. Tap a name to rename; arrows change the order.</p>
+      <p className="muted small">The icons shown when adding a cash book entry. Tap a name to rename; arrows change the order.</p>
       <div className="seg" style={{ marginBottom: 10 }}>
         <button type="button" className={dir === 'out' ? 'on expense' : ''} onClick={() => setDir('out')}>Spent</button>
         <button type="button" className={dir === 'in' ? 'on income' : ''} onClick={() => setDir('in')}>Received</button>

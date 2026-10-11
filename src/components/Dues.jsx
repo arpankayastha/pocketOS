@@ -291,7 +291,7 @@ function DueForm({ due, households, household, onClose, onSaved, onDeleted }) {
             <button type="button" className={form.direction === 'out' ? 'on income' : ''} onClick={() => setForm((f) => ({ ...f, direction: 'out' }))}>They owe {household ? household.name : 'you'}</button>
           </div>
         )}
-        <label>Person<input required value={form.person} onChange={set('person')} placeholder="e.g. Mama, Neighbour" autoFocus={!due} /></label>
+        <label>Person<input required value={form.person} onChange={set('person')} placeholder="e.g. a customer or a supplier" autoFocus={!due} /></label>
         {others.length > 0 && (
           <label>Is it one of your households? <span className="muted">(optional)</span>
             <select value={form.personHouseholdId} onChange={pickHousehold}>

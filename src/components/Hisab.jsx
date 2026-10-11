@@ -15,9 +15,9 @@ const dayHead = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { w
 const shortDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 const sum = (rows, dir) => rows.filter((e) => e.direction === dir).reduce((s, e) => s + Number(e.amount), 0)
 
-// Budget → Hisab: cash books that don't touch Budget totals. The tab opens straight on the Daily
-// book (what's used every day); occasion books (Diwali, a wedding…) sit behind the "Occasions"
-// button, with recently used ones as chips under the month total. `addSignal` bumps when the
+// Money → Cash book: the shop's cash books, outside the Money totals. The tab opens straight on the
+// shop book (kind 'daily', shown as "Shop"); event books (a tournament, a launch, a renovation) sit
+// behind the "Events" button, with recently used ones as chips under the month total. `addSignal` bumps when the
 // floating + is tapped on this tab: it adds to the open book.
 export default function Hisab({ activeHouseholdId, accounts = [], addSignal }) {
   const [books, setBooks] = useState(null)
@@ -96,10 +96,10 @@ function OccasionsSheet({ occasions, onOpen, onClose, onNew }) {
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <div className="card modal hb-occ-sheet" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>Occasions</h3>
-        <p className="muted small">A separate book for Diwali, a wedding or a trip — every bill of it in one place, outside Daily and your Budget totals.</p>
+        <h3>Event books</h3>
+        <p className="muted small">A separate book for a tournament, a game launch or a renovation — every bill of it in one place, outside the shop book and the Money totals.</p>
         {occasions.length === 0
-          ? <div className="hb-occ-empty muted small"><BookIcon /> No occasion books yet</div>
+          ? <div className="hb-occ-empty muted small"><BookIcon /> No event books yet</div>
           : <div className="hb-list">{occasions.map((b) => <OccasionCard key={b.id} b={b} onOpen={onOpen} />)}</div>}
         <div className="actions">
           <button type="button" className="btn" onClick={onClose}>Close</button>
@@ -166,7 +166,7 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
         <div className="card hb-hero" {...swipe}>
           <div className="hb-hero-top">
             <MonthPicker month={month} setMonth={setMonth} />
-            <button className="chip chip-btn hb-occ-btn" onClick={onOccasions}>📒 Occasions{occasions?.length ? <span className="hb-occ-count">{occasions.length}</span> : null}</button>
+            <button className="chip chip-btn hb-occ-btn" onClick={onOccasions}>🏆 Events{occasions?.length ? <span className="hb-occ-count">{occasions.length}</span> : null}</button>
           </div>
           <div className="muted small">Spent</div>
           {entries ? <div className="hb-hero-num neg">{money(out)}</div> : <div className="skel" style={{ height: 34, width: '60%' }} />}
@@ -185,8 +185,8 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
       ) : (
         <div className="card hb-hero">
           <div className="hb-hero-top">
-            <button className="btn icon" aria-label="Back to Daily" onClick={onBack}>‹</button>
-            <h2 className="grow hb-book-name">📒 {book.name}</h2>
+            <button className="btn icon" aria-label="Back to the shop book" onClick={onBack}>‹</button>
+            <h2 className="grow hb-book-name">🏆 {book.name}</h2>
             <button className="btn icon" aria-label="Edit book" onClick={onEdit}><PencilIcon /></button>
           </div>
           <div className="muted small">Spent</div>
@@ -206,14 +206,14 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
       {isDaily && recent.length > 0 && (
         <div className="hb-recent">
           {recent.map((b) => (
-            <button key={b.id} className="chip chip-btn" onClick={() => onOpenBook(b.id)}>📒 {b.name} <b className="amt">{moneyShort(b.out)}</b> ›</button>
+            <button key={b.id} className="chip chip-btn" onClick={() => onOpenBook(b.id)}>🏆 {b.name} <b className="amt">{moneyShort(b.out)}</b> ›</button>
           ))}
         </div>
       )}
 
       <div className="hb-swipe" {...viewSwipe}>
       <div className="seg seg3 hb-views">
-        {[['daily', 'Daily'], ['calendar', 'Calendar'], ['summary', 'Summary']].map(([id, label]) => (
+        {[['daily', 'By day'], ['calendar', 'Calendar'], ['summary', 'Summary']].map(([id, label]) => (
           <button key={id} className={view === id ? 'on' : ''} onClick={() => setView(id)}>{label}</button>
         ))}
       </div>
@@ -465,7 +465,7 @@ function EntrySheet({ book, books, accounts = [], categories, onCategoryAdded, e
           <div className="hb-books" role="radiogroup" aria-label="Book">
             {books.map((b) => (
               <button type="button" key={b.id} role="radio" aria-checked={target.id === b.id} className={`chip chip-btn ${target.id === b.id ? 'on' : ''}`}
-                onClick={() => setTarget(b)}>{b.kind === 'daily' ? '🗓️' : '📒'} {b.name}</button>
+                onClick={() => setTarget(b)}>{b.kind === 'daily' ? '🏪 Shop' : `🏆 ${b.name}`}</button>
             ))}
           </div>
         )}
@@ -592,8 +592,8 @@ function BookForm({ book, householdId, onClose, onSaved, onDeleted }) {
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{book ? 'Edit book' : 'New occasion book'}</h3>
-        <label>Name<input required autoFocus={!book} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali 2026, Cousin's wedding" /></label>
+        <h3>{book ? 'Edit book' : 'New event book'}</h3>
+        <label>Name<input required autoFocus={!book} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. GTA VI launch, Valorant tournament" /></label>
         <label>Target amount <span className="muted">(optional)</span>
           <input type="number" inputMode="decimal" min="1" step="1" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="How much you plan to spend" />
         </label>
