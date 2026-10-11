@@ -319,6 +319,13 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
     if (error) { setError(error.message); loadMembers() }
   }
 
+  // "Only Hisab": the member's app shows just the Hisab tab; switch it off any time to give back the rest.
+  async function setHisabOnly(m, on) {
+    setMembers((ms) => ms.map((x) => (x.user_id === m.user_id ? { ...x, hisab_only: on } : x)))
+    const { error } = await supabase.from('household_members').update({ hisab_only: on }).eq('user_id', m.user_id).eq('household_id', m.household_id)
+    if (error) { setError(error.message); loadMembers() }
+  }
+
   async function removeLogin(h, m) {
     if (!await dialog.confirm({ title: `Remove ${m.username}'s login?`, message: `They can no longer open "${h.name}". Everything they added stays in the household.`, confirmLabel: 'Remove login' })) return
     try { await manageMembers('remove', { householdId: h.id, userId: m.user_id }); loadMembers() } catch (err) { setError(err.message) }
@@ -390,7 +397,7 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
         onSwitch={() => { setActiveHouseholdId(open.id); setOpenId(null) }}
         onRename={(next) => rename(open, next)} onDelete={() => remove(open)}
         onCreateLogin={() => setLoginFor(open)} onResetPin={(m) => resetPin(open, m)} onRemoveLogin={(m) => removeLogin(open, m)}
-        onStartTab={setStartTab} onOwnStartTab={(t) => setOwnStartTab(open, t)} vaultOn={vaultOn} canVault={vault?.status === 'unlocked'} onEnableVault={enableVault} onDisableVault={disableVault} />}
+        onStartTab={setStartTab} onHisabOnly={setHisabOnly} onOwnStartTab={(t) => setOwnStartTab(open, t)} vaultOn={vaultOn} canVault={vault?.status === 'unlocked'} onEnableVault={enableVault} onDisableVault={disableVault} />}
       {loginFor && <LoginForm household={loginFor} taken={(members || []).map((x) => x.username)} onClose={() => setLoginFor(null)}
         onCreated={(username, pin) => { setShare({ household: loginFor, username, pin }); setLoginFor(null); loadMembers() }} />}
       {share && <ShareLogin {...share} onClose={() => setShare(null)} />}
@@ -407,7 +414,7 @@ function LoginBadge({ member, loading }) {
 }
 
 // Everything about one household in one bottom sheet: switch, rename, login, delete.
-function HouseholdSheet({ household, color, onColor, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab, onOwnStartTab, vaultOn, canVault, onEnableVault, onDisableVault }) {
+function HouseholdSheet({ household, color, onColor, member, membersLoaded, active, onClose, onSwitch, onRename, onDelete, onCreateLogin, onResetPin, onRemoveLogin, onStartTab, onHisabOnly, onOwnStartTab, vaultOn, canVault, onEnableVault, onDisableVault }) {
   const [name, setName] = useState(household.name)
   const changed = name.trim() && name.trim() !== household.name
   return (
@@ -452,11 +459,17 @@ function HouseholdSheet({ household, color, onColor, member, membersLoaded, acti
                 <LoginBadge member={member} />
               </div>
               <div className="muted small">{member.fingerprint_at ? 'Opens with their fingerprint; PIN works as backup.' : 'Signs in with username + PIN. Fingerprint not set up yet.'} {ago(member.last_sign_in_at).replace(/^./, (c) => c.toUpperCase())}.</div>
-              <label className="hh-start">Opens on
-                <select value={member.start_tab || 'dashboard'} onChange={(e) => onStartTab(member, e.target.value)}>
-                  {START_TABS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-                </select>
+              <label className="hh-start hh-check">
+                <span>Only Hisab <span className="muted small">— hides Home, Entries, Plan and Dues</span></span>
+                <input type="checkbox" checked={!!member.hisab_only} onChange={(e) => onHisabOnly(member, e.target.checked)} />
               </label>
+              {!member.hisab_only && (
+                <label className="hh-start">Opens on
+                  <select value={member.start_tab || 'dashboard'} onChange={(e) => onStartTab(member, e.target.value)}>
+                    {START_TABS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  </select>
+                </label>
+              )}
               {canVault && (
                 <div className="hh-start">
                   <span>Vault {vaultOn[member.user_id] ? <span className="hh-badge ok">On</span> : <span className="hh-badge none">Off</span>}</span>

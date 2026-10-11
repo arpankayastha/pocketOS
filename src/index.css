@@ -837,3 +837,6 @@ details.section[open] .chev { transform: rotate(90deg); }
 .left-sec { margin-top: 10px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .left-row { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .left-row > :last-child { font-family: var(--font-mono); }
+
+.hh-check { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hh-check input { width: 22px; height: 22px; flex: none; accent-color: var(--accent-bg); }

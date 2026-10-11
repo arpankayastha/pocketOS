@@ -1219,3 +1219,7 @@ grant execute on function public.sms_instruments(uuid) to authenticated;
 -- A planned bill entry that a card's payment SMS took over (quickadd 'capture' kind 'bill'): its values
 -- before, so the notification's Undo can put it back.
 alter table public.transactions add column if not exists bill_original jsonb;
+
+-- A member login that only uses Hisab: their app shows just the Hisab tab (owner's "Only Hisab" checkbox).
+alter table public.household_members add column if not exists hisab_only boolean not null default false;
+grant update (hisab_only) on public.household_members to authenticated;

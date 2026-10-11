@@ -161,10 +161,10 @@ function MemberShell({ session }) {
   // device so the app opens instantly; refreshed from the server on every start.
   const [info, setInfo] = useState(() => { try { return JSON.parse(localStorage.getItem(MEMBER_INFO_KEY)) } catch { return null } })
   useEffect(() => {
-    supabase.from('household_members').select('start_tab, household_id').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
+    supabase.from('household_members').select('start_tab, household_id, hisab_only').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
       if (!data) return
       try { localStorage.setItem(MEMBER_INFO_KEY, JSON.stringify(data)) } catch { /* ignore */ }
-      setInfo((cur) => (cur ? { ...cur, household_id: data.household_id } : data))
+      setInfo((cur) => (cur ? { ...cur, household_id: data.household_id, hisab_only: data.hisab_only } : data))
     })
   }, [session.user.id])
   const vault = useVault(session, { householdId: info?.household_id })
@@ -195,7 +195,7 @@ function MemberShell({ session }) {
   return (
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' && vaultOn ? <VaultModule topbar={topbar} vault={vault} member />
-        : <BudgetModule topbar={topbar} email={memberName(session)} member appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} startTab={info.start_tab || 'dashboard'} />}
+        : <BudgetModule topbar={topbar} email={memberName(session)} member appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} startTab={info.hisab_only ? 'hisab' : info.start_tab || 'dashboard'} hisabOnly={!!info.hisab_only} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -236,7 +236,9 @@ function UnlockScreen({ vault, onRecovered }) {
   )
 }
 
-function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard' }) {
+function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard', hisabOnly = false }) {
+  // A member login the owner set to "Only Hisab" sees just that tab (⚙ stays for their own settings).
+  const tabs = hisabOnly ? BUDGET_TABS.filter((t) => t.id === 'hisab') : BUDGET_TABS
   // The "home" tab: where the app opens and where Android back returns to. A member's comes from
   // their login (`startTab`); the owner picks one per household ("Opens on" in the HouseholdSheet).
   const [tab, setTab] = useState(startTab)
@@ -249,6 +251,8 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   const household = data.households.find((h) => h.id === data.activeHouseholdId)
   const home = member ? startTab : household?.start_tab || 'dashboard'
   useBackAction(tab !== home, () => setTab(home), 2)
+  // Switched to "Only Hisab" after the app opened (the setting is refreshed on start): leave hidden tabs.
+  useEffect(() => { if (hisabOnly && tab !== 'hisab' && tab !== 'settings') setTab('hisab') }, [hisabOnly, tab])
   // Opening the app or switching household lands on that household's home (not while in Settings).
   const seenHousehold = useRef(null)
   useEffect(() => {
@@ -271,7 +275,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
           onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon /></button>
       </>)}>
         <nav className="tabs">
-          {BUDGET_TABS.map((t) => (
+          {tabs.length > 1 && tabs.map((t) => (
             <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
               <t.icon /> {t.label}
             </button>
@@ -296,7 +300,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
         )}
       </main>
 
-      <PillNav tabs={BUDGET_TABS} tab={tab} setTab={setTab} withFab />
+      {tabs.length > 1 && <PillNav tabs={tabs} tab={tab} setTab={setTab} withFab />}
 
       {fabOpen && <div className="fab-backdrop" onClick={() => setFabOpen(false)} />}
       <div className="fab-wrap">
