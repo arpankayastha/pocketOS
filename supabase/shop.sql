@@ -606,3 +606,10 @@ alter table public.shop_pay_adjustments enable row level security;   -- policy "
 -- public.shop_plan_items(household) = expense Plan items (+ expected / claimed this month for the admin).
 -- Plan (runway.js) adds up several claims per item in a month. The category monthly_limit preset was undone.
 alter table public.shop_cash add column if not exists recurring_item_id uuid references public.recurring_items(id) on delete set null;
+
+-- Staff bookings for customers who call (Slots → + Book), migration counter_bookings_paid: shop_bookings with
+-- source 'counter', status 'confirmed', paid (advance, 0 = pay at the counter), paid_mode, note. An advance is
+-- also saved as the customer's deposit (money in that day), used in the End sheet when they play.
+alter table public.shop_bookings add column if not exists paid numeric(10,2) check (paid is null or paid >= 0);
+alter table public.shop_bookings add column if not exists paid_mode text check (paid_mode in ('cash', 'online'));
+alter table public.shop_bookings add column if not exists note text;

@@ -1172,3 +1172,4 @@ label.btn.disabled { opacity: .6; pointer-events: none; }
 .gx-budget { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid var(--line); }
 .gx-budget:first-of-type { border-top: 0; }
 .gx-bar.over i { background: var(--neg); }
+.gx-book-btn { margin-left: auto; }
