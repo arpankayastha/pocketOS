@@ -216,3 +216,6 @@ export function duesByCustomer(dues = []) {
 
 // Valorant ranks for tournament entries (lowest first).
 export const RANKS = ['Unranked', 'Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Immortal', 'Radiant']
+
+// An event's picture: the one uploaded in Events → Edit, else the bundled GTA VI art for the GTA event (owner's picture).
+export const eventImage = (ev) => ev?.image_url || (/gta/i.test(ev?.name || '') ? '/brand/gta6.jpg' : null)

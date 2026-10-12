@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useDialog } from '../../lib/dialog'
-import { RANKS, durLabel, timeLabel, rs } from '../../lib/shop'
+import { RANKS, durLabel, eventImage, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
 import { useSwipe } from '../../lib/useSwipe'
@@ -103,7 +103,7 @@ export default function Events({ householdId, admin, settings, toast }) {
             <span className={`pill gx-pill ${ev.system_kind === 'PS' ? 'ps' : ''}`}>{ev.system_kind === 'PS' ? 'PS5' : 'PC'} · {dayChip(ev.starts_on)} – {dayChip(ev.ends_on)}</span>
             {admin && <button className="btn small ghost" onClick={() => setSheet({ kind: 'event', event: ev })}>Edit</button>}
           </div>
-          {ev.image_url && <img className="gx-event-img" src={ev.image_url} alt="" />}
+          {eventImage(ev) && <img className="gx-event-img" src={eventImage(ev)} alt="" />}
           <div className="gx-event-name">{ev.name}</div>
           {ev.description && <div className="small">{ev.description}</div>}
           <div className="muted small">{rs(firstPrice(ev))} first {durLabel(ev.slot_minutes)} · {rs(nextPrice(ev))} each extra · up to {ev.max_hours || 1} · per head · {rs(ev.advance)} advance, non-refundable · {ev.capacity} at a time{ev.active ? '' : ' · switched off'}</div>

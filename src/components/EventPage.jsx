@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { BrandMark } from '../lib/icons'
-import { RANKS, durLabel, rs, timeLabel } from '../lib/shop'
+import { RANKS, eventImage, durLabel, rs, timeLabel } from '../lib/shop'
 import { qrSvg, upiLink } from '../lib/upi'
 import { isCustomer, readMine, rememberMine } from '../lib/mine'
 
@@ -35,7 +35,7 @@ function Page({ ev, children }) {
     <div className="jobs-page">
       <header className="jobs-head">
         <a className="brand big" href="#"><BrandMark size={34} />GRANDXGAMER</a>
-        {ev?.image_url && <img className="gx-event-img" src={ev.image_url} alt="" />}
+        {eventImage(ev) && <img className="gx-event-img" src={eventImage(ev)} alt="" />}
         <h1>{ev ? ev.name : 'Event'}</h1>
         {ev?.description && <p className="muted">{ev.description}</p>}
       </header>

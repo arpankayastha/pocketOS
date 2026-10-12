@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { BrandMark } from '../lib/icons'
-import { DAY_NAMES, dayStart, durLabel, rs, timeLabel } from '../lib/shop'
+import { DAY_NAMES, eventImage, dayStart, durLabel, rs, timeLabel } from '../lib/shop'
 import { googleEnabled, isCustomer, signInWithGoogle, useMyStatus } from '../lib/mine'
 import Passkeys, { passkeyError, signInWithFingerprint } from './Passkeys'
 import { PasskeyIcon } from '../lib/icons'
@@ -123,8 +123,8 @@ function EventCard({ ev }) {
   const full = tour && ev.max_entries && ev.entries >= ev.max_entries
   return (
     <a className={`card home-event ${tour ? 'tour' : ''}`} href={full ? undefined : `#event/${ev.id}`}>
-      <div className="home-event-art" style={ev.image_url ? { backgroundImage: `url("${ev.image_url}")` } : undefined}>
-        {!ev.image_url && <span>{ev.name}</span>}
+      <div className="home-event-art" style={eventImage(ev) ? { backgroundImage: `url("${eventImage(ev)}")` } : undefined}>
+        {!eventImage(ev) && <span>{ev.name}</span>}
         <em>{tour ? 'Upcoming tournament' : ev.kind === 'PS' ? 'PS5 slots' : 'PC slots'}</em>
       </div>
       <div className="home-event-body">
