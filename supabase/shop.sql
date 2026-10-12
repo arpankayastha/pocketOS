@@ -277,66 +277,131 @@ alter table public.shop_shifts drop constraint if exists shop_shifts_user_id_fke
 alter table public.shop_shifts add constraint shop_shifts_user_id_fkey foreign key (user_id) references auth.users(id) on delete set null;
 
 -- ---------------------------------------------------------------------------------------------
--- Floor takings go into the Cashbook automatically (owner's choice): per shop and day, one Shop-book
--- "money in" entry for cash and one for online (UPI), kept equal to that day's session payments.
--- Recomputed on every session change, so ending, extending or removing a session corrects the day.
--- Days are Indian dates of the session start. Hand edits to these two entries get overwritten.
+-- Floor takings go into the Cashbook automatically (owner's choice, applied 12 Oct 2026): per shop and day,
+-- one Shop-book "money in" entry for cash and one for online (UPI) = that day's session payments + customer
+-- deposits paid in. Recomputed on every session / deposit change. Deposit *use* isn't counted again (it was
+-- counted when paid in). Days are Indian dates. Hand edits to these two entries get overwritten.
 alter table public.hisab_entries add column if not exists shop_takings text check (shop_takings in ('cash', 'online'));
 create unique index if not exists hisab_entries_shop_takings on public.hisab_entries (household_id, occurred_on, shop_takings) where shop_takings is not null;
-
-create or replace function private.sync_floor_takings(p_household uuid, p_day date) returns void
-language plpgsql security definer set search_path = '' as $$
-declare
-  v_owner uuid; v_book uuid; v_cash numeric; v_online numeric; v_n int; v_cash_acct uuid; v_bank_acct uuid; m text; amt numeric;
-begin
-  if p_household is null or p_day is null then return; end if;
-  select user_id into v_owner from public.households where id = p_household;
-  select id into v_book from public.hisab_books where household_id = p_household and kind = 'daily' order by created_at limit 1;
-  if v_book is null then
-    insert into public.hisab_books (user_id, household_id, name, kind) values (v_owner, p_household, 'Shop', 'daily') returning id into v_book;
-  end if;
-  select coalesce(sum(paid_cash), 0), coalesce(sum(paid_online), 0), count(*) into v_cash, v_online, v_n
-    from public.shop_sessions
-    where household_id = p_household and status <> 'cancelled' and (started_at at time zone 'Asia/Kolkata')::date = p_day;
-  select id into v_cash_acct from public.accounts where household_id = p_household and type = 'cash' order by created_at limit 1;
-  select id into v_bank_acct from public.accounts where household_id = p_household and type = 'bank' order by created_at limit 1;
-  foreach m in array array['cash', 'online'] loop
-    amt := case m when 'cash' then v_cash else v_online end;
-    if amt > 0 then
-      insert into public.hisab_entries (user_id, household_id, book_id, direction, amount, occurred_on, category, source, note, account_id, shop_takings)
-      values (v_owner, p_household, v_book, 'in', amt, p_day, 'Floor takings', case m when 'cash' then 'Cash' else 'UPI' end,
-              format('Floor takings · %s session%s', v_n, case when v_n = 1 then '' else 's' end),
-              case m when 'cash' then v_cash_acct else v_bank_acct end, m)
-      on conflict (household_id, occurred_on, shop_takings) where shop_takings is not null
-      do update set amount = excluded.amount, note = excluded.note, book_id = excluded.book_id;
-    else
-      delete from public.hisab_entries where household_id = p_household and occurred_on = p_day and shop_takings = m;
-    end if;
-  end loop;
-end $$;
-revoke execute on function private.sync_floor_takings(uuid, date) from public, anon, authenticated;
-
-create or replace function private.floor_takings_trigger() returns trigger
-language plpgsql security definer set search_path = '' as $$
-begin
-  if tg_op in ('UPDATE', 'DELETE') then
-    perform private.sync_floor_takings(old.household_id, (old.started_at at time zone 'Asia/Kolkata')::date);
-  end if;
-  if tg_op in ('INSERT', 'UPDATE') then
-    perform private.sync_floor_takings(new.household_id, (new.started_at at time zone 'Asia/Kolkata')::date);
-  end if;
-  return null;
-end $$;
-revoke execute on function private.floor_takings_trigger() from public, anon, authenticated;
-drop trigger if exists shop_sessions_floor_takings on public.shop_sessions;
-create trigger shop_sessions_floor_takings after insert or update or delete on public.shop_sessions
-  for each row execute function private.floor_takings_trigger();
-
--- The Cashbook category for it.
 insert into public.hisab_categories (user_id, household_id, direction, name, icon, position)
 select h.user_id, h.id, 'in', 'Floor takings', '🕹️', 0 from public.households h
 on conflict (household_id, direction, name) do nothing;
+-- private.sync_floor_takings(household, day) and private.floor_takings_trigger(): see the migration
+-- "floor_takings_sync_function" / "floor_takings_triggers" (sessions summed by started_at day, deposits 'add'
+-- by created_at day; triggers shop_sessions_floor_takings and shop_deposits_floor_takings, both
+-- `create or replace trigger … after insert or update or delete`).
 
--- Fill in the days already recorded.
-select private.sync_floor_takings(s.household_id, (s.started_at at time zone 'Asia/Kolkata')::date)
-from (select distinct household_id, started_at from public.shop_sessions) s;
+-- ---------------------------------------------------------------------------------------------
+-- Owner's answers (12 Oct 2026): rate card 2026 with happy hours (Wed–Fri, full day), per-head pricing
+-- (PS5 has 3 controllers), monthly salaries, customer deposits usable within the month, event pricing
+-- "first hour ₹200, then ₹100/hr", and job vacancies with a public page.
+create table if not exists public.shop_settings (
+  household_id uuid primary key references public.households(id) on delete cascade,
+  happy_days smallint[] not null default '{3,4,5}',      -- 0 = Sunday … 6 = Saturday
+  updated_at timestamptz not null default now()
+);
+alter table public.shop_settings enable row level security;
+drop policy if exists "shop reads" on public.shop_settings;
+create policy "shop reads" on public.shop_settings for select to authenticated using (household_id in (select private.my_household_ids()));
+drop policy if exists "admin writes" on public.shop_settings;
+create policy "admin writes" on public.shop_settings for insert to authenticated with check (household_id in (select private.my_admin_household_ids()));
+drop policy if exists "admin updates" on public.shop_settings;
+create policy "admin updates" on public.shop_settings for update to authenticated
+  using (household_id in (select private.my_admin_household_ids())) with check (household_id in (select private.my_admin_household_ids()));
+
+alter table public.shop_rates add column if not exists happy boolean not null default false;
+alter table public.shop_rates drop constraint if exists shop_rates_household_id_kind_minutes_key;
+create unique index if not exists shop_rates_unique on public.shop_rates (household_id, kind, minutes, happy);
+
+alter table public.shop_sessions add column if not exists players int not null default 1 check (players between 1 and 8);
+alter table public.shop_sessions add column if not exists happy boolean not null default false;
+alter table public.shop_sessions add column if not exists paid_deposit numeric(10,2) not null default 0;
+
+alter table public.household_members add column if not exists monthly_salary numeric(10,2) not null default 0;
+grant update (monthly_salary) on public.household_members to authenticated;
+
+-- Customer deposits: money paid ahead, used on later visits in the same month (it lapses after).
+create table if not exists public.shop_deposits (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  customer_name text not null,
+  customer_phone text,
+  kind text not null check (kind in ('add', 'use')),
+  amount numeric(10,2) not null check (amount > 0),
+  mode text check (mode in ('cash', 'online')),
+  session_id uuid references public.shop_sessions(id) on delete set null,
+  month date not null default (date_trunc('month', now() at time zone 'Asia/Kolkata'))::date,
+  user_id uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists shop_deposits_household_month_idx on public.shop_deposits (household_id, month);
+create index if not exists shop_deposits_session_idx on public.shop_deposits (session_id);
+create index if not exists shop_deposits_user_idx on public.shop_deposits (user_id);
+alter table public.shop_deposits enable row level security;
+drop policy if exists "shop reads" on public.shop_deposits;
+create policy "shop reads" on public.shop_deposits for select to authenticated using (household_id in (select private.my_household_ids()));
+drop policy if exists "shop writes" on public.shop_deposits;
+create policy "shop writes" on public.shop_deposits for insert to authenticated with check (household_id in (select private.my_household_ids()));
+drop policy if exists "admin updates" on public.shop_deposits;
+create policy "admin updates" on public.shop_deposits for update to authenticated
+  using (household_id in (select private.my_admin_household_ids())) with check (household_id in (select private.my_admin_household_ids()));
+drop policy if exists "admin deletes" on public.shop_deposits;
+create policy "admin deletes" on public.shop_deposits for delete to authenticated using (household_id in (select private.my_admin_household_ids()));
+
+-- Events: hourly slots, a booking takes 1..max_hours hours; price = first hour + later hours.
+alter table public.shop_events add column if not exists first_hour_price numeric(10,2);
+alter table public.shop_events add column if not exists next_hour_price numeric(10,2);
+alter table public.shop_events add column if not exists max_hours int not null default 3 check (max_hours between 1 and 12);
+alter table public.shop_event_bookings add column if not exists hours int not null default 1 check (hours between 1 and 12);
+alter table public.shop_event_bookings add column if not exists amount numeric(10,2);
+
+create or replace function private.event_slot_capacity() returns trigger language plpgsql security definer set search_path = '' as $$
+declare cap int; sm int; taken int;
+begin
+  if new.status = 'cancelled' then return new; end if;
+  select capacity, slot_minutes into cap, sm from public.shop_events where id = new.event_id for update;
+  select count(*) into taken from public.shop_event_bookings b
+    where b.event_id = new.event_id and b.status <> 'cancelled' and b.id <> new.id
+      and tstzrange(b.slot_start, b.slot_start + make_interval(mins => b.hours * sm))
+       && tstzrange(new.slot_start, new.slot_start + make_interval(mins => new.hours * sm));
+  if taken >= cap then raise exception 'That slot is full.' using errcode = '23P01'; end if;
+  return new;
+end $$;
+create or replace trigger shop_event_bookings_capacity before insert or update of slot_start, status, hours on public.shop_event_bookings
+  for each row execute function private.event_slot_capacity();
+
+-- Job vacancies: managed by the admin, open ones readable by anyone (public page /#jobs).
+create table if not exists public.shop_vacancies (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  title text not null,
+  details text,
+  timing text,
+  pay text,
+  contact text,
+  open boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create index if not exists shop_vacancies_household_idx on public.shop_vacancies (household_id);
+alter table public.shop_vacancies enable row level security;
+grant select on public.shop_vacancies to anon;
+drop policy if exists "public reads open" on public.shop_vacancies;
+create policy "public reads open" on public.shop_vacancies for select to anon, authenticated
+  using (open or household_id in (select private.my_household_ids()));
+drop policy if exists "admin writes" on public.shop_vacancies;
+create policy "admin writes" on public.shop_vacancies for insert to authenticated with check (household_id in (select private.my_admin_household_ids()));
+drop policy if exists "admin updates" on public.shop_vacancies;
+create policy "admin updates" on public.shop_vacancies for update to authenticated
+  using (household_id in (select private.my_admin_household_ids())) with check (household_id in (select private.my_admin_household_ids()));
+drop policy if exists "admin deletes" on public.shop_vacancies;
+create policy "admin deletes" on public.shop_vacancies for delete to authenticated using (household_id in (select private.my_admin_household_ids()));
+
+-- The 2026 rate card and the GTA VI pricing for the existing shop.
+insert into public.shop_settings (household_id) select id from public.households on conflict do nothing;
+insert into public.shop_rates (household_id, kind, minutes, price, happy)
+select h.id, r.kind, r.minutes, r.price, r.happy from public.households h, (values
+  ('PS', 30, 60, false), ('PC', 30, 30, true), ('PC', 60, 60, true), ('PS', 30, 40, true), ('PS', 60, 80, true)
+) as r(kind, minutes, price, happy)
+on conflict (household_id, kind, minutes, happy) do update set price = excluded.price;
+update public.shop_events set slot_minutes = 60, first_hour_price = 200, next_hour_price = 100, max_hours = 3, price = 200
+  where name = 'GTA VI launch';

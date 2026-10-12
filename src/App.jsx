@@ -32,6 +32,7 @@ const VaultItems = lazy(() => import('./components/VaultItems'))
 const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
+const Jobs = lazy(() => import('./components/Jobs'))
 const loadShop = () => import('./components/shop/ShopModule')
 const ShopModule = lazy(loadShop)
 function preloadBudget() {
@@ -59,6 +60,8 @@ const VAULT_TABS = [
 
 export default function App() {
   const [session, setSession] = useState(undefined)
+  const [hash, setHash] = useState(() => location.hash)
+  useEffect(() => { const on = () => setHash(location.hash); window.addEventListener('hashchange', on); return () => window.removeEventListener('hashchange', on) }, [])
 
   useEffect(() => {
     if (!isConfigured) return
@@ -77,6 +80,8 @@ export default function App() {
       </div>
     )
   }
+  // Public jobs page: open to anyone with the link, signed in or not.
+  if (hash === '#jobs') return <Suspense fallback={<Splash />}><Jobs /></Suspense>
   if (session === undefined) return <Splash />
   if (!session) return <Auth />
   return isMember(session) ? <MemberShell session={session} /> : <Shell session={session} />

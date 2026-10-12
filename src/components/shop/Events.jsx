@@ -25,6 +25,12 @@ function daySlots(ev, day) {
   for (let t = start.getTime(); t + ev.slot_minutes * 60_000 <= end.getTime(); t += ev.slot_minutes * 60_000) out.push(new Date(t))
   return out
 }
+// Owner's pricing: first hour at the event price, each later hour at the normal price (GTA VI: ₹200 then
+// ₹100/hr), per head. Older events without first/next prices charge `price` per slot.
+const firstPrice = (ev) => Number(ev.first_hour_price ?? ev.price) || 0
+const nextPrice = (ev) => Number(ev.next_hour_price ?? ev.price) || 0
+const eventPrice = (ev, hours, players = 1) => (firstPrice(ev) + Math.max(0, hours - 1) * nextPrice(ev)) * players
+const covers = (ev, b, t) => { const s0 = new Date(b.slot_start).getTime(); return t >= s0 && t < s0 + (b.hours || 1) * ev.slot_minutes * 60_000 }
 const dayChip = (day) => new Date(`${day}T00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 
 export default function Events({ householdId, admin, toast }) {
@@ -72,7 +78,7 @@ export default function Events({ householdId, admin, toast }) {
   const done = (msg) => { setSheet(null); toast(msg); loadBookings(); loadEvents() }
 
   async function setStatus(b, status) {
-    if (status === 'cancelled' && !await dialog.confirm({ title: `Cancel ${b.customer_name}’s slot?`, message: Number(b.advance_paid) ? `They paid ${rs(b.advance_paid)} advance. Return it or keep it as their deposit.` : 'The slot opens up for someone else.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep', danger: true })) return
+    if (status === 'cancelled' && !await dialog.confirm({ title: `Cancel ${b.customer_name}’s booking?`, message: Number(b.advance_paid) ? `The ${rs(b.advance_paid)} advance is non-refundable. The hours open up for someone else.` : 'The hours open up for someone else.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep', danger: true })) return
     const { error } = await supabase.from('shop_event_bookings').update({ status }).eq('id', b.id)
     if (error) toast(error.message); else { toast(status === 'arrived' ? `${b.customer_name} arrived` : 'Booking cancelled'); loadBookings() }
   }
@@ -91,7 +97,7 @@ export default function Events({ householdId, admin, toast }) {
             {admin && <button className="btn small ghost" onClick={() => setSheet({ kind: 'event', event: ev })}>Edit</button>}
           </div>
           <div className="gx-event-name">{ev.name}</div>
-          <div className="muted small">{durLabel(ev.slot_minutes)} slots · {rs(ev.price)} · {rs(ev.advance)} advance · {ev.capacity} per slot{ev.active ? '' : ' · switched off'}</div>
+          <div className="muted small">{rs(firstPrice(ev))} first {durLabel(ev.slot_minutes)} · {rs(nextPrice(ev))} each extra · up to {ev.max_hours || 1} · per head · {rs(ev.advance)} advance, non-refundable · {ev.capacity} at a time{ev.active ? '' : ' · switched off'}</div>
           <div className="gx-kpis" style={{ marginTop: 12 }}>
             <div className="gx-kpi"><b>{bookings.length} / {totalSlots}</b><span>Slots booked</span></div>
             <div className="gx-kpi"><b>{rs(advance)}</b><span>Advance taken</span></div>
@@ -105,7 +111,7 @@ export default function Events({ householdId, admin, toast }) {
         <Chips scroll options={eventDays(ev).map((d) => [d, dayChip(d)])} value={day} onChange={setDay} />
         <div className="gx-slots gx-dateswipe" {...daySwipe}>
           {slots.map((t) => {
-            const here = bookings.filter((b) => new Date(b.slot_start).getTime() === t.getTime())
+            const here = bookings.filter((b) => covers(ev, b, t.getTime()))
             const full = here.length >= ev.capacity
             return (
               <div key={t.toISOString()} className={`card gx-slot ${full ? 'full' : ''}`}>
@@ -120,7 +126,7 @@ export default function Events({ householdId, admin, toast }) {
                   <div key={b.id} className="line">
                     <div className="grow">
                       <div>{b.customer_name}{b.players > 1 ? ` +${b.players - 1}` : ''} {b.status === 'arrived' && <span className="pill gx-pill free">Arrived</span>}</div>
-                      <div className="muted small">{b.customer_phone || 'No mobile'} · {Number(b.advance_paid) ? `${rs(b.advance_paid)} ${b.advance_mode}` : 'No advance'}</div>
+                      <div className="muted small">{timeLabel(b.slot_start)} – {timeLabel(new Date(b.slot_start).getTime() + (b.hours || 1) * ev.slot_minutes * 60_000)} · {b.customer_phone || 'No mobile'} · {Number(b.advance_paid) ? `${rs(b.advance_paid)} ${b.advance_mode}` : 'No advance'}</div>
                     </div>
                     {b.status !== 'arrived' && <button className="btn small" onClick={() => setStatus(b, 'arrived')}>Arrived</button>}
                     <button className="btn small ghost" aria-label="Cancel booking" onClick={() => setStatus(b, 'cancelled')}>✕</button>
@@ -133,25 +139,37 @@ export default function Events({ householdId, admin, toast }) {
       </>)}
       {!ev && admin && <button className="btn block" onClick={() => setSheet({ kind: 'event', event: null })}>+ New event</button>}
       </div>
-      {sheet?.kind === 'book' && <BookSheet ev={ev} slot={sheet.slot} householdId={householdId} onClose={() => setSheet(null)} onDone={done} />}
+      {sheet?.kind === 'book' && <BookSheet ev={ev} slot={sheet.slot} householdId={householdId} onClose={() => setSheet(null)} onDone={done}
+        freeHours={(() => { // how many hours in a row are free from this slot, up to the event's max
+          let n = 0
+          for (const t of slots.filter((x) => x >= sheet.slot)) {
+            if (n >= (ev.max_hours || 1) || bookings.filter((b) => covers(ev, b, t.getTime())).length >= ev.capacity) break
+            if (t.getTime() !== sheet.slot.getTime() + n * ev.slot_minutes * 60_000) break
+            n++
+          }
+          return Math.max(1, n)
+        })()} />}
       {sheet?.kind === 'event' && <EventSheet event={sheet.event} householdId={householdId} onClose={() => setSheet(null)}
         onDone={(msg, id) => { if (id) setEventId(id); done(msg) }} />}
     </section>
   )
 }
 
-function BookSheet({ ev, slot, householdId, onClose, onDone }) {
+function BookSheet({ ev, slot, freeHours, householdId, onClose, onDone }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [players, setPlayers] = useState(1)
-  const [mode, setMode] = useState(Number(ev.advance) ? 'cash' : 'none')
+  const [hours, setHours] = useState(1)
+  const total = eventPrice(ev, hours, players)
+  const end = slot.getTime() + hours * ev.slot_minutes * 60_000
+  const [mode, setMode] = useState(Number(ev.advance) ? 'online' : 'none')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   async function save() {
     setBusy(true); setError(null)
     const { error } = await supabase.from('shop_event_bookings').insert({
       household_id: householdId, event_id: ev.id, slot_start: slot.toISOString(),
-      customer_name: name.trim(), customer_phone: phone.trim() || null, players,
+      customer_name: name.trim(), customer_phone: phone.trim() || null, players, hours, amount: total,
       advance_paid: mode === 'none' ? 0 : ev.advance, advance_mode: mode === 'none' ? null : mode,
     })
     setBusy(false)
@@ -159,22 +177,25 @@ function BookSheet({ ev, slot, householdId, onClose, onDone }) {
     onDone(`${name.trim()} booked for ${timeLabel(slot)}`)
   }
   return (
-    <Sheet title={`Book · ${ev.name}`} sub={`${dayChip(ymd(slot))} · ${timeLabel(slot)} – ${timeLabel(slot.getTime() + ev.slot_minutes * 60_000)}`} onClose={onClose} onSubmit={save}>
+    <Sheet title={`Book · ${ev.name}`} sub={`${dayChip(ymd(slot))} · ${timeLabel(slot)} – ${timeLabel(end)}`} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
       <div className="grid2">
         <label>Customer<input autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" /></label>
         <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" placeholder="For reminders" /></label>
       </div>
-      <div className="caps muted">Players</div>
-      <Chips options={[[1, '1'], [2, '2'], [3, '3'], [4, '4']]} value={players} onChange={setPlayers} />
-      <div className="caps muted">Advance {rs(ev.advance)}</div>
-      <Chips options={[['cash', 'Paid cash'], ['online', 'Paid online'], ['none', 'Not paid']]} value={mode} onChange={setMode} />
+      <div className="caps muted">How long</div>
+      <Chips options={Array.from({ length: freeHours }, (_, i) => [i + 1, durLabel((i + 1) * ev.slot_minutes)])} value={hours} onChange={setHours} />
+      <div className="caps muted">Players · charged per head</div>
+      <Chips options={Array.from({ length: ev.system_kind === 'PS' ? 3 : 1 }, (_, i) => [i + 1, String(i + 1)])} value={players} onChange={setPlayers} />
+      <div className="caps muted">Advance {rs(ev.advance)} · non-refundable once paid</div>
+      <Chips options={[['online', 'Online / scanner'], ['cash', 'Cash'], ['none', 'Not paid yet']]} value={mode} onChange={setMode} />
       <div className="gx-box">
-        <SumRow label="Slot price" value={rs(ev.price)} />
+        <SumRow label={`First ${durLabel(ev.slot_minutes)}${players > 1 ? ` × ${players}` : ''}`} value={rs(firstPrice(ev) * players)} />
+        {hours > 1 && <SumRow label={`${hours - 1} more × ${rs(nextPrice(ev))}${players > 1 ? ` × ${players}` : ''}`} value={rs((hours - 1) * nextPrice(ev) * players)} />}
         <SumRow label="Advance now" value={`−${rs(mode === 'none' ? 0 : ev.advance)}`} />
-        <SumRow strong label="At the counter" value={rs(Number(ev.price) - (mode === 'none' ? 0 : Number(ev.advance)))} />
+        <SumRow strong label="At the counter" value={rs(total - (mode === 'none' ? 0 : Number(ev.advance)))} />
       </div>
-      <SheetActions onClose={onClose} busy={busy} disabled={!name.trim()} label="Book slot" />
+      <SheetActions onClose={onClose} busy={busy} disabled={!name.trim()} label={`Book ${durLabel(hours * ev.slot_minutes)}`} />
     </Sheet>
   )
 }
@@ -182,7 +203,7 @@ function BookSheet({ ev, slot, householdId, onClose, onDone }) {
 function EventSheet({ event, householdId, onClose, onDone }) {
   const today = ymd(new Date())
   const [f, setF] = useState(() => event ? { ...event, open_time: event.open_time.slice(0, 5), close_time: event.close_time.slice(0, 5) }
-    : { name: '', system_kind: 'PS', starts_on: today, ends_on: today, open_time: '10:00', close_time: '22:00', slot_minutes: 120, capacity: 1, price: 200, advance: 100, active: true })
+    : { name: '', system_kind: 'PS', starts_on: today, ends_on: today, open_time: '10:00', close_time: '22:00', slot_minutes: 60, capacity: 1, first_hour_price: 200, next_hour_price: 100, max_hours: 3, advance: 100, active: true })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const set = (k) => (e) => setF({ ...f, [k]: e?.target ? e.target.value : e })
@@ -190,7 +211,9 @@ function EventSheet({ event, householdId, onClose, onDone }) {
     if (f.ends_on < f.starts_on) { setError('The last day is before the first day.'); return }
     setBusy(true); setError(null)
     const row = { name: f.name.trim(), system_kind: f.system_kind, starts_on: f.starts_on, ends_on: f.ends_on, open_time: f.open_time, close_time: f.close_time,
-      slot_minutes: Number(f.slot_minutes), capacity: Number(f.capacity) || 1, price: Number(f.price) || 0, advance: Number(f.advance) || 0, active: f.active }
+      slot_minutes: Number(f.slot_minutes), capacity: Number(f.capacity) || 1, advance: Number(f.advance) || 0, active: f.active,
+      first_hour_price: Number(f.first_hour_price ?? f.price) || 0, next_hour_price: Number(f.next_hour_price ?? f.price) || 0,
+      price: Number(f.first_hour_price ?? f.price) || 0, max_hours: Number(f.max_hours) || 1 }
     const res = event ? await supabase.from('shop_events').update(row).eq('id', event.id).select().single()
       : await supabase.from('shop_events').insert({ ...row, household_id: householdId }).select().single()
     setBusy(false)
@@ -210,11 +233,13 @@ function EventSheet({ event, householdId, onClose, onDone }) {
         <label>Closes<input type="time" required value={f.close_time} onChange={set('close_time')} /></label>
       </div>
       <div className="caps muted">Slot length</div>
-      <Chips options={[[60, '1 hr'], [90, '1.5 hr'], [120, '2 hr'], [180, '3 hr']]} value={Number(f.slot_minutes)} onChange={set('slot_minutes')} />
+      <Chips options={[[60, '1 hr'], [30, '30 min'], [120, '2 hr']]} value={Number(f.slot_minutes)} onChange={set('slot_minutes')} />
       <div className="grid2">
-        <label>Per slot (systems)<input inputMode="numeric" value={f.capacity} onChange={set('capacity')} /></label>
-        <label>Price (₹)<input inputMode="numeric" value={f.price} onChange={set('price')} /></label>
-        <label>Advance (₹)<input inputMode="numeric" value={f.advance} onChange={set('advance')} /></label>
+        <label>First slot, per head (₹)<input inputMode="numeric" value={f.first_hour_price ?? f.price ?? ''} onChange={set('first_hour_price')} /></label>
+        <label>Each extra slot (₹)<input inputMode="numeric" value={f.next_hour_price ?? f.price ?? ''} onChange={set('next_hour_price')} /></label>
+        <label>Most slots per booking<input inputMode="numeric" value={f.max_hours ?? 1} onChange={set('max_hours')} /></label>
+        <label>Systems at a time<input inputMode="numeric" value={f.capacity} onChange={set('capacity')} /></label>
+        <label>Advance, non-refundable (₹)<input inputMode="numeric" value={f.advance} onChange={set('advance')} /></label>
         <label>Bookings<select value={f.active ? 'on' : 'off'} onChange={(e) => setF({ ...f, active: e.target.value === 'on' })}><option value="on">Open</option><option value="off">Closed</option></select></label>
       </div>
       <SheetActions onClose={onClose} busy={busy} disabled={!f.name.trim()} label={event ? 'Save' : 'Add event'} />

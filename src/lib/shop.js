@@ -21,10 +21,12 @@ export const dayStart = (d = new Date()) => { const x = new Date(d); x.setHours(
 export const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 
 // Cheapest way to cover `minutes` with the rate card for this kind of system (e.g. PC: 30 min ₹50,
-// 1 hr ₹80 → 90 min = ₹130, 2 hr = ₹160). Covering, not exact: PS5 with only a 1-hr rate charges
-// 30 min as 1 hr. No rates for the kind → 0.
-export function priceFor(rates, kind, minutes) {
-  const items = rates.filter((r) => r.kind === kind && r.minutes > 0)
+// 1 hr ₹80 → 90 min = ₹130, 2 hr = ₹160). Covering, not exact: a kind with only a 1-hr rate charges
+// 30 min as 1 hr. `happy` uses the happy-hour rates (falls back to normal ones if the kind has none).
+// Per head: multiply by the number of players. No rates for the kind → 0.
+export function priceFor(rates, kind, minutes, happy = false) {
+  let items = rates.filter((r) => r.kind === kind && r.minutes > 0 && !!r.happy === !!happy)
+  if (!items.length && happy) items = rates.filter((r) => r.kind === kind && r.minutes > 0 && !r.happy)
   if (!items.length || minutes <= 0) return 0
   const cost = new Array(minutes + 1).fill(Infinity)
   cost[0] = 0
@@ -36,7 +38,30 @@ export function priceFor(rates, kind, minutes) {
 
 export const sessionEnd = (s) => new Date(new Date(s.started_at).getTime() + s.minutes * MIN)
 export const sessionTotal = (s) => Number(s.gaming_amount) + Number(s.extend_amount) + Number(s.fnb_before) + Number(s.fnb_while) - Number(s.discount)
-export const sessionPaid = (s) => Number(s.paid_cash) + Number(s.paid_online)
+export const sessionPaid = (s) => Number(s.paid_cash) + Number(s.paid_online) + Number(s.paid_deposit || 0)
+
+// Happy hours: full days of the week from shop_settings.happy_days (0 = Sunday; default Wed–Fri).
+export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+export const isHappyDay = (settings, d = new Date()) => (settings?.happy_days || [3, 4, 5]).includes(new Date(d).getDay())
+
+// Deposits count within the month they were paid (Indian date) and lapse after it.
+export const monthStart = (d = new Date()) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-01` }
+export const customerKey = (name, phone) => (phone || '').replace(/\D/g, '').slice(-10) || (name || '').trim().toLowerCase()
+export function depositBalances(deposits) {
+  const m = new Map()
+  for (const d of deposits) {
+    const k = customerKey(d.customer_name, d.customer_phone)
+    const row = m.get(k) || { key: k, name: d.customer_name, phone: d.customer_phone, balance: 0 }
+    row.balance += (d.kind === 'add' ? 1 : -1) * Number(d.amount)
+    if (d.customer_phone) row.phone = d.customer_phone
+    m.set(k, row)
+  }
+  return [...m.values()].filter((r) => r.balance > 0.5).sort((a, b) => a.name.localeCompare(b.name))
+}
+export const balanceFor = (deposits, name, phone) => {
+  const k = customerKey(name, phone)
+  return depositBalances(deposits).find((r) => r.key === k || (!phone && r.name.trim().toLowerCase() === (name || '').trim().toLowerCase()))
+}
 export const minutesLeft = (s, now = Date.now()) => (sessionEnd(s).getTime() - now) / MIN
 
 export function useNow(ms = 15_000) {
@@ -56,12 +81,12 @@ export function useShopId(memberHouseholdId) {
 }
 
 export function useShop(householdId) {
-  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [] })
+  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null })
 
   const reload = useCallback(async () => {
     if (!householdId) return
     const from = dayStart().toISOString()
-    const [sys, rates, todays, running, cash, adv, shifts] = await Promise.all([
+    const [sys, rates, todays, running, cash, adv, shifts, deps, settings] = await Promise.all([
       supabase.from('shop_systems').select('*').eq('household_id', householdId).eq('active', true).order('sort').order('name'),
       supabase.from('shop_rates').select('*').eq('household_id', householdId).order('kind').order('minutes'),
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).neq('status', 'cancelled').order('started_at', { ascending: false }),
@@ -69,13 +94,16 @@ export function useShop(householdId) {
       supabase.from('shop_cash').select('*').eq('household_id', householdId).gte('at', from).order('at', { ascending: false }),
       supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status').eq('household_id', householdId).gte('created_at', from).gt('advance_paid', 0),
       supabase.from('shop_shifts').select('*').eq('household_id', householdId).is('clock_out', null),
+      supabase.from('shop_deposits').select('*').eq('household_id', householdId).eq('month', monthStart()).order('created_at', { ascending: false }),
+      supabase.from('shop_settings').select('*').eq('household_id', householdId).maybeSingle(),
     ])
-    const err = [sys, rates, todays, running, cash, adv, shifts].find((r) => r.error)?.error
+    const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings].find((r) => r.error)?.error
     if (err) { setState((s) => ({ ...s, loading: false, error: err.message })); return }
     setState({
       loading: false, error: null, systems: sys.data, rates: rates.data,
       sessions: [...todays.data, ...running.data], cash: cash.data,
       advances: adv.data.filter((b) => b.status !== 'cancelled'), shifts: shifts.data,
+      deposits: deps.data, settings: settings.data,
     })
   }, [householdId])
 
@@ -84,6 +112,7 @@ export function useShop(householdId) {
     reload()
     const ch = supabase.channel(`shop:${householdId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_sessions', filter: `household_id=eq.${householdId}` }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_deposits', filter: `household_id=eq.${householdId}` }, reload)
       .subscribe()
     const onVisible = () => { if (document.visibilityState === 'visible') reload() }
     document.addEventListener('visibilitychange', onVisible)
@@ -107,16 +136,18 @@ export function useDay(householdId, day) {
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).lt('started_at', to).neq('status', 'cancelled').order('started_at', { ascending: false }),
       supabase.from('shop_cash').select('*').eq('household_id', householdId).gte('at', from).lt('at', to).order('at', { ascending: false }),
       supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status').eq('household_id', householdId).gte('created_at', from).lt('created_at', to).gt('advance_paid', 0),
-    ]).then(([s, c, a]) => {
-      if (live) setData({ sessions: s.data || [], cash: c.data || [], advances: (a.data || []).filter((b) => b.status !== 'cancelled'), shifts: [] })
+      supabase.from('shop_deposits').select('*').eq('household_id', householdId).gte('created_at', from).lt('created_at', to),
+    ]).then(([s, c, a, d]) => {
+      if (live) setData({ sessions: s.data || [], cash: c.data || [], advances: (a.data || []).filter((b) => b.status !== 'cancelled'), shifts: [], deposits: d.data || [] })
     })
     return () => { live = false }
   }, [householdId, key])
   return data
 }
 
-// One day's money from sessions, event advances and the cash drawer (default: today).
-export function dayTotals({ sessions, cash, advances }, from = dayStart()) {
+// One day's money from sessions, event advances, deposits paid in and the cash drawer (default: today).
+// A deposit is money in on the day it's paid; using it later on a session isn't counted again.
+export function dayTotals({ sessions, cash, advances, deposits = [] }, from = dayStart()) {
   const t = { cash: 0, online: 0, owed: 0, sessions: 0, fnb: 0, minutes: 0, out: 0, in: 0, open: null, count: null }
   for (const s of sessions) {
     if (new Date(s.started_at) < from) continue
@@ -125,6 +156,12 @@ export function dayTotals({ sessions, cash, advances }, from = dayStart()) {
     if (s.status === 'closed') { t.sessions++; t.minutes += s.minutes }
   }
   for (const b of advances) { if (b.advance_mode === 'online') t.online += Number(b.advance_paid); else t.cash += Number(b.advance_paid) }
+  const to = addDays(from, 1)
+  for (const d of deposits) {
+    if (d.kind !== 'add' || new Date(d.created_at) < from || new Date(d.created_at) >= to) continue
+    if (d.mode === 'online') t.online += Number(d.amount); else t.cash += Number(d.amount)
+    t.deposits = (t.deposits || 0) + Number(d.amount)
+  }
   for (const c of cash) {
     if (c.kind === 'out') t.out += Number(c.amount)
     else if (c.kind === 'in') t.in += Number(c.amount)

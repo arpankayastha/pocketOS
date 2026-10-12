@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useDialog } from '../../lib/dialog'
-import { durLabel, rs } from '../../lib/shop'
+import { DAY_NAMES, durLabel, rs } from '../../lib/shop'
 import { Appearance, Collapsible, FingerprintCard, SecurityCard, SignOutCard } from '../Settings'
 import { Chips, Sheet, SheetActions } from './ui'
 
@@ -66,33 +66,52 @@ function Systems({ shop, householdId, toast }) {
 }
 
 function Rates({ shop, householdId, toast }) {
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(null) // null | { happy }
   async function remove(r) {
     const { error } = await supabase.from('shop_rates').delete().eq('id', r.id)
     if (error) toast(error.message); else shop.reload()
   }
+  async function toggleDay(d) {
+    const days = shop.settings?.happy_days || [3, 4, 5]
+    const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort()
+    const { error } = await supabase.from('shop_settings').upsert({ household_id: householdId, happy_days: next, updated_at: new Date().toISOString() })
+    if (error) toast(error.message); else shop.reload()
+  }
   const kinds = [...new Set(['PC', 'PS', ...shop.rates.map((r) => r.kind)])]
+  const happyDays = shop.settings?.happy_days || [3, 4, 5]
+  const table = (happy) => kinds.map((k) => {
+    const rows = shop.rates.filter((r) => r.kind === k && !!r.happy === happy)
+    if (!rows.length) return null
+    return (
+      <div key={k + happy}>
+        <div className="caps muted">{k === 'PS' ? 'PS5' : k} · per head</div>
+        {rows.map((r) => (
+          <div key={r.id} className="line">
+            <span>{durLabel(r.minutes)}</span><b className="grow" style={{ textAlign: 'right' }}>{rs(r.price)}</b>
+            <button className="btn small ghost" aria-label="Remove rate" onClick={() => remove(r)}>✕</button>
+          </div>
+        ))}
+      </div>
+    )
+  })
   return (
-    <Collapsible id="gx-rates" title="Rates" summary={shop.rates.map((r) => `${r.kind} ${durLabel(r.minutes)} ${rs(r.price)}`).join(' · ')} defaultOpen>
-      <p className="muted small" style={{ marginTop: 0 }}>Longer times use the cheapest mix: with 30 min ₹50 and 1 hr ₹80, 1.5 hr is ₹130. Old bills keep the price they had.</p>
-      {kinds.map((k) => (
-        <div key={k}>
-          <div className="caps muted">{k === 'PS' ? 'PlayStation' : k}</div>
-          {shop.rates.filter((r) => r.kind === k).map((r) => (
-            <div key={r.id} className="line">
-              <span>{durLabel(r.minutes)}</span><b className="grow" style={{ textAlign: 'right' }}>{rs(r.price)}</b>
-              <button className="btn small ghost" aria-label="Remove rate" onClick={() => remove(r)}>✕</button>
-            </div>
-          ))}
-        </div>
-      ))}
-      <button className="btn small" onClick={() => setAdding(true)}>+ Add rate</button>
-      {adding && <RateSheet householdId={householdId} onClose={() => setAdding(false)} onDone={() => { setAdding(false); shop.reload() }} />}
+    <Collapsible id="gx-rates" title="Rates" summary={`Happy hours: ${happyDays.map((d) => DAY_NAMES[d]).join(', ') || 'none'}`} defaultOpen>
+      <p className="muted small" style={{ marginTop: 0 }}>Per head: a PS5 game for 3 is 3 × the rate. Longer times use the cheapest mix (30 min ₹50 + 1 hr ₹80 → 1.5 hr ₹130). Old bills keep the price they had.</p>
+      <h4 className="gx-sub">Normal days</h4>
+      {table(false)}
+      <button className="btn small" onClick={() => setAdding({ happy: false })}>+ Add rate</button>
+      <h4 className="gx-sub">Happy hours · full day</h4>
+      <div className="chips">
+        {DAY_NAMES.map((n, d) => <button key={n} type="button" className={`chip chip-btn ${happyDays.includes(d) ? 'on' : ''}`} onClick={() => toggleDay(d)}>{n}</button>)}
+      </div>
+      {table(true)}
+      <button className="btn small" onClick={() => setAdding({ happy: true })}>+ Add happy-hour rate</button>
+      {adding && <RateSheet householdId={householdId} happy={adding.happy} onClose={() => setAdding(null)} onDone={() => { setAdding(null); shop.reload() }} />}
     </Collapsible>
   )
 }
 
-function RateSheet({ householdId, onClose, onDone }) {
+function RateSheet({ householdId, happy, onClose, onDone }) {
   const [kind, setKind] = useState('PC')
   const [minutes, setMinutes] = useState(60)
   const [price, setPrice] = useState('')
@@ -100,16 +119,16 @@ function RateSheet({ householdId, onClose, onDone }) {
   const [error, setError] = useState(null)
   async function save() {
     setBusy(true)
-    const { error } = await supabase.from('shop_rates').upsert({ household_id: householdId, kind, minutes, price: Number(price) }, { onConflict: 'household_id,kind,minutes' })
+    const { error } = await supabase.from('shop_rates').upsert({ household_id: householdId, kind, minutes, price: Number(price), happy }, { onConflict: 'household_id,kind,minutes,happy' })
     setBusy(false)
     if (error) setError(error.message); else onDone()
   }
   return (
-    <Sheet title="Rate" sub="Adding a time that already has a rate replaces it." onClose={onClose} onSubmit={save}>
+    <Sheet title={happy ? 'Happy-hour rate' : 'Rate'} sub="Per head. Adding a time that already has a rate replaces it." onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
-      <Chips options={[['PC', 'PC'], ['PS', 'PlayStation']]} value={kind} onChange={setKind} />
+      <Chips options={[['PC', 'PC'], ['PS', 'PS5']]} value={kind} onChange={setKind} />
       <Chips scroll options={[[30, '30 min'], [60, '1 hr'], [120, '2 hr'], [180, '3 hr'], [300, '5 hr']]} value={minutes} onChange={setMinutes} />
-      <label>Price (₹)<input autoFocus inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))} /></label>
+      <label>Price per head (₹)<input autoFocus inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))} /></label>
       <SheetActions onClose={onClose} busy={busy} disabled={!price} label="Save rate" />
     </Sheet>
   )
