@@ -10,13 +10,14 @@ import Vacancies from './Vacancies'
 // Admin: staff logins with their designation, hourly pay (owner, 12 Oct: ₹33 an hour; staff never see pay),
 // days and hours worked this month (from shift Log in / Log out) and pay = hours × rate,
 // and fixing shifts (a missed log-out, a wrong time).
-const DESIGNATIONS = ['Supervisor', 'Sr Manager', 'Manager', 'Trainee']
+const DESIGNATIONS = ['Super Senior Manager', 'Sr Manager', 'Manager', 'Temporary Manager', 'Trainee'] // owner, 12 Oct
 const DEFAULT_RATE = 33
 export default function Staff({ householdId, toast }) {
   const dialog = useDialog()
   const [month, setMonth] = useState(0) // 0 = this month, -1 = last month
   const [staff, setStaff] = useState(null)
   const [shifts, setShifts] = useState([])
+  const [adjust, setAdjust] = useState([]) // deductions (−) and bonuses (+) this month
   const [error, setError] = useState(null)
   const [sheet, setSheet] = useState(null) // { kind: 'add' } | { kind: 'shift', shift } | { kind: 'login', ... }
   const [open, setOpen] = useState(null) // staff user_id whose shifts are listed
@@ -26,13 +27,15 @@ export default function Staff({ householdId, toast }) {
   const startIso = start.toISOString(), endIso = end.toISOString()
 
   const load = useCallback(async () => {
-    const [m, s] = await Promise.all([
+    const monthKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`
+    const [m, s, a] = await Promise.all([
       supabase.from('household_members').select('*').eq('household_id', householdId).eq('role', 'staff').order('created_at'),
       supabase.from('shop_shifts').select('*').eq('household_id', householdId).gte('clock_in', startIso).lt('clock_in', endIso).order('clock_in', { ascending: false }),
+      supabase.from('shop_pay_adjustments').select('*').eq('household_id', householdId).eq('month', monthKey).order('created_at'),
     ])
     if (m.error || s.error) { setError((m.error || s.error).message); return }
-    setStaff(m.data); setShifts(s.data)
-  }, [householdId, startIso, endIso])
+    setStaff(m.data); setShifts(s.data); setAdjust(a.data || [])
+  }, [householdId, startIso, endIso]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
 
   const mins = (s) => ((s.clock_out ? new Date(s.clock_out) : new Date()) - new Date(s.clock_in)) / 60_000
@@ -40,15 +43,23 @@ export default function Staff({ householdId, toast }) {
     const own = shifts.filter((s) => s.user_id === m.user_id)
     const minutes = own.reduce((a, s) => a + mins(s), 0)
     const days = new Set(own.map((s) => new Date(s.clock_in).toDateString())).size
-    return { ...m, own, minutes, days, pay: Math.round((minutes / 60) * (Number(m.hourly_rate) || 0)), on: own.find((s) => !s.clock_out) }
+    const earned = Math.round((minutes / 60) * (Number(m.hourly_rate) || 0))
+    const adj = adjust.filter((x) => x.user_id === m.user_id)
+    const adjTotal = adj.reduce((t, x) => t + Number(x.amount), 0)
+    return { ...m, own, minutes, days, earned, adj, adjTotal, pay: Math.max(0, earned + adjTotal), on: own.find((s) => !s.clock_out) }
   })
   const removed = shifts.filter((s) => !s.user_id)
   const monthSwipe = useSwipe({ onLeft: () => setMonth((m) => Math.min(0, m + 1)), onRight: () => setMonth((m) => m - 1) })
-  const totalPay = rows.reduce((a, r) => a + r.pay, 0)
+  const totalPay = rows.reduce((a, r) => a + r.pay, 0) // after deductions and bonuses
 
   async function remove(m) {
     if (!await dialog.confirm({ title: `Remove ${m.display_name || m.username}?`, message: 'Their login stops working. Their shifts stay in the records with their name.', confirmLabel: 'Remove', danger: true })) return
     try { await manageMembers('remove', { householdId, userId: m.user_id }); toast('Login removed'); load() } catch (e) { toast(e.message) }
+  }
+  async function removeAdjust(x) {
+    if (!await dialog.confirm({ title: `Remove “${x.reason}”?`, message: `${Number(x.amount) < 0 ? 'Deduction' : 'Bonus'} of ${rs(Math.abs(x.amount))}.`, confirmLabel: 'Remove', danger: true })) return
+    const { error } = await supabase.from('shop_pay_adjustments').delete().eq('id', x.id)
+    if (error) toast(error.message); else { toast('Removed'); load() }
   }
   async function clockOutNow(s) {
     const { error } = await supabase.from('shop_shifts').update({ clock_out: new Date().toISOString(), edited_by: (await supabase.auth.getUser()).data.user?.id }).eq('id', s.id)
@@ -62,7 +73,7 @@ export default function Staff({ householdId, toast }) {
       <div className="gx-dateswipe" style={{ order: 1 }} {...monthSwipe}>
       <Chips options={[[0, 'This month'], [-1, 'Last month']]} value={month < -1 ? null : month} onChange={setMonth} />
       <div className="card">
-        <div className="muted small">Staff pay · {start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} · hours × hourly rate</div>
+        <div className="muted small">Staff pay · {start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} · hours × hourly rate − deductions + bonuses</div>
         <div className="gx-big">{rs(totalPay)}</div>
         <div className="muted small">{hoursLabel(rows.reduce((a, r) => a + r.minutes, 0))} · {rows.length} staff · swipe for other months</div>
       </div>
@@ -91,12 +102,21 @@ export default function Staff({ householdId, toast }) {
           </div>
           <div className="gx-sum" style={{ marginTop: 8 }}>
             <span className="muted">{m.days} day{m.days === 1 ? '' : 's'} · {hoursLabel(m.minutes)} × {rs(m.hourly_rate)}/hr</span>
-            <b className="amt">{rs(m.pay)}</b>
+            <b className="amt">{rs(m.earned)}</b>
           </div>
+          {m.adj.map((x) => (
+            <div key={x.id} className="gx-sum">
+              <span className={Number(x.amount) < 0 ? 'neg' : 'pos'}>{Number(x.amount) < 0 ? 'Deducted' : 'Bonus'} · {x.reason}</span>
+              <span className="amt"><span className={Number(x.amount) < 0 ? 'neg' : 'pos'}>{Number(x.amount) < 0 ? '−' : '+'}{rs(Math.abs(x.amount))}</span>
+                <button className="btn link" style={{ padding: '0 0 0 6px' }} aria-label="Remove" onClick={() => removeAdjust(x)}>✕</button></span>
+            </div>
+          ))}
+          {m.adj.length > 0 && <div className="gx-sum strong"><span>Pay this month</span><span className="amt">{rs(m.pay)}</span></div>}
           <div className="gx-btns" style={{ marginTop: 8 }}>
             <button className="btn small" onClick={() => setOpen(open === m.user_id ? null : m.user_id)}>{open === m.user_id ? 'Hide shifts' : `Shifts (${m.own.length})`}</button>
             {m.on && <button className="btn small" onClick={() => clockOutNow(m.on)}>Log out now</button>}
             <button className="btn small ghost" onClick={() => setSheet({ kind: 'edit', member: m })}>Edit</button>
+            <button className="btn small ghost" onClick={() => setSheet({ kind: 'adjust', member: m })}>Deduct / bonus</button>
             <button className="btn small danger-ghost" onClick={() => remove(m)}>Remove</button>
           </div>
           {open === m.user_id && (
@@ -115,6 +135,7 @@ export default function Staff({ householdId, toast }) {
       {sheet?.kind === 'add' && <AddStaff householdId={householdId} onClose={() => setSheet(null)} onCreated={(username, pin) => { load(); setSheet({ kind: 'login', username, pin }) }} />}
       {sheet?.kind === 'edit' && <EditStaff householdId={householdId} member={sheet.member} onClose={() => setSheet(null)}
         onDone={(msg, login) => { load(); if (login) setSheet({ kind: 'login', ...login, reset: true }); else { setSheet(null); toast(msg) } }} />}
+      {sheet?.kind === 'adjust' && <AdjustSheet member={sheet.member} householdId={householdId} month={start} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
       {sheet?.kind === 'login' && <LoginDetails {...sheet} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'shift' && <ShiftEditor shift={sheet.shift} name={sheet.name} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
     </section>
@@ -230,6 +251,34 @@ function ShiftEditor({ shift, name, onClose, onDone }) {
       <label>Logged out<input type="datetime-local" value={outAt} onChange={(e) => setOutAt(e.target.value)} /></label>
       <SheetActions onClose={onClose} busy={busy} label="Save" />
       <button type="button" className="btn link" style={{ justifySelf: 'start', color: 'var(--neg)' }} onClick={del}>Delete this shift</button>
+    </Sheet>
+  )
+}
+
+// Owner: cut pay for a mistake (or add a bonus) — kept per month with the reason, never shown to staff.
+function AdjustSheet({ member, householdId, month, onClose, onDone }) {
+  const [kind, setKind] = useState('deduct')
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const name = member.display_name || member.username
+  const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}-01`
+  async function save() {
+    setBusy(true)
+    const value = (kind === 'deduct' ? -1 : 1) * Number(amount)
+    const { error } = await supabase.from('shop_pay_adjustments').insert({ household_id: householdId, user_id: member.user_id, staff_name: name, month: monthKey, amount: value, reason: reason.trim() })
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    onDone(`${kind === 'deduct' ? 'Deducted' : 'Bonus'} ${rs(amount)} · ${name}`)
+  }
+  return (
+    <Sheet title={`Pay · ${name}`} sub={`${month.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} · only you see this`} onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <Chips options={[['deduct', 'Deduct'], ['bonus', 'Bonus']]} value={kind} onChange={setKind} />
+      <label>Amount (₹)<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
+      <label>Reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={kind === 'deduct' ? 'e.g. drawer short ₹200, late 2 days' : 'e.g. extra hours for the event'} /></label>
+      <SheetActions onClose={onClose} busy={busy} disabled={!Number(amount) || reason.trim().length < 2} label={kind === 'deduct' ? `Deduct ${rs(amount || 0)}` : `Add ${rs(amount || 0)}`} danger={kind === 'deduct'} />
     </Sheet>
   )
 }

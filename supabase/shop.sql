@@ -584,3 +584,19 @@ alter table public.hisab_categories add column if not exists monthly_limit numer
 -- shop_shifts_one_on_duty (household_id) where clock_out is null; shop_clock('in') raises
 -- "<name> is on duty since <time>. Only one person can be logged in — ask them to log out first."
 create unique index if not exists shop_shifts_one_on_duty on public.shop_shifts (household_id) where clock_out is null;
+
+-- Owner (12 Oct, 3 pm): designations Super Senior Manager / Sr Manager / Manager / Temporary Manager / Trainee
+-- (migration designations_super_senior_temporary; 'Supervisor' still allowed for old rows), and pay deductions /
+-- bonuses per staff per month (migration staff_pay_adjustments): admin only, never shown to staff.
+create table if not exists public.shop_pay_adjustments (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  staff_name text,
+  month date not null,
+  amount numeric(10,2) not null check (amount <> 0),   -- negative = deduction, positive = bonus
+  reason text not null,
+  entered_by text,
+  created_at timestamptz not null default now()
+);
+alter table public.shop_pay_adjustments enable row level security;   -- policy "admin only" (my_admin_household_ids)
