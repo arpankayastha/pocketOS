@@ -15,6 +15,7 @@ import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES, SHOP, VAULT } from './lib/modules'
 import { useDialog } from './lib/dialog'
+import { routeHas, useRouteState } from './lib/route'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
 import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
@@ -104,10 +105,10 @@ function Splash() {
 }
 
 function Shell({ session }) {
-  const [module, setModuleState] = useState(() => {
+  const [module, setModuleState] = useRouteState(0, () => {
     const saved = localStorage.getItem(ACTIVE_MODULE_KEY)
     return MODULES.some((m) => m.id === saved) ? saved : 'shop'
-  })
+  }, (v) => MODULES.some((m) => m.id === v))
   const setModule = (id) => { setModuleState(id); localStorage.setItem(ACTIVE_MODULE_KEY, id) }
   // Vault state lives here, not in VaultModule, so switching modules doesn't lock the vault.
   const vault = useVault(session)
@@ -172,7 +173,7 @@ function MemberShell({ session }) {
   const vault = useVault(session, { householdId: info?.household_id })
   const appLock = useAppLock(session)
   const dialog = useDialog()
-  const [module, setModule] = useState('shop')
+  const [module, setModule] = useRouteState(0, 'shop', (v) => v === 'shop' || v === 'vault')
   const [toast, setToast] = useState(null)
   const vaultOn = vault.status === 'locked' || vault.status === 'unlocked'
 
@@ -222,7 +223,8 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   const tabs = hisabOnly ? BUDGET_TABS.filter((t) => t.id === 'hisab') : BUDGET_TABS
   // The "home" tab: where the app opens and where Android back returns to. A member's comes from
   // their login (`startTab`); the owner picks one per household ("Opens on" in the HouseholdSheet).
-  const [tab, setTab] = useState(startTab)
+  const [tab, setTab] = useRouteState(1, startTab, (v) => v === 'settings' || BUDGET_TABS.some((t) => t.id === v))
+  const [fromAddress] = useState(() => routeHas(1))
   const [fabOpen, setFabOpen] = useState(false)
   const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
   const [dataVersion, setDataVersion] = useState(0)
@@ -240,6 +242,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
     if (member || !household || seenHousehold.current === household.id) return
     const first = seenHousehold.current === null
     seenHousehold.current = household.id
+    if (first && fromAddress) return // opened on a tab from the address (refresh): stay there
     if (first || tab !== 'settings') setTab(household.start_tab || 'dashboard')
   }, [member, household, tab])
 
@@ -309,7 +312,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
 }
 
 function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword, member }) {
-  const [tab, setTab] = useState('items')
+  const [tab, setTab] = useRouteState(1, 'items', (v) => VAULT_TABS.some((t) => t.id === v))
   useBackAction(tab !== 'items', () => setTab('items'), 2)
   const [recoveryCode, setRecoveryCode] = useState(null) // { code, firstTime } shown once
   const [openItem, setOpenItem] = useState(null)

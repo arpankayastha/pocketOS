@@ -5,6 +5,7 @@ import PillNav from '../PillNav'
 import { ListSkeleton } from '../Skeleton'
 import { useBackAction } from '../../lib/backNav'
 import { useSwipe } from '../../lib/useSwipe'
+import { useRouteState } from '../../lib/route'
 import { useShop, useShopId } from '../../lib/shop'
 import { CalendarIcon, CashIcon, ClockIcon, HomeIcon, MonitorIcon, SettingsIcon, UsersIcon } from '../../lib/icons'
 import Floor from './Floor'
@@ -36,7 +37,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   const shop = useShop(householdId)
   const tabs = member ? STAFF_TABS : ADMIN_TABS
   const home = tabs[0].id
-  const [tab, setTab] = useState(home)
+  const [tab, setTab] = useRouteState(1, home, (v) => v === 'settings' || tabs.some((t) => t.id === v))
   useBackAction(tab !== home, () => setTab(home), 2)
   const [msg, setMsg] = useState(null)
   const timer = useRef(null)
