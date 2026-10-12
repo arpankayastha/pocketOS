@@ -558,8 +558,7 @@ alter table public.shop_sessions add column if not exists paused_minutes numeric
 alter table public.shop_sessions add column if not exists booking_id uuid references public.shop_bookings(id) on delete set null;
 create index if not exists shop_sessions_booking_idx on public.shop_sessions (booking_id);
 create unique index if not exists shop_sessions_one_running_seat on public.shop_sessions (system_id, seat) where status = 'running';
--- STILL TO APPLY (the migration was cancelled 3 times; run it in the SQL editor): without it only one PS5
--- controller can run at a time.
+-- Applied by the owner in the SQL editor (12 Oct): the old one-running-session-per-system index.
 drop index if exists public.shop_sessions_one_running;
 -- private.session_end(session) = started_at + minutes + paused minutes (a paused session keeps its time left);
 -- private.free_systems now counts seats (PS5 = 3) and uses session_end; public_book needs `players` free seats;

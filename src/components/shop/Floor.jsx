@@ -245,7 +245,7 @@ function ExtendSheet({ system, session, rates, onClose, onDone }) {
   }
   return (
     <Sheet title={`Extend ${session.system_name}`} sub={`${session.customer_name} · now ends ${timeLabel(sessionEnd(session))}`} onClose={onClose} onSubmit={save}>
-      <Chips options={[[30, '+30 min'], [60, '+1 hr'], [120, '+2 hr']]} value={add} onChange={setAdd} />
+      <Chips options={[[30, '+30 min'], [60, '+1 hr'], [90, '+1h 30m'], [120, '+2 hr']]} value={add} onChange={setAdd} />
       <div className="gx-box">
         <SumRow label="New end" value={timeLabel(newEnd)} />
         <SumRow strong label="Extend amount" value={`+${rs(extra)}`} />

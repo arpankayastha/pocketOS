@@ -9,7 +9,7 @@ import { rememberMine } from '../lib/mine'
 // talks to public_shop_info / public_availability / public_book (security definer, checked on the server).
 // Customers book a PC or the PS5 for today or tomorrow, pay the full amount by UPI (advance, non-refundable),
 // and staff confirm the request on the Floor once the payment shows up.
-const DURS = [30, 60, 90, 120, 180]
+const DURS = [30, 60, 90, 120, 150, 180] // online: up to 3 h (public_book's limit)
 
 export default function Book() {
   const [info, setInfo] = useState(null)
