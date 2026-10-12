@@ -71,7 +71,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
         {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
         {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       </>) : (<>
-      <div className="chips">
+      <div className="gx-floor-head">
         <span className="pill gx-pill busy">{busySeats} playing</span>
         <span className="pill gx-pill free">{totalSeats - busySeats} free</span>
         {isHappyDay(shop.settings) && <span className="pill gx-pill happy">Happy hours today</span>}
@@ -190,12 +190,11 @@ function SessionRow({ sys, s, now, badge, onSheet, onPause }) {
   return (<>
     <div className="gx-sys-top">
       <span className={`gx-badge ${badge.length > 3 ? 'sm' : ''} ${sys.kind === 'PS' ? 'ps' : ''}`}>{badge}</span>
-      <div className="grow">
-        <div className="gx-name">{s.customer_name}{s.players > 1 ? ` · ${s.players} players` : ''}</div>
-        <div className="muted small">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s, now))}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''} · code <b className="mono">{shortCode(s.id)}</b></div>
-      </div>
+      <div className="gx-name grow">{s.customer_name}{s.players > 1 ? ` · ${s.players} players` : ''}</div>
       <span className={`pill gx-pill ${state}`}>{s.paused_at ? `Paused · ${durLabel(left)} left` : left <= 0 ? `Time up ${durLabel(-left)} ago` : `${durLabel(left)} left`}</span>
     </div>
+    {/* Full width under the name, so it never squeezes beside the time pill. */}
+    <div className="muted small gx-meta">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s, now))}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''} · code <b className="mono">{shortCode(s.id)}</b></div>
     <PaidLine s={s} />
     <div className="gx-bar"><i style={{ width: `${pct}%` }} /></div>
     <div className="gx-btns">

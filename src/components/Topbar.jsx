@@ -5,7 +5,7 @@ import { householdColor } from '../lib/colors'
 
 // Shared header: brand, module switcher (when the login has more than one module), then the
 // module's own tabs (`children`, desktop only; phones use the bottom nav) and actions (`right`).
-export default function Topbar({ module, setModule, modules = MODULES, children, right }) {
+export default function Topbar({ module, setModule, modules = MODULES, children, right, title }) {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4)
@@ -17,6 +17,8 @@ export default function Topbar({ module, setModule, modules = MODULES, children,
   return (
     <header className={`topbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="brand"><BrandMark size={28} /><span className="brand-text">GRANDXGAMER</span></div>
+      {/* Phones: the page you're on, with its section above it (the tabs themselves are in the bottom bar). */}
+      {title && <div className="topbar-title"><small>{modules.length > 1 ? (modules.find((m) => m.id === module) || modules[0])?.label : 'GRANDXGAMER'}</small><b>{title}</b></div>}
       {modules.length > 1 ? <ModuleSwitch module={module} setModule={setModule} modules={modules} /> : <div className="brand-member">GRANDXGAMER</div>}
       {/* On laptops the pages sit under a heading with the section's name (sidebar); elsewhere this wrapper is invisible. */}
       <div className="topbar-pages" data-title={(modules.find((m) => m.id === module) || modules[0])?.label}>{children}</div>

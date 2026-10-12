@@ -728,35 +728,9 @@ details.section[open] .chev { transform: rotate(90deg); }
   .btn.icon, .btn.small, .chip button, .seg button { min-height: 44px; min-width: 44px; }
   .btn { min-height: 44px; }
 
-  /* Floating pill navigation (components/PillNav.jsx); the + button sits beside it on the right. */
-  .pill-nav {
-    display: flex; justify-content: center; position: fixed; z-index: 15; pointer-events: none;
-    left: calc(12px + var(--safe-l)); right: calc(12px + var(--safe-r)); bottom: calc(14px + var(--safe-b));
-    transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s;
-  }
-  .pill-nav.with-fab { right: calc(12px + 56px + 10px + var(--safe-r)); }
-  .pill-nav.hidden { transform: translateY(calc(100% + 24px)) scale(.9); opacity: 0; }
-  .pill-bar {
-    pointer-events: auto; display: flex; gap: 2px; padding: 5px; border-radius: 999px; max-width: 100%;
-    background: color-mix(in srgb, var(--card-2) 82%, transparent); backdrop-filter: blur(18px) saturate(1.4);
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
-    border: 1px solid color-mix(in srgb, var(--text) 9%, transparent); box-shadow: 0 10px 30px rgb(0 0 0 / .45);
-  }
-  .pill-bar button {
-    flex: 0 1 auto; min-width: 42px; height: 46px; padding: 0 12px; border: none; border-radius: 999px;
-    display: flex; align-items: center; justify-content: center; gap: 0; background: none; color: var(--muted);
-    cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap;
-    transition: background .25s, color .2s, padding .25s, gap .25s;
-  }
-  .pill-bar button svg { width: 22px; height: 22px; flex: none; }
-  .pill-label { display: inline-block; max-width: 0; overflow: hidden; opacity: 0; transition: max-width .3s cubic-bezier(.2, .8, .2, 1), opacity .2s; }
-  .pill-bar button.active { flex-shrink: 0; gap: 7px; padding: 0 15px 0 13px; color: var(--text); background: color-mix(in srgb, var(--accent) 24%, transparent); }
-  .pill-bar button.active svg { color: var(--accent); }
-  .pill-bar button.active .pill-label { max-width: 96px; opacity: 1; }
-  .pill-bar button:active { transform: scale(.94); }
-  .fab-wrap { bottom: calc(14px + var(--safe-b)); right: calc(12px + var(--safe-r)); }
+  .fab-wrap { bottom: calc(76px + var(--safe-b)); right: calc(14px + var(--safe-r)); }
   .fab-wrap .fab { width: 56px; height: 56px; }
-  .toast { bottom: calc(84px + var(--safe-b)); }
+  .toast { bottom: calc(80px + var(--safe-b)); }
   .will-preview { padding: 8px; }
   .will-preview .will-doc { padding: 22px 18px; font-size: 11pt; }
   .share-row { grid-template-columns: 1fr 96px auto; }
@@ -933,7 +907,7 @@ details.section[open] .chev { transform: rotate(90deg); }
   .gx-split > .gx-col > * { order: 0 !important; }
   /* Floor: the shop floor as a grid of systems */
   .gx-floor { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: stretch; gap: 16px; }
-  .gx-floor > .chips { grid-column: 1 / -1; }
+  .gx-floor > .chips, .gx-floor > .gx-floor-head { grid-column: 1 / -1; }
   .gx-floor .gx-sys { align-content: space-between; min-height: 150px; padding: 18px; }
   .gx-floor .gx-sys.free .gx-sys-top { flex-wrap: wrap; height: 100%; align-content: space-between; }
   .gx-floor .gx-sys.free .gx-sys-top > .btn { flex-basis: 100%; min-height: 42px; font-size: 14px; margin-top: 18px; }
@@ -960,6 +934,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 
 /* Pages wrapper in the Topbar: invisible except in the laptop sidebar. */
 .topbar-pages { display: contents; }
+.topbar-title { display: none; }
 
 /* ---------------------------------------------------------------- Laptop sidebar (owner: "laptop menu needs a redesign")
    From 960 px (also Chrome's "Desktop site" on a phone, which lays out at 980 px) the shared Topbar becomes a fixed left sidebar: brand, module switch, the module's pages as a
@@ -1244,3 +1219,43 @@ html:fullscreen .pub-page.timer-page { padding-top: 16px; }
 .gx-paid { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; margin: 8px 0 2px; }
 .gx-paid .ok { color: var(--pos); }
 .gx-paid .due { color: var(--neg); font-weight: 600; }
+.gx-floor-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gx-floor-head .gx-pill { padding: 6px 10px; }
+.gx-floor-head .gx-book-btn { margin-left: auto; }
+/* Phones: button rows fill the card width evenly, so wrapped rows line up instead of leaving ragged gaps. */
+@media (max-width: 799px) { .gx-btns > .btn, .gx-btns > a.btn { flex: 1 1 auto; justify-content: center; text-align: center; } }
+.gx-meta { margin-top: -2px; }
+
+/* Phones and tablets up to 959 px: page title in the top bar, tabs in a bottom bar; the laptop sidebar starts at 960. */
+@media (max-width: 959px) {
+  /* Bottom tab bar (components/PillNav.jsx): fixed, full width, icon + label on every tab. */
+  .pill-nav {
+    display: grid; grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); position: fixed; z-index: 15; inset: auto 0 0 0;
+    padding: 6px calc(6px + var(--safe-r)) calc(6px + var(--safe-b)) calc(6px + var(--safe-l));
+    background: color-mix(in srgb, var(--card) 94%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line);
+  }
+  .pill-nav button {
+    display: grid; justify-items: center; align-content: center; gap: 3px; min-height: 52px; padding: 4px 0; border: none; border-radius: 12px;
+    background: none; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .pill-nav button svg { width: 22px; height: 22px; }
+  .pill-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill-nav button.active { color: var(--accent); background: color-mix(in srgb, var(--accent-bg) 16%, transparent); }
+  .pill-nav button:active { transform: scale(.95); }
+  /* Top bar: brand mark, the page title (section above it), module icons, settings. */
+  .topbar .topbar-title { display: grid; min-width: 0; flex: 1; line-height: 1.1; }
+  .topbar-title small { font: 600 10px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .topbar-title b { font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: 22px; letter-spacing: .02em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+  .topbar-title ~ .brand-member { display: none; }
+  .topbar-title ~ .module-switch .module-label { max-width: 0 !important; opacity: 0; margin-left: -6px; }
+  .topbar-title ~ .module-switch button { padding: 0 9px; }
+  .topbar-title ~ .topbar-right { margin-left: 0; }
+  .topbar-title ~ .topbar-pages .spacer { display: none; }
+  .topbar .tabs { display: none; }
+  .topbar .brand-text { display: none; }
+  .content { padding-bottom: calc(150px + var(--safe-b)); }
+  .fab-wrap { bottom: calc(76px + var(--safe-b)); right: calc(14px + var(--safe-r)); }
+  .toast { bottom: calc(80px + var(--safe-b)); }
+  body:has(:is(input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file]), textarea):focus) :is(.fab-wrap, .pill-nav) { display: none; }
+}

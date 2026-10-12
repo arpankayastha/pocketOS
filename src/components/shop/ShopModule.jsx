@@ -69,7 +69,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
 
   return (
     <div className="app">
-      <Topbar {...topbar} right={
+      <Topbar {...topbar} title={tab === 'settings' ? 'Settings' : tabs.find((t) => t.id === tab)?.label} right={
         <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Shop settings" title="Shop settings"
           onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon /></button>
       }>

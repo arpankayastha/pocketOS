@@ -258,7 +258,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
 
   return (
     <div className="app">
-      <Topbar {...topbar} right={data.households.length > 0 && (<>
+      <Topbar {...topbar} title={tab === 'settings' ? 'Settings' : tabs.find((t) => t.id === tab)?.label} right={data.households.length > 0 && (<>
         {data.households.length > 1 && <HouseholdMenu member={member} households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
           onCreate={async () => {
             const name = await dialog.prompt({ title: 'New household', label: 'Name', placeholder: "e.g. Parents' Home", confirmLabel: 'Create' })
@@ -351,7 +351,7 @@ function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword, m
 
   return (
     <div className="app">
-      <Topbar {...topbar} right={unlocked && (
+      <Topbar {...topbar} title={unlocked ? VAULT_TABS.find((t) => t.id === tab)?.label : 'Vault'} right={unlocked && (
         <button className="btn icon lock-btn" aria-label="Lock vault" title="Lock vault" onClick={vault.lockNow}><LockIcon /></button>
       )}>
         {ready ? (
