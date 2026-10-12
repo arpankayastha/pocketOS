@@ -11,6 +11,8 @@ import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
 import { isMember, memberName } from './lib/members'
 import { isCustomer } from './lib/mine'
+import { usePinLock } from './lib/usePinLock'
+import PinLock from './components/PinLock'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES, SHOP, VAULT } from './lib/modules'
@@ -114,6 +116,7 @@ function Shell({ session }) {
   // Vault state lives here, not in VaultModule, so switching modules doesn't lock the vault.
   const vault = useVault(session)
   useEffect(() => { preloadBudget() }, []) // fetch Home while the unlock screen is up
+  const pinLock = usePinLock(session)
   const appLock = useAppLock(session)
   const dialog = useDialog()
   const [mustResetPassword, setMustResetPassword] = useState(false) // after unlocking with the recovery code
@@ -139,9 +142,10 @@ function Shell({ session }) {
       </div></div>
     ) : <Splash />
   }
-  // Owner (12 Oct): no lock screen in front of the app — signing in (PIN, password or fingerprint) is enough.
-  // The master password / vault fingerprint is asked only when opening the Vault (VaultModule's own gate),
-  // and once unlocked it stays open for this visit (vaultSession) until the idle auto-lock.
+  // Owner (12 Oct): no master-password screen in front of the app (that's only for the Vault), but a 4-digit
+  // app PIN when the app is opened / after 15 min idle, so nobody else can open it on the shop PC.
+  if (pinLock.state === 'loading') return <Splash />
+  if (pinLock.state !== 'open') return <PinLock lock={pinLock} session={session} />
 
   const topbar = { module, setModule }
   return (
@@ -149,7 +153,7 @@ function Shell({ session }) {
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
         : module === 'budget' ? <BudgetModule topbar={topbar} email={memberName(session)} vault={vault} />
-        : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} userId={session.user.id} email={memberName(session)} vault={vault} appLock={appLock} /></Suspense>}
+        : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} userId={session.user.id} email={memberName(session)} vault={vault} appLock={appLock} pinLock={pinLock} /></Suspense>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -172,6 +176,7 @@ function MemberShell({ session }) {
     })
   }, [session.user.id])
   const vault = useVault(session, { householdId: info?.household_id })
+  const pinLock = usePinLock(session)
   const appLock = useAppLock(session)
   const dialog = useDialog()
   const [module, setModule] = useRouteState(0, 'shop', (v) => v === 'shop' || v === 'vault')
@@ -186,12 +191,14 @@ function MemberShell({ session }) {
   useBackAction(module !== 'shop', () => setModule('shop'), 1)
 
   if (vault.status === 'loading' || !info) return <Splash />
+  if (pinLock.state === 'loading') return <Splash />
+  if (pinLock.state !== 'open') return <PinLock lock={pinLock} session={session} />
   // Same for staff: no app lock after signing in; the Vault asks only when it's opened.
   const topbar = { module, setModule, modules: vaultOn ? [SHOP, VAULT] : [SHOP] }
   return (
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' && vaultOn ? <VaultModule topbar={topbar} vault={vault} member />
-        : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} member memberHouseholdId={info.household_id} userId={session.user.id} email={memberName(session)} appLock={null} vault={vaultOn ? vault : null} /></Suspense>}
+        : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} member memberHouseholdId={info.household_id} userId={session.user.id} email={memberName(session)} appLock={null} vault={vaultOn ? vault : null} pinLock={pinLock} /></Suspense>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )

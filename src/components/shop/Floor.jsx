@@ -135,9 +135,10 @@ export default function Floor({ shop, householdId, toast, admin }) {
           </div>
         )
       })}
-      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} free={freeSeats(sheet.system)} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} onClose={close} onDone={done} />}
+      {sheet?.kind === 'move' && <MoveSheet session={sheet.session} systems={shop.systems} freeOf={freeSeats} onClose={close} onDone={done} />}
       {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
     </section>
@@ -187,6 +188,7 @@ function SessionRow({ sys, s, now, badge, onSheet, onPause }) {
     <div className="gx-btns">
       <button className="btn small" onClick={() => onSheet('fnb')}>+ F&amp;B</button>
       <button className="btn small" onClick={() => onSheet('extend')}>Extend</button>
+      <button className="btn small" onClick={() => onSheet('move')}>Move</button>
       <button className="btn small" onClick={() => onPause(!s.paused_at)}>{s.paused_at ? '▶ Resume' : '⏸ Pause'}</button>
       <button className="btn small primary" style={{ marginLeft: 'auto' }} onClick={() => onSheet('end')}>End &amp; collect</button>
     </div>
@@ -197,9 +199,14 @@ const FNB = [[0, 'None'], [10, '₹10'], [20, '₹20'], [30, '₹30'], [40, '₹
 
 // Start one PC, or one or more PS5 controllers together (each controller = one customer, one timer, priced
 // per head). A booking's amount is split across its controllers as already paid online.
-function StartSheet({ system, seats, free, booking, dues, rates, settings, happy, householdId, onClose, onDone }) {
+function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rates, settings, happy, householdId, onClose, onDone }) {
   const now = useNow(30_000)
+  // Owner: "booked PC2 but sat at PC4" — any free system of the same kind can be picked here.
+  const [system, setSystem] = useState(first)
+  const free = freeOf(system)
+  const others = systems.filter((x) => x.kind === first.kind && freeOf(x).length > 0)
   const [picked, setPicked] = useState(seats || [free[0]])
+  const [cashPart, setCashPart] = useState('')
   const [name, setName] = useState(booking?.customer_name || '')
   const [phone, setPhone] = useState(booking?.customer_phone || '')
   const [mins, setMins] = useState(booking?.minutes || 60)
@@ -221,14 +228,18 @@ function StartSheet({ system, seats, free, booking, dues, rates, settings, happy
   async function save() {
     setBusy(true); setError(null)
     const split = (v) => Math.round((v / count) * 100) / 100
+    // Cash + online (owner: "₹80 bill, 50 cash and 30 online"): the cash part is shared across the timers.
+    const cashShare = pay === 'split' && total > 0 ? Math.min(Number(cashPart) || 0, total) / total : 0
     const rows = picked.map((seat, i) => {
       const g = bookedSame ? split(Number(booking.amount)) : each
       const f = i === 0 ? fnb : 0
+      const c = Math.round((g + f) * cashShare)
       return {
         household_id: householdId, system_id: system.id, system_name: system.name, seat,
         customer_name: (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
-        paid_cash: pay === 'cash' ? g + f : 0, paid_online: pay === 'online' ? g + f : pay === 'booked' ? split(Number(booking.amount)) : 0,
+        paid_cash: pay === 'cash' ? g + f : pay === 'split' ? c : 0,
+        paid_online: pay === 'online' ? g + f : pay === 'split' ? g + f - c : pay === 'booked' ? split(Number(booking.amount)) : 0,
       }
     })
     const { data: created, error } = await supabase.from('shop_sessions').insert(rows).select('id')
@@ -241,6 +252,10 @@ function StartSheet({ system, seats, free, booking, dues, rates, settings, happy
   return (
     <Sheet title={`Start ${system.name}`} sub={`${timeLabel(now)} – ${timeLabel(now + mins * 60_000)}${happy ? ' · happy hours' : ''}`} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
+      {others.length > 1 && (<>
+        <div className="caps muted">{first.kind === 'PS' ? 'Console' : 'PC'} · where they sit</div>
+        <Chips scroll options={others.map((x) => [x.id, x.name])} value={system.id} onChange={(id) => { const x = others.find((o) => o.id === id); setSystem(x); setPicked(freeOf(x).slice(0, Math.max(1, picked.length))) }} />
+      </>)}
       {multi && (<>
         <div className="caps muted">Controllers · one customer each, charged per head</div>
         <div className="chips">{free.map((n) => <button type="button" key={n} className={`chip chip-btn ${picked.includes(n) ? 'on' : ''}`} onClick={() => toggle(n)}>🎮 {n}</button>)}</div>
@@ -253,12 +268,14 @@ function StartSheet({ system, seats, free, booking, dues, rates, settings, happy
       <Chips scroll options={FNB} value={fnb} onChange={setFnb} />
       <div className="caps muted">Payment</div>
       {booking && !online && Number(booking.paid) > 0 && <div className="small muted">{rs(booking.paid)} advance was taken when booking — it's offered at the end as {booking.customer_name}’s deposit.</div>}
-      <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online']]} value={pay} onChange={setPay} />
-      {pay === 'online' && <UpiQrButton settings={settings} amount={total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
+      <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online']]} value={pay} onChange={setPay} />
+      {pay === 'split' && <label>Cash part<input inputMode="numeric" value={cashPart} onChange={(e) => setCashPart(e.target.value.replace(/\D/g, ''))} placeholder={`of ${rs(total)} — rest is online`} /></label>}
+      {(pay === 'online' || pay === 'split') && <UpiQrButton settings={settings} amount={pay === 'split' ? Math.max(0, total - (Number(cashPart) || 0)) : total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
         <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : total)} />
+        {pay === 'split' && <SumRow label={`Cash ${rs(Math.min(Number(cashPart) || 0, total))} · online`} value={rs(Math.max(0, total - (Number(cashPart) || 0)))} />}
       </div>
       <SheetActions onClose={onClose} busy={busy} label={count > 1 ? `Start ${count} timers` : 'Start timer'} />
     </Sheet>
@@ -543,6 +560,32 @@ function BookSheet({ shop, householdId, onClose, onDone }) {
         <SumRow strong label="At the counter" value={rs(Math.max(0, amount - (pay === 'counter' ? 0 : Number(adv) || 0)))} />
       </div>
       <SheetActions onClose={onClose} busy={busy} disabled={!time || name.trim().length < 2 || phone.replace(/\D/g, '').length < 10} label={time ? `Book ${timeLabel(time)}` : 'Pick a time'} />
+    </Sheet>
+  )
+}
+
+// Owner: "booked PC2 but sat at PC4 — need to change it". Moves a running session (time, bill and code kept)
+// to a free PC, or a free controller on the PS5.
+function MoveSheet({ session, systems, freeOf, onClose, onDone }) {
+  const kind = systems.find((x) => x.id === session.system_id)?.kind || (session.system_name.startsWith('PS') ? 'PS' : 'PC')
+  const targets = systems.filter((x) => x.kind === kind).flatMap((x) => freeOf(x).map((seat) => ({ sys: x, seat, key: `${x.id}:${seat}`, label: (x.seats || 1) > 1 ? `${x.name} · 🎮${seat}` : x.name })))
+  const [to, setTo] = useState(targets[0]?.key || null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  async function save() {
+    const t = targets.find((x) => x.key === to)
+    if (!t) return
+    setBusy(true)
+    const { error } = await supabase.from('shop_sessions').update({ system_id: t.sys.id, system_name: t.sys.name, seat: t.seat }).eq('id', session.id)
+    setBusy(false)
+    if (error) { setError(error.code === '23505' ? 'That one just got taken. Pick another.' : error.message); return }
+    onDone(`${session.customer_name} moved to ${t.label}`)
+  }
+  return (
+    <Sheet title={`Move ${session.customer_name}`} sub={`Now on ${session.system_name}${(session.seat || 1) > 1 ? ` · 🎮${session.seat}` : ''}. Time, bill and code stay the same.`} onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      {targets.length === 0 ? <div className="muted small">Nothing free to move to right now.</div> : <Chips options={targets.map((t) => [t.key, t.label])} value={to} onChange={setTo} />}
+      <SheetActions onClose={onClose} busy={busy} disabled={!to} label="Move" />
     </Sheet>
   )
 }

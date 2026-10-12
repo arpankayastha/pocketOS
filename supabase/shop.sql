@@ -618,3 +618,14 @@ alter table public.shop_bookings add column if not exists note text;
 -- public.shop_customer_search(household, q) (shop staff / admin): one row per mobile from sessions, bookings,
 -- deposits, event bookings and signed-up customers, latest name, visits, last seen; matched by name word start
 -- or mobile digits; max 8. Index shop_sessions_household_phone_idx.
+
+-- App PIN (owner, 12 Oct: "on the shop PC it opened straight away"), migration app_pin_lock:
+-- private.app_pins (user_id, bcrypt hash, fails); public.app_pin_status() {set, fresh}, set_app_pin(pin, current)
+-- (current PIN needed unless none yet or signed in within 10 min — private.fresh_sign_in() reads the JWT "amr"),
+-- check_app_pin(pin) {ok, left} (5 wrong in a row → the client signs out), app_pin_signed_in() resets the count.
+create table if not exists private.app_pins (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  hash text not null,
+  fails int not null default 0,
+  updated_at timestamptz not null default now()
+);

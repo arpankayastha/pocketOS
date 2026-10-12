@@ -6,9 +6,10 @@ import { Appearance, Collapsible, FingerprintCard, SecurityCard, SignOutCard } f
 import { Chips, Sheet, SheetActions } from './ui'
 import { uploadShopImage } from '../../lib/media'
 import Passkeys from '../Passkeys'
+import { PinSettings } from '../PinLock'
 
 // Shop ⚙: systems and the rate card (admin), then the per-login cards everyone has.
-export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, toast }) {
+export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, pinLock, toast }) {
   return (
     <section className="gx-split even">
       {admin && <div className="gx-col">
@@ -21,6 +22,7 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
       <PaymentAlerts toast={toast} />
       {admin && <Payments shop={shop} householdId={householdId} toast={toast} />}
       {admin && <LoginPassword toast={toast} />}
+      {pinLock && <PinSettings lock={pinLock} Wrap={Collapsible} toast={toast} />}
       <Passkeys Wrap={Collapsible} withGoogle />
       <Appearance />
       {vault?.status === 'unlocked' && <SecurityCard vault={vault} member={member} />}

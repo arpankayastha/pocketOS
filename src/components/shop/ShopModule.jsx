@@ -32,7 +32,7 @@ const STAFF_TABS = [
   { id: 'cash', label: 'Cash', icon: CashIcon },
 ]
 
-export default function ShopModule({ topbar, member, memberHouseholdId, userId, email, vault, appLock }) {
+export default function ShopModule({ topbar, member, memberHouseholdId, userId, email, vault, appLock, pinLock }) {
   const householdId = useShopId(memberHouseholdId)
   const shop = useShop(householdId)
   const tabs = member ? STAFF_TABS : ADMIN_TABS
@@ -62,7 +62,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   else if (tab === 'cash') body = <Cash {...props} admin={!member} />
   else if (tab === 'events') body = <Events householdId={householdId} admin={!member} settings={shop.settings} toast={toast} />
   else if (tab === 'staff') body = <Staff householdId={householdId} toast={toast} />
-  else if (tab === 'settings') body = <ShopSettings {...props} admin={!member} email={email} member={member} appLock={appLock} vault={vault} />
+  else if (tab === 'settings') body = <ShopSettings {...props} admin={!member} email={email} member={member} appLock={appLock} vault={vault} pinLock={pinLock} />
 
   return (
     <div className="app">

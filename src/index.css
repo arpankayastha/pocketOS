@@ -1180,3 +1180,9 @@ label.btn.disabled { opacity: .6; pointer-events: none; }
 .gx-cust-row:hover, .gx-cust-row:focus { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 @media (min-width: 600px) { .gx-cust { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; } .gx-cust .gx-cust-list { grid-column: 1 / -1; grid-row: 2; } }
 .gx-book-day { margin: 4px 0 2px; }
+.pin-lock { display: grid; gap: 12px; text-align: center; justify-items: center; }
+.pin-input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pin-lock .pin-input:focus + .pin-dots i { border-color: var(--accent); }
+.pin-dots { display: flex; gap: 14px; padding: 8px 0; cursor: text; }
+.pin-dots i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); }
+.pin-dots i.on { background: var(--accent); border-color: var(--accent); }
