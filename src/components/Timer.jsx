@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { BrandMark } from '../lib/icons'
 import { timeLabel } from '../lib/shop'
 import { alarm, scheduleAlarm, speak } from '../lib/alarm'
+import PublicNav from './PublicNav'
 
 // Timer screen (/#timer) — open it on each PC (or on the customer's phone): type the 6-character code from the
 // booking, or the one staff read from Slots for a walk-in. Once staff press Start it shows the time left, live,
@@ -55,6 +55,19 @@ export default function Timer() {
     }
     booked.current = { key, cancel }
   }, [data])
+
+  // Staff can press End before the time runs out (owner's test: closed 3 min early, so the booked time-up beep
+  // was cancelled and the page went quiet). A session that was running and is now ended early rings time up at once (on time, it already rang).
+  const wasRunning = useRef(null)
+  useEffect(() => {
+    if (!data) return
+    const id = (x) => `${x.system}:${x.seat}`
+    const prev = wasRunning.current
+    wasRunning.current = new Set((data.sessions || []).filter((x) => x.status === 'running').map(id))
+    if (prev && (data.sessions || []).some((x) => x.status !== 'running' && prev.has(id(x)) && new Date(x.ends_at) > new Date(data.now))) {
+      alarm(10); setTimeout(() => speak('Your time is up'), 10_000)
+    }
+  }, [data])
   useEffect(() => () => booked.current.cancel.forEach((f) => f()), [])
 
   function use(e) {
@@ -72,9 +85,8 @@ export default function Timer() {
   const ended = (data?.sessions || []).filter((s) => s.status !== 'running')
 
   return (
-    <div className="timer-page">
-      <header className="timer-head"><a className="brand big" href="#"><BrandMark size={30} />GRANDXGAMER</a>
-        {code && <button className="btn small ghost" onClick={fullscreen}>Full screen</button>}</header>
+    <div className="timer-page pub-page">
+      <PublicNav active="timer" />
       {!code ? (
         <form className="card timer-code" onSubmit={use}>
           <h2>Enter your code</h2>
@@ -107,7 +119,7 @@ export default function Timer() {
             </div>
           )
         })}
-        <p className="muted small" style={{ textAlign: 'center' }}>Code <b className="mono">{code}</b> · <button className="btn link" style={{ padding: 0 }} onClick={forget}>Use another code</button></p>
+        <p className="muted small" style={{ textAlign: 'center' }}>Code <b className="mono">{code}</b> · <button className="btn link" style={{ padding: 0 }} onClick={forget}>Use another code</button> · <button className="btn link" style={{ padding: 0 }} onClick={fullscreen}>Full screen</button></p>
       </>)}
     </div>
   )

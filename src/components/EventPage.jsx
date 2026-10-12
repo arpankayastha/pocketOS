@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { BrandMark } from '../lib/icons'
 import { RANKS, eventImage, durLabel, rs, timeLabel } from '../lib/shop'
 import { qrSvg, upiLink } from '../lib/upi'
 import { isCustomer, readMine, rememberMine } from '../lib/mine'
+import PublicNav from './PublicNav'
 
 // One event from the home page (/#event/<id>): book GTA VI-style hours (advance by UPI) or enter a
 // tournament (Valorant: name, mobile, rank, entry fee by UPI). Checked again on the server
@@ -32,15 +32,14 @@ export default function EventPage({ id, session }) {
 
 function Page({ ev, children }) {
   return (
-    <div className="jobs-page">
+    <div className="jobs-page pub-page">
+      <PublicNav />
       <header className="jobs-head">
-        <a className="brand big" href="#"><BrandMark size={34} />GRANDXGAMER</a>
         {eventImage(ev) && <img className="gx-event-img" src={eventImage(ev)} alt="" />}
         <h1>{ev ? ev.name : 'Event'}</h1>
         {ev?.description && <p className="muted">{ev.description}</p>}
       </header>
       {children}
-      <p className="muted small" style={{ textAlign: 'center' }}><a href="#">‹ Home</a></p>
     </div>
   )
 }

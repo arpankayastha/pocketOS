@@ -642,3 +642,9 @@ create table if not exists private.app_pins (
 -- customer drop-down; shop_customer_search skips them.
 -- public.unlink_staff_google(staff) (migration admin_unlink_staff_google): admin only; marks the staff login's
 -- Google identity 'google-unlinked' (no delete) so another Gmail can be linked.
+
+-- Jobs page for signed-out visitors (12 Oct): the old "public reads open" policy called
+-- private.my_household_ids(), which anon can't execute ("permission denied for function"). Split it:
+-- signed-in users keep the old rule, anon reads open rows only.
+alter policy "public reads open" on public.shop_vacancies to authenticated;
+create policy "anon reads open" on public.shop_vacancies for select to anon using (open);

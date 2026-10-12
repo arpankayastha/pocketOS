@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { BrandMark } from '../lib/icons'
 import { addDays, dayStart, durLabel, priceFor, rs, timeLabel } from '../lib/shop'
 import { qrSvg, upiLink } from '../lib/upi'
 import { rememberMine } from '../lib/mine'
+import PublicNav from './PublicNav'
 
 // Public booking page (/#book) — what the "Scan to book" banner at the shop opens. No login: the page only
 // talks to public_shop_info / public_availability / public_book (security definer, checked on the server).
@@ -153,14 +153,13 @@ export default function Book() {
 
 function Page({ children }) {
   return (
-    <div className="jobs-page">
+    <div className="jobs-page pub-page">
+      <PublicNav active="book" />
       <header className="jobs-head">
-        <a className="brand big" href="#"><BrandMark size={34} />GRANDXGAMER</a>
         <h1>Book your game</h1>
         <p className="muted">PC & PS5 gaming café · Pune</p>
       </header>
       {children}
-      <p className="muted small" style={{ textAlign: 'center' }}><a href="#">‹ Home</a></p>
     </div>
   )
 }

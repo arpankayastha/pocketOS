@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { BrandMark } from '../lib/icons'
+import PublicNav from './PublicNav'
 
 // Public jobs page (/#jobs): open vacancies, readable without a login (RLS lets anon read open rows).
 export default function Jobs() {
@@ -13,9 +13,9 @@ export default function Jobs() {
   const digits = (n) => (n || '').replace(/\D/g, '')
   const wa = (n) => { const d = digits(n); return `https://wa.me/${d.length === 10 ? `91${d}` : d}` }
   return (
-    <div className="jobs-page">
+    <div className="jobs-page pub-page">
+      <PublicNav active="jobs" />
       <header className="jobs-head">
-        <a className="brand big" href="#"><BrandMark size={34} />GRANDXGAMER</a>
         <h1>We’re hiring</h1>
         <p className="muted">Gaming café · Pune</p>
       </header>
@@ -40,7 +40,6 @@ export default function Jobs() {
           </article>
         ))}
       </div>
-      <p className="muted small" style={{ textAlign: 'center' }}><a href="#">‹ Home</a></p>
     </div>
   )
 }

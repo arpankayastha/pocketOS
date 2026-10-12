@@ -1196,3 +1196,47 @@ label.btn.disabled { opacity: .6; pointer-events: none; }
 .gx-cust-x:hover { color: var(--neg); background: color-mix(in srgb, var(--neg) 12%, transparent); }
 .gx-dayhours { margin: 0; }
 .gx-cal .gx-slot .gx-name { white-space: normal; }
+
+/* Customer-facing pages (home, book, timer, jobs, events, my account): one navigation (PublicNav.jsx).
+   Top bar everywhere; the page links sit in it from 800 px, on phones they're a fixed bottom tab bar. */
+.pub-top {
+  position: fixed; inset: 0 0 auto 0; z-index: 30; height: calc(56px + var(--safe-t)); padding: var(--safe-t) 16px 0;
+  display: flex; align-items: center; gap: 12px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.pub-top a { text-decoration: none; color: inherit; }
+.pub-top .brand { display: flex; align-items: center; gap: 8px; font-family: Anton, Impact, sans-serif; font-size: 20px; letter-spacing: .03em; color: var(--accent); margin-right: auto; }
+.pub-links { display: none; gap: 4px; }
+.pub-links a, .pub-me { padding: 8px 14px; border-radius: 999px; font-weight: 600; font-size: 14px; color: var(--muted); }
+.pub-links a:hover, .pub-me:hover { color: var(--text); background: var(--card-2); }
+.pub-links a.active, .pub-me.active { color: var(--text); background: var(--card-2); }
+.pub-me { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); color: var(--text); }
+.pub-me svg { width: 18px; height: 18px; }
+.pub-me img { width: 22px; height: 22px; border-radius: 50%; }
+.pub-tabs {
+  position: fixed; inset: auto 0 0 0; z-index: 30; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 6px 6px calc(6px + var(--safe-b)); background: color-mix(in srgb, var(--card) 94%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line);
+}
+.pub-tabs a { display: grid; justify-items: center; gap: 3px; padding: 6px 0; border-radius: 12px; font-size: 11px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.pub-tabs a svg { width: 22px; height: 22px; }
+.pub-tabs a.active { color: var(--accent); background: color-mix(in srgb, var(--accent-bg) 16%, transparent); }
+.pub-page.home, .pub-page.jobs-page, .pub-page.timer-page { padding-top: calc(56px + var(--safe-t)); padding-bottom: calc(84px + var(--safe-b)); }
+.pub-page.jobs-page, .pub-page.timer-page { padding-top: calc(72px + var(--safe-t)); }
+.pub-page .home-hero { min-height: min(70vh, 560px); }
+.pub-page { min-height: 100dvh; align-content: start; background: var(--bg); color: var(--text); padding: calc(72px + var(--safe-t)) 16px calc(84px + var(--safe-b)); }
+.pub-page.home { padding-left: 0; padding-right: 0; }
+.pub-main { max-width: 640px; margin: 0 auto; display: grid; gap: 12px; }
+.pub-main > .card { margin: 0; }
+.pub-title { margin: 0; font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: 32px; letter-spacing: .02em; text-transform: uppercase; }
+.me-who { display: flex; align-items: center; gap: 12px; }
+.me-who img { width: 44px; height: 44px; border-radius: 50%; }
+html:fullscreen .pub-top, html:fullscreen .pub-tabs { display: none; }
+html:fullscreen .pub-page.timer-page { padding-top: 16px; }
+@media (min-width: 800px) {
+  .pub-links { display: flex; }
+  .pub-tabs { display: none; }
+  .pub-page, .pub-page.home, .pub-page.jobs-page, .pub-page.timer-page { padding-bottom: 32px; }
+}
+@media (max-width: 799px) { .pub-me { padding: 6px; border: none; } .pub-me span { display: none; } .pub-me:not(:has(img)) { display: none; } }
