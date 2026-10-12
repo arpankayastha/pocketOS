@@ -10,7 +10,11 @@ import PublicNav from './PublicNav'
 const KEY = 'gx.timerCode'
 
 export default function Timer() {
-  const [code, setCode] = useState(() => { try { return localStorage.getItem(KEY) || '' } catch { return '' } })
+  // A link from the counter (#timer/4DB5C8 — Slots → code → QR / WhatsApp) opens straight on that code.
+  const [code, setCode] = useState(() => {
+    const fromLink = location.hash.match(/^#timer\/([0-9a-f]{6})$/i)?.[1]?.toUpperCase()
+    try { if (fromLink) { localStorage.setItem(KEY, fromLink); history.replaceState(null, '', '#timer') } return fromLink || localStorage.getItem(KEY) || '' } catch { return fromLink || '' }
+  })
   const [input, setInput] = useState('')
   const [data, setData] = useState(null)
   const [skew, setSkew] = useState(0) // server clock − this device's clock

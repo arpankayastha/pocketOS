@@ -1280,3 +1280,8 @@ html:fullscreen .pub-page.timer-page { padding-top: 16px; }
 .home-legacy { margin: -4px 0 0; font-size: clamp(15px, 4.2vw, 20px); font-weight: 600; color: #f3eeee; text-shadow: 0 2px 14px rgb(0 0 0 / .6); }
 .home-legacy span { color: #ec6a64; white-space: nowrap; }
 .gx-other { max-width: 180px; }
+/* Slots → session code → timer sheet */
+.btn.link.gx-code { padding: 0; min-height: 0; min-width: 0; color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; font-size: inherit; }
+.gx-timercode { text-align: center; font-size: 44px; font-weight: 800; letter-spacing: .14em; margin: 4px 0; }
+.gx-timerqr { width: 200px; max-width: 70%; margin: 0 auto; background: #fff; padding: 8px; border-radius: 12px; }
+.gx-timerqr svg { display: block; width: 100%; height: auto; }

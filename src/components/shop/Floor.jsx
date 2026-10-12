@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
+import { qrSvg } from '../../lib/upi'
 import { DURATIONS, balanceFor, byLine, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, shortCode, timeLabel, useNow, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
@@ -146,6 +147,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
       {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} onClose={close} onDone={done} />}
+      {sheet?.kind === 'timer' && <TimerCodeSheet session={sheet.session} onClose={close} />}
       {sheet?.kind === 'move' && <MoveSheet session={sheet.session} systems={shop.systems} freeOf={freeSeats} onClose={close} onDone={done} />}
       {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
@@ -194,7 +196,7 @@ function SessionRow({ sys, s, now, badge, onSheet, onPause }) {
       <span className={`pill gx-pill ${state}`}>{s.paused_at ? `Paused · ${durLabel(left)} left` : left <= 0 ? `Time up ${durLabel(-left)} ago` : `${durLabel(left)} left`}</span>
     </div>
     {/* Full width under the name, so it never squeezes beside the time pill. */}
-    <div className="muted small gx-meta">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s, now))}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''} · code <b className="mono">{shortCode(s.id)}</b></div>
+    <div className="muted small gx-meta">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s, now))}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''} · <button type="button" className="btn link gx-code" onClick={() => onSheet('timer')}>code <b className="mono">{shortCode(s.id)}</b></button></div>
     <PaidLine s={s} />
     <div className="gx-bar"><i style={{ width: `${pct}%` }} /></div>
     <div className="gx-btns">
@@ -459,7 +461,7 @@ function Bookings({ bookings = [], eventChecks = [], entryChecks = [], onArrived
             <span className={`gx-badge sm ${b.kind === 'PS' ? 'ps' : ''}`}>{b.kind === 'PS' ? 'PS5' : 'PC'}</span>
             <div className="grow">
               <div className="gx-name">{b.customer_name}{b.players > 1 ? ` · ${b.players} players` : ''}</div>
-              <div className="muted small">{day(b.starts_at)} {timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {rs(b.amount)}{b.source === 'counter' ? ` · ${Number(b.paid) > 0 ? `${rs(b.paid)} advance ${b.paid_mode}` : 'pay at counter'} · booked by ${b.entered_by || 'staff'}` : ''}{b.upi_ref ? ` · ref ${b.upi_ref}` : ''} · {b.customer_phone}{by(b)}{b.note ? ` · ${b.note}` : ''}</div>
+              <div className="muted small">{day(b.starts_at)} {timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {rs(b.amount)}{b.source === 'counter' ? ` · ${Number(b.paid) > 0 ? `${rs(b.paid)} advance ${b.paid_mode}` : 'pay at counter'} · booked by ${b.entered_by || 'staff'}` : ''}{b.upi_ref ? ` · ref ${b.upi_ref}` : ''} · {b.customer_phone}{by(b)}{b.note ? ` · ${b.note}` : ''} · code <b className="mono">{shortCode(b.id)}</b></div>
             </div>
             <span className={`pill gx-pill ${b.status === 'requested' ? 'ending' : 'free'}`}>{b.status === 'requested' ? 'Payment?' : b.source === 'counter' ? 'Booked' : 'Paid'}</span>
           </div>
@@ -610,6 +612,28 @@ function BookSheet({ shop, householdId, initial, onClose, onDone }) {
 
 // Owner: "booked PC2 but sat at PC4 — need to change it". Moves a running session (time, bill and code kept)
 // to a free PC, or a free controller on the PS5.
+// Owner: a customer who didn't save their code — staff open it from the session row: the code in big letters,
+// a QR the customer scans to open their timer, open it on this device, copy the link or send it on WhatsApp.
+function TimerCodeSheet({ session, onClose }) {
+  const code = shortCode(session.id)
+  const link = `${location.origin}/#timer/${code}`
+  const digits = (session.customer_phone || '').replace(/\D/g, '')
+  const wa = `https://wa.me/${digits.length === 10 ? `91${digits}` : digits}?text=${encodeURIComponent(`Your GRANDXGAMER timer: ${link} (code ${code})`)}`
+  const [copied, setCopied] = useState(false)
+  return (
+    <Sheet title={`Timer · ${session.customer_name}`} sub={`${session.system_name}${(session.seat || 1) > 1 && session.system_name?.startsWith('PS') ? ` · controller ${session.seat}` : ''} · type this code on the timer screen, or scan`} onClose={onClose}>
+      <div className="gx-timercode mono">{code}</div>
+      <div className="gx-timerqr" dangerouslySetInnerHTML={{ __html: qrSvg(link) }} />
+      <div className="gx-btns">
+        <a className="btn" href={link} target="_blank" rel="noreferrer">Open timer here</a>
+        <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(link).then(() => setCopied(true))}>{copied ? 'Copied ✓' : 'Copy link'}</button>
+        {digits.length >= 10 && <a className="btn" href={wa} target="_blank" rel="noreferrer">WhatsApp</a>}
+      </div>
+      <div className="actions"><button type="button" className="btn primary" onClick={onClose}>Done</button></div>
+    </Sheet>
+  )
+}
+
 function MoveSheet({ session, systems, freeOf, onClose, onDone }) {
   const kind = systems.find((x) => x.id === session.system_id)?.kind || (session.system_name.startsWith('PS') ? 'PS' : 'PC')
   const targets = systems.filter((x) => x.kind === kind).flatMap((x) => freeOf(x).map((seat) => ({ sys: x, seat, key: `${x.id}:${seat}`, label: (x.seats || 1) > 1 ? `${x.name} · 🎮${seat}` : x.name })))
