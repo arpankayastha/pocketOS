@@ -28,16 +28,18 @@ export function DrawerCard({ shop, from, order }) {
 
 const KINDS = { open: 'Opening cash', in: 'Cash in', out: 'Cash out', count: 'Drawer count' }
 
-// Cashbook out-categories, with this month's spend against each monthly budget (spend / limit only for the admin).
-function useSpend(householdId, version) {
+// Cashbook out-categories (for the Cash out sheet) and the Plan items a cash out can be claimed against
+// (Money → Plan, e.g. "Wafers ₹12,000 monthly"; claimed / expected only for the admin).
+function useRpc(name, householdId, version) {
   const [rows, setRows] = useState(null)
-  const load = useCallback(() => supabase.rpc('shop_spend', { p_household: householdId }).then(({ data }) => setRows(data || [])), [householdId])
+  const load = useCallback(() => supabase.rpc(name, { p_household: householdId }).then(({ data }) => setRows(data || [])), [name, householdId])
   useEffect(() => { load() }, [load, version])
   return [rows, load]
 }
 
 export default function Cash({ shop, householdId, toast, admin }) {
-  const [spend, reloadSpend] = useSpend(householdId, shop.cash.length)
+  const [spend] = useRpc('shop_spend', householdId, shop.cash.length)
+  const [plan] = useRpc('shop_plan_items', householdId, shop.cash.length)
   const [sheet, setSheet] = useState(null) // 'open' | 'in' | 'out' | 'count'
   const entries = [
     ...shop.sessions.filter((s) => s.status === 'closed' || sessionHasPay(s)).map((s) => ({
@@ -59,7 +61,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet('in')}>+ Cash in</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet(dayTotals(shop).open ? 'count' : 'open')}>{dayTotals(shop).open ? 'Count' : 'Opening'}</button>
       </div>
-      {admin && <Budgets rows={spend} onSet={() => setSheet('budget')} />}
+      {admin && <PlanClaims rows={plan} />}
       <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} />
       <Deposits shop={shop} onAdd={() => setSheet('deposit')} />
       </div>
@@ -76,8 +78,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
       </div>
       {sheet === 'deposit' && <DepositSheet settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.dues && <DuesSheet row={sheet.dues} settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
-      {sheet === 'budget' && <BudgetSheet rows={spend} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); reloadSpend() }} />}
-      {typeof sheet === 'string' && sheet !== 'deposit' && sheet !== 'budget' && <CashSheet kind={sheet} categories={spend} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
+      {typeof sheet === 'string' && sheet !== 'deposit' && <CashSheet kind={sheet} categories={spend} plan={plan} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
     </section>
   )
 }
@@ -92,16 +93,17 @@ function payLabel(s) {
 
 
 // Cash out = a Cashbook entry too (Shop book, its category, paid from the drawer, "paid by" whoever saved it),
-// so it counts against that category's monthly budget (e.g. wafers / Snacks stock ₹12,000 a month).
-function CashSheet({ kind, categories, householdId, onClose, onDone }) {
+// and it can be claimed against a Plan item (owner: "while marking an expense I should claim it against the plan").
+function CashSheet({ kind, categories, plan, householdId, onClose, onDone }) {
   const [category, setCategory] = useState(kind === 'out' ? 'Snacks stock' : null)
+  const [claim, setClaim] = useState(null)
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   async function save() {
     setBusy(true)
-    const { error } = await supabase.from('shop_cash').insert({ household_id: householdId, kind, amount: Number(amount), note: note.trim() || null, category: kind === 'out' ? category : null })
+    const { error } = await supabase.from('shop_cash').insert({ household_id: householdId, kind, amount: Number(amount), note: note.trim() || null, category: kind === 'out' ? category : null, recurring_item_id: kind === 'out' ? claim : null })
     setBusy(false)
     if (error) { setError(error.message); return }
     onDone(`${KINDS[kind]} ${rs(amount)} saved`)
@@ -112,6 +114,9 @@ function CashSheet({ kind, categories, householdId, onClose, onDone }) {
       {kind === 'out' && (<>
         <div className="caps muted">What for · goes into the Cashbook</div>
         <Chips options={(categories || []).map((c) => [c.name, `${c.icon || ''} ${c.name}`.trim()])} value={category} onChange={setCategory} />
+        <div className="caps muted">Claim against Plan</div>
+        {(plan || []).length === 0 ? <div className="muted small">No Plan items yet — the owner adds them in Money → Plan (e.g. Wafers, any amount a month).</div>
+          : <Chips options={[[null, 'Not in Plan'], ...plan.map((p) => [p.id, p.expected != null ? `${p.name} · ${rs(Math.max(0, Number(p.expected) - Number(p.claimed)))} left` : p.name])]} value={claim} onChange={setClaim} />}
       </>)}
       <label>Amount<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="₹" /></label>
       {kind !== 'count' && kind !== 'open' && <label>Note<input value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === 'out' ? 'e.g. wafers supplier, bill no.' : 'What for'} /></label>}
@@ -221,50 +226,25 @@ function DuesSheet({ row, settings, householdId, onClose, onDone }) {
   )
 }
 
-// Admin: monthly budgets per Cashbook category, and how much is spent this month (cash outs + Cashbook entries).
-function Budgets({ rows, onSet }) {
-  const list = (rows || []).filter((r) => Number(r.limit) > 0 || Number(r.spent) > 0)
+// Admin: Plan items (Money → Plan) and how much has been claimed against each this month.
+function PlanClaims({ rows }) {
   const month = new Date().toLocaleDateString('en-IN', { month: 'long' })
+  const list = rows || []
   return (
     <div className="card">
-      <div className="card-head"><h3>Spending · {month}</h3><button className="btn small" onClick={onSet}>Set budget</button></div>
-      {list.length === 0 ? <div className="muted small">No budgets yet. Set one (e.g. Snacks stock ₹12,000 a month) and every cash out for it counts against it.</div> : list.map((r) => {
-        const limit = Number(r.limit) || 0, spent = Number(r.spent) || 0
+      <div className="card-head"><h3>Plan · {month}</h3><a className="btn small" href="#/money/plan">Edit Plan</a></div>
+      {list.length === 0 ? <div className="muted small">No Plan items yet. Add them in Money → Plan with any monthly amount (e.g. Wafers), then claim each cash out against them.</div> : list.map((r) => {
+        const limit = Number(r.expected) || 0, spent = Number(r.claimed) || 0
         return (
-          <div key={r.name} className="gx-budget">
-            <div className="gx-sum"><span>{r.icon} {r.name}</span><span className="amt">{rs(spent)}{limit ? ` of ${rs(limit)}` : ''}</span></div>
+          <div key={r.id} className="gx-budget">
+            <div className="gx-sum"><span>{r.name}</span><span className="amt">{rs(spent)}{limit ? ` of ${rs(limit)}` : ''}</span></div>
             {limit > 0 && (<>
               <div className={`gx-bar ${spent > limit ? 'over' : ''}`}><i style={{ width: `${Math.min(100, (spent / limit) * 100)}%` }} /></div>
-              <div className={`small ${spent > limit ? 'neg' : 'muted'}`}>{spent > limit ? `${rs(spent - limit)} over budget` : `${rs(limit - spent)} left this month`}</div>
+              <div className={`small ${spent > limit ? 'neg' : 'muted'}`}>{spent > limit ? `${rs(spent - limit)} over plan` : `${rs(limit - spent)} left this month`}</div>
             </>)}
           </div>
         )
       })}
     </div>
-  )
-}
-
-function BudgetSheet({ rows, householdId, onClose, onDone }) {
-  const [name, setName] = useState('Snacks stock')
-  const cur = (rows || []).find((r) => r.name === name)
-  const [amount, setAmount] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-  useEffect(() => { setAmount(cur?.limit ? String(Math.round(cur.limit)) : '') }, [name]) // eslint-disable-line react-hooks/exhaustive-deps
-  async function save() {
-    setBusy(true)
-    const { error } = await supabase.from('hisab_categories').update({ monthly_limit: Number(amount) || null })
-      .eq('household_id', householdId).eq('direction', 'out').eq('name', name)
-    setBusy(false)
-    if (error) { setError(error.message); return }
-    onDone(Number(amount) ? `${name}: ${rs(amount)} a month` : `${name}: budget removed`)
-  }
-  return (
-    <Sheet title="Monthly budget" sub="Cash outs and Cashbook entries in this category count against it. Empty = no budget." onClose={onClose} onSubmit={save}>
-      {error && <div className="alert error">{error}</div>}
-      <Chips options={(rows || []).map((r) => [r.name, `${r.icon || ''} ${r.name}`.trim()])} value={name} onChange={setName} />
-      <label>Budget per month (₹)<input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 12000" /></label>
-      <SheetActions onClose={onClose} busy={busy} label="Save" />
-    </Sheet>
   )
 }

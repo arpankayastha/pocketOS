@@ -82,7 +82,9 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
             ? (bill?.statement
               ? `${bill.open ? `${bill.count} spend${bill.count === 1 ? '' : 's'} so far · closes ${shortDate(bill.statement)}` : `Statement ${shortDate(bill.statement)} · ${bill.count} spend${bill.count === 1 ? '' : 's'}`} · due ${shortDate(bill.due)}`
               : 'No bill due this month')
-            : `${cat?.name || 'Uncategorised'}${it.day_of_month ? ` · due ${it.day_of_month}` : ''}${actual?.fromHisab ? ` · paid${it.onCard ? ' by card' : ''} (cash book)` : ''}`
+            : it.parts > 1 || (it.claimed && it.claimed < Number(it.expected_amount))
+              ? `${money(it.claimed)} claimed of ${money(it.expected_amount)}${it.claimed < Number(it.expected_amount) ? ` · ${money(Number(it.expected_amount) - it.claimed)} left` : it.claimed > Number(it.expected_amount) ? ` · ${money(it.claimed - Number(it.expected_amount))} over` : ''} · ${it.parts} payment${it.parts === 1 ? '' : 's'}`
+              : `${cat?.name || 'Uncategorised'}${it.day_of_month ? ` · due ${it.day_of_month}` : ''}${actual?.fromHisab ? ` · paid${it.onCard ? ' by card' : ''} (cash book)` : ''}`
           return (
             <Fragment key={it.id}>
               <div className={`txn ${it.auto_card ? 'plan-card' : ''}`} onClick={it.auto_card && bill?.count ? () => setOpen(open === it.id ? null : it.id) : undefined}>
@@ -94,7 +96,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
                 <div className={`amt ${it.kind === 'income' ? 'pos' : 'neg'} ${actual ? '' : 'expected'}`}>
                   {it.kind === 'income' ? '+' : '−'}{money(it.amount)}
                 </div>
-                {actual ? <span className="chip">{it.kind === 'income' ? 'Received' : 'Paid'}</span> : (
+                {actual && !(it.claimed && it.claimed < Number(it.expected_amount) && it.kind === 'expense') ? <span className="chip">{it.kind === 'income' ? 'Received' : 'Paid'}</span> : (
                   <button type="button" className="btn small ghost" onClick={(e) => { e.stopPropagation(); setLogging(logging === it.id ? null : it.id) }}>Log</button>
                 )}
                 {!it.auto_card && <button type="button" className="btn icon" title="Remove" onClick={(e) => { e.stopPropagation(); removeItem(it) }}><TrashIcon /></button>}

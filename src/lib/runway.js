@@ -34,13 +34,20 @@ export async function loadMonthMoney(householdId, month, accounts) {
     ...(hz.data || []).filter((e) => e.recurring_item_id).map((e) => [e.recurring_item_id, { ...e, fromHisab: true }]),
     ...txs.filter((t) => t.recurring_item_id).map((t) => [t.recurring_item_id, t]),
   ])
+  // Several payments can be claimed against one item in a month (GRANDXGAMER: cash outs for wafers against
+  // "Wafers ₹12,000"): add them up. Until the claims reach the expected amount the rest is still expected.
+  const claimed = {}
+  for (const e of (hz.data || [])) if (e.recurring_item_id && e.direction === 'out') claimed[e.recurring_item_id] = (claimed[e.recurring_item_id] || 0) + Number(e.amount)
+  for (const t of txs) if (t.recurring_item_id) claimed[t.recurring_item_id] = (claimed[t.recurring_item_id] || 0) + Number(t.amount)
   const items = (ri.data || []).map((it) => {
     const actual = actuals[it.id]
     const bill = it.auto_card ? bills[it.account_id]?.[month] : null
-    const amount = actual ? Number(actual.amount) : bill ? bill.amount : Number(it.expected_amount)
+    const claims = claimed[it.id] || 0
+    const parts = (hz.data || []).filter((e) => e.recurring_item_id === it.id).length + txs.filter((t) => t.recurring_item_id === it.id).length
+    const amount = actual ? (parts > 1 ? Math.max(claims, Number(it.expected_amount)) : Number(actual.amount)) : bill ? bill.amount : Number(it.expected_amount)
     // Paid with a card (a linked Hisab spend on a card): it's inside that card's bill already.
     const onCard = !!actual?.fromHisab && cardIds.has(actual.account_id)
-    return { ...it, actual, bill, amount, onCard, counted: onCard ? 0 : amount }
+    return { ...it, actual, bill, amount, onCard, counted: onCard ? 0 : amount, claimed: claims, parts }
   })
 
   const income = items.filter((i) => i.kind === 'income').reduce((s, i) => s + i.counted, 0)

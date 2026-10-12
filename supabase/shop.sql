@@ -600,3 +600,9 @@ create table if not exists public.shop_pay_adjustments (
   created_at timestamptz not null default now()
 );
 alter table public.shop_pay_adjustments enable row level security;   -- policy "admin only" (my_admin_household_ids)
+
+-- Owner: "amount can be anything, but when marking an expense I should claim it against the Plan"
+-- (migration cash_out_claim_plan): shop_cash.recurring_item_id → the Cashbook entry's recurring_item_id;
+-- public.shop_plan_items(household) = expense Plan items (+ expected / claimed this month for the admin).
+-- Plan (runway.js) adds up several claims per item in a month. The category monthly_limit preset was undone.
+alter table public.shop_cash add column if not exists recurring_item_id uuid references public.recurring_items(id) on delete set null;
