@@ -69,9 +69,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
         {isHappyDay(shop.settings) && <span className="pill gx-pill happy">Happy hours today</span>}
         <button className="btn small primary gx-book-btn" onClick={() => setSheet({ kind: 'book' })}>+ Book</button>
       </div>
-      {(shop.bookings?.length > 0 || shop.eventChecks?.length > 0 || shop.entryChecks?.length > 0) && (
-        <Bookings bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />
-      )}
+      <Bookings bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onBook={() => setSheet({ kind: 'book' })} onChanged={(m) => { toast(m); shop.reload() }} />
       {shop.systems.map((sys) => {
         const n = seatsOf(sys)
         if (n === 1) {
@@ -391,7 +389,7 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
 // Online money to check, on every phone (admin and staff): slot bookings from /#book, event advances and
 // tournament entry fees from the home page. Staff open their UPI app, then tap Received — or Not received,
 // which cancels the request. "Arrived" on a confirmed slot booking starts its session, already paid.
-function Bookings({ bookings = [], eventChecks = [], entryChecks = [], onArrived, onChanged }) {
+function Bookings({ bookings = [], eventChecks = [], entryChecks = [], onArrived, onBook, onChanged }) {
   const dialog = useDialog()
   async function update(table, row, patch, msg, ask) {
     if (ask && !await dialog.confirm(ask)) return
@@ -405,8 +403,12 @@ function Bookings({ bookings = [], eventChecks = [], entryChecks = [], onArrived
   return (
     <div className="card gx-bookings">
       <div className="card-head"><h3>Bookings</h3><span className={`small ${toCheck ? 'neg' : 'muted'}`}>{toCheck ? `${toCheck} payment${toCheck === 1 ? '' : 's'} to check` : 'All checked'}</span></div>
-      {bookings.map((b) => (
+      {bookings.length + eventChecks.length + entryChecks.length === 0 && (
+        <div className="muted small">No bookings yet. Online bookings from customers and <button type="button" className="btn link" style={{ padding: 0 }} onClick={onBook}>+ Book</button> show here, by day.</div>
+      )}
+      {bookings.map((b, i) => (
         <div key={b.id} className="gx-booking">
+          {(i === 0 || day(bookings[i - 1].starts_at) !== day(b.starts_at)) && <div className="caps muted gx-book-day">{day(b.starts_at)}</div>}
           <div className="gx-sys-top">
             <span className={`gx-badge sm ${b.kind === 'PS' ? 'ps' : ''}`}>{b.kind === 'PS' ? 'PS5' : 'PC'}</span>
             <div className="grow">

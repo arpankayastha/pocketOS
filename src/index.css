@@ -1179,3 +1179,4 @@ label.btn.disabled { opacity: .6; pointer-events: none; }
 .gx-cust-row:first-child { border-top: 0; }
 .gx-cust-row:hover, .gx-cust-row:focus { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 @media (min-width: 600px) { .gx-cust { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; } .gx-cust .gx-cust-list { grid-column: 1 / -1; grid-row: 2; } }
+.gx-book-day { margin: 4px 0 2px; }
