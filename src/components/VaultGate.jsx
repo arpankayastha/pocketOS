@@ -84,6 +84,11 @@ export function RecoveryCode({ code, onDone, firstTime }) {
   )
 }
 
+// Owner: a refresh must never pop the fingerprint prompt. If the page was (re)loaded straight onto the Vault
+// (#/vault/…) and it's locked, show the buttons and wait for a tap; the automatic prompt is only for when
+// someone opens the Vault from inside the app.
+let loadedOnVault = typeof location !== 'undefined' && location.hash.startsWith('#/vault')
+
 function Unlock({ vault, onRecovered, title = 'Vault is locked' }) {
   const [mode, setMode] = useState('password') // password | recovery
   const [value, setValue] = useState('')
@@ -112,6 +117,7 @@ function Unlock({ vault, onRecovered, title = 'Vault is locked' }) {
   useEffect(() => {
     if (!autoTried.current && hasFingerprint && canFingerprint && !vault.lockedByUser) {
       autoTried.current = true
+      if (loadedOnVault) { loadedOnVault = false; return }
       fingerprint()
     }
   }, [hasFingerprint, canFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps
