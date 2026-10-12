@@ -9,7 +9,17 @@ export default function Shift({ householdId, userId, toast }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
+  // Owner: one staff member on duty at a time (shop_clock refuses a second Log in) — show who it is up front.
+  const [other, setOther] = useState(null)
+  const loadOther = useCallback(async () => {
+    const { data } = await supabase.from('shop_shifts').select('user_id, clock_in, staff_name').eq('household_id', householdId).is('clock_out', null).neq('user_id', userId).maybeSingle()
+    if (!data) { setOther(null); return }
+    const { data: m } = await supabase.from('household_members').select('display_name, username').eq('user_id', data.user_id).maybeSingle()
+    setOther({ name: m?.display_name || m?.username || data.staff_name || 'Someone', since: data.clock_in })
+  }, [householdId, userId])
+  useEffect(() => { loadOther() }, [loadOther])
   const load = useCallback(async () => {
+    loadOther()
     const from = addDays(dayStart(), -6).toISOString()
     const { data, error } = await supabase.from('shop_shifts').select('*').eq('household_id', householdId).eq('user_id', userId)
       .or(`clock_in.gte.${from},clock_out.is.null`).order('clock_in', { ascending: false })
@@ -43,7 +53,8 @@ export default function Shift({ householdId, userId, toast }) {
         </>) : (<>
           <span className="pill gx-pill">Off shift</span>
           <div className="muted small" style={{ marginTop: 8 }}>{dayLabel(now)}</div>
-          <button className="gx-clock-btn in" disabled={busy || !shifts} onClick={() => clock('in')}>LOG<br />IN</button>
+          {other && <div className="alert error" style={{ margin: '10px 0 0' }}>{other.name} is on duty since {timeLabel(other.since)}. Only one person can be logged in — ask them to log out first.</div>}
+          <button className="gx-clock-btn in" disabled={busy || !shifts || !!other} onClick={() => clock('in')}>LOG<br />IN</button>
         </>)}
         <p className="muted small" style={{ margin: 0 }}>Forgot to log out? Ask the admin to fix it.</p>
       </div>

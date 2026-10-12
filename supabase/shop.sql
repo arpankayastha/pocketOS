@@ -579,3 +579,8 @@ create unique index if not exists hisab_entries_shop_cash on public.hisab_entrie
 -- Monthly budget per Cashbook out-category (e.g. Snacks stock ₹12,000): hisab_categories.monthly_limit;
 -- public.shop_spend(household) = out-categories (+ limit and this month's spend for the admin).
 alter table public.hisab_categories add column if not exists monthly_limit numeric(12,2) check (monthly_limit is null or monthly_limit >= 0);
+
+-- One staff member on duty at a time (owner, 12 Oct): migration one_staff_on_duty — unique index
+-- shop_shifts_one_on_duty (household_id) where clock_out is null; shop_clock('in') raises
+-- "<name> is on duty since <time>. Only one person can be logged in — ask them to log out first."
+create unique index if not exists shop_shifts_one_on_duty on public.shop_shifts (household_id) where clock_out is null;
