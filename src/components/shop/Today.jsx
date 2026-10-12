@@ -64,7 +64,7 @@ export default function Today({ shop: live, householdId, onOpen }) {
         <div className="card gx-attn" style={{ order: 3 }}>
           <h3>Time up</h3>
           {overdue.map((s) => (
-            <div key={s.id} className="line"><span>{s.system_name} · {s.customer_name}</span><button className="btn small" onClick={() => onOpen('floor')}>Floor</button></div>
+            <div key={s.id} className="line"><span>{s.system_name} · {s.customer_name}</span><button className="btn small" onClick={() => onOpen('floor')}>Slots</button></div>
           ))}
         </div>
       )}

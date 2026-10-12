@@ -107,7 +107,7 @@ export default function Book() {
           <div className="muted small">Right now</div>
           <div className="book-now-row">
             <span><b className={current.PC ? 'pos' : 'neg'}>{current.PC}</b> of {info.systems.PC} PCs free</span>
-            <span>PS5 <b className={current.PS ? 'pos' : 'neg'}>{current.PS ? 'free' : 'busy'}</b></span>
+            <span>PS5 <b className={current.PS ? 'pos' : 'neg'}>{current.PS ? `${current.PS} of 3 controllers free` : 'busy'}</b></span>
           </div>
         </div>
       )}

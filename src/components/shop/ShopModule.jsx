@@ -19,14 +19,14 @@ import ShopSettings from './ShopSettings'
 // ⚙ (top right) holds systems & rates (admin) and each login's own settings.
 const ADMIN_TABS = [
   { id: 'today', label: 'Today', icon: HomeIcon },
-  { id: 'floor', label: 'Floor', icon: MonitorIcon },
+  { id: 'floor', label: 'Slots', icon: MonitorIcon },
   { id: 'events', label: 'Events', icon: CalendarIcon },
   { id: 'cash', label: 'Cash', icon: CashIcon },
   { id: 'staff', label: 'Staff', icon: UsersIcon },
 ]
 const STAFF_TABS = [
   { id: 'shift', label: 'Shift', icon: ClockIcon },
-  { id: 'floor', label: 'Floor', icon: MonitorIcon },
+  { id: 'floor', label: 'Slots', icon: MonitorIcon },
   { id: 'events', label: 'Events', icon: CalendarIcon },
   { id: 'cash', label: 'Cash', icon: CashIcon },
 ]

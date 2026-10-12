@@ -14,7 +14,7 @@ export function rememberMine(kind, id) {
   try { localStorage.setItem(KEY, JSON.stringify(m)) } catch { /* ignore */ }
 }
 
-// Status of my bookings, entries and any session I'm playing (time left), refreshed every 20 s.
+// Status of my bookings, entries and any session I'm playing (time left), refreshed every 10 s.
 export function useMyStatus(session) {
   const [status, setStatus] = useState(null)
   const uid = session?.user?.id
@@ -25,7 +25,7 @@ export function useMyStatus(session) {
   }, [uid]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     load()
-    const t = setInterval(load, 20_000)
+    const t = setInterval(load, 10_000)
     const onVisible = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVisible) }
@@ -35,13 +35,16 @@ export function useMyStatus(session) {
 
 export const isCustomer = (session) => !!session && session.user.app_metadata?.provider === 'google' && !session.user.app_metadata?.role
 
-// Google sign-in for customers. Off until the Google provider is switched on in Supabase (Auth → Providers).
-export async function googleEnabled() {
-  try {
+// Which sign-ins the Supabase project has switched on: Google (Auth → Providers) and passkeys (Auth → Passkeys).
+let settings = null
+export function authSettings() {
+  if (!settings) {
     const url = import.meta.env.VITE_SUPABASE_URL
-    const r = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY } })
-    const j = await r.json()
-    return !!j.external?.google
-  } catch { return false }
+    settings = fetch(`${url}/auth/v1/settings`, { headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY } })
+      .then((r) => r.json()).then((j) => ({ google: !!j.external?.google, passkeys: !!j.passkeys_enabled }))
+      .catch(() => ({ google: false, passkeys: false }))
+  }
+  return settings
 }
+export const googleEnabled = () => authSettings().then((s) => s.google)
 export const signInWithGoogle = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/` } })

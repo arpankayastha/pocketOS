@@ -77,7 +77,7 @@ export default function Staff({ householdId, toast }) {
       </div>
       <div className="gx-col gx-staff-cards">
       {staff === null ? <div className="card muted small">Loading…</div> : rows.length === 0 && (
-        <div className="card" style={{ order: 2 }}><p className="muted" style={{ margin: 0 }}>No staff logins yet. Add one for each employee: they sign in with a username and PIN, then Log in for their shift and run the Floor.</p></div>
+        <div className="card" style={{ order: 2 }}><p className="muted" style={{ margin: 0 }}>No staff logins yet. Add one for each employee: they sign in with a username and PIN, then Log in for their shift and run Slots.</p></div>
       )}
       {rows.map((m) => (
         <div key={m.user_id} className="card" style={{ order: 3 }}>

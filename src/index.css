@@ -1138,3 +1138,31 @@ label.btn.primary { color: var(--on-accent); }
 label.btn.disabled { opacity: .6; pointer-events: none; }
 .jobs-page p a, .auth a.auth-hint { color: var(--accent); }
 .gx a[href^="tel"] { color: inherit; }
+
+/* PS5 controllers (one customer each) and paused sessions */
+.gx-multi { display: grid; gap: 10px; }
+.gx-seat { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
+.gx-pill.paused, .gx-seat.paused .gx-bar i, .gx-sys.paused .gx-bar i { background: color-mix(in srgb, var(--transfer) 22%, transparent); color: var(--transfer); }
+.gx-sys.paused { border-color: color-mix(in srgb, var(--transfer) 45%, var(--line)); }
+.home-ctas { display: flex; flex-wrap: wrap; gap: 10px; }
+.home-cta.ghostlight { background: rgb(0 0 0 / .35); color: #f3eeee; border-color: rgb(255 255 255 / .3); }
+
+/* Timer screen (#timer) on the PCs / phones */
+.timer-page { min-height: 100dvh; background: var(--bg); color: var(--text); padding: 16px; display: grid; gap: 12px; align-content: start; max-width: 900px; margin: 0 auto; }
+.timer-page .card { margin: 0; }
+.timer-head { display: flex; justify-content: space-between; align-items: center; }
+.timer-head a.brand { text-decoration: none; }
+.timer-code { display: grid; gap: 10px; max-width: 420px; justify-self: center; width: 100%; text-align: center; }
+.timer-code h2, .timer-wait h2 { margin: 0; }
+.timer-code input { font-size: 32px; text-align: center; letter-spacing: .2em; }
+.timer-wait { text-align: center; }
+.timer-card { display: grid; justify-items: center; gap: 6px; text-align: center; padding: 28px 18px; }
+.timer-where { text-transform: uppercase; letter-spacing: .12em; font-weight: 800; color: var(--accent); font-size: 14px; }
+.timer-big { font-family: Anton, Impact, sans-serif; font-size: clamp(72px, 22vw, 200px); line-height: 1; font-variant-numeric: tabular-nums; }
+.timer-sub { color: var(--muted); }
+.timer-card .gx-bar { width: 100%; }
+.timer-card.low .timer-big { color: var(--neg); }
+.timer-card.paused .timer-big { color: var(--transfer); }
+.home-signin { display: inline-flex; gap: 6px; }
+.home-fp summary { cursor: pointer; font-weight: 700; }
+.home-fp[open] summary { margin-bottom: 10px; }

@@ -1,74 +1,106 @@
 import { useState } from 'react'
 import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
-import { DURATIONS, balanceFor, byLine, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, timeLabel, useNow, rs } from '../../lib/shop'
+import { DURATIONS, balanceFor, byLine, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, shortCode, timeLabel, useNow, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
 
-// The Floor: every system with its live state. Free → Start; playing → + F&B, Extend, End & collect.
+// The Floor ("Slots" tab): every system with its live state. Free → Start; playing → + F&B, Extend, Pause, End.
+// A PS5 has one row per controller (owner: each controller is a separate customer with its own timer; start
+// them together or one later). Pause / Resume (technical failure) stops the clock, so no one loses time.
 // Replaces the sheet's rows (Name, System, Time in/out, F&B, Extend, Total, Payment mode).
 export default function Floor({ shop, householdId, toast }) {
   const now = useNow(10_000)
-  const [sheet, setSheet] = useState(null) // { kind: 'start'|'fnb'|'extend'|'end', system, session }
-  const running = new Map(shop.sessions.filter((s) => s.status === 'running').map((s) => [s.system_id, s]))
-  const busy = shop.systems.filter((s) => running.has(s.id)).length
+  const [sheet, setSheet] = useState(null) // { kind: 'start'|'fnb'|'extend'|'end', system, session, seats }
+  const running = shop.sessions.filter((s) => s.status === 'running')
+  const at = (sysId, seat) => running.find((s) => s.system_id === sysId && (s.seat || 1) === seat)
+  const seatsOf = (sys) => sys.seats || 1
+  const freeSeats = (sys) => Array.from({ length: seatsOf(sys) }, (_, i) => i + 1).filter((n) => !at(sys.id, n))
+  const totalSeats = shop.systems.reduce((a, x) => a + seatsOf(x), 0)
+  const busySeats = shop.systems.reduce((a, x) => a + (seatsOf(x) - freeSeats(x).length), 0)
   const close = () => setSheet(null)
   const done = (msg) => { setSheet(null); toast(msg); shop.reload() }
 
   const startBooking = (b) => {
-    const sys = shop.systems.find((x) => x.kind === b.kind && !running.has(x.id))
-    if (!sys) { toast(`No free ${b.kind === 'PS' ? 'PS5' : 'PC'} right now`); return }
-    setSheet({ kind: 'start', system: sys, booking: b })
+    const need = b.players || 1
+    const sys = shop.systems.find((x) => x.kind === b.kind && freeSeats(x).length >= need)
+    if (!sys) { toast(`No free ${b.kind === 'PS' ? 'PS5 controllers' : 'PC'} right now`); return }
+    setSheet({ kind: 'start', system: sys, seats: freeSeats(sys).slice(0, need), booking: b })
+  }
+  async function pause(list, on) {
+    const t = new Date()
+    const results = await Promise.all(list.map((s) => supabase.from('shop_sessions').update(on
+      ? { paused_at: t.toISOString() }
+      : { paused_at: null, paused_minutes: Number(s.paused_minutes || 0) + (t - new Date(s.paused_at)) / 60_000 }).eq('id', s.id)))
+    const err = results.find((r) => r.error)?.error
+    done(err ? err.message : on ? 'Paused · the time left is kept' : 'Resumed')
   }
   if (!shop.systems.length) return <div className="card muted">No systems yet. The admin adds them in ⚙ → Systems & rates.</div>
 
   return (
     <section className="gx-floor">
       <div className="chips">
-        <span className="pill gx-pill busy">{busy} playing</span>
-        <span className="pill gx-pill free">{shop.systems.length - busy} free</span>
+        <span className="pill gx-pill busy">{busySeats} playing</span>
+        <span className="pill gx-pill free">{totalSeats - busySeats} free</span>
         {isHappyDay(shop.settings) && <span className="pill gx-pill happy">Happy hours today</span>}
       </div>
       {(shop.bookings?.length > 0 || shop.eventChecks?.length > 0 || shop.entryChecks?.length > 0) && (
         <Bookings bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />
       )}
       {shop.systems.map((sys) => {
-        const s = running.get(sys.id)
-        if (!s) {
-          return (
+        const n = seatsOf(sys)
+        if (n === 1) {
+          const s = at(sys.id, 1)
+          if (!s) return (
             <div key={sys.id} className="card gx-sys free">
               <div className="gx-sys-top">
                 <span className={`gx-badge ${sys.kind === 'PS' ? 'ps' : ''}`}>{sys.name}</span>
                 <div className="grow"><div className="gx-free">Free</div><div className="muted small">{sys.kind === 'PS' ? 'PlayStation' : 'PC'}</div></div>
-                <button className="btn small gx-ok" onClick={() => setSheet({ kind: 'start', system: sys })}>Start</button>
+                <button className="btn small gx-ok" onClick={() => setSheet({ kind: 'start', system: sys, seats: [1] })}>Start</button>
               </div>
             </div>
           )
+          return (
+            <div key={sys.id} className={`card gx-sys ${stateOf(s, now)}`}>
+              <SessionRow sys={sys} s={s} now={now} badge={sys.name} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} />
+            </div>
+          )
         }
-        const left = minutesLeft(s, now)
-        const state = left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy'
-        const pct = Math.min(100, Math.max(0, 100 - (left / s.minutes) * 100))
-        const fnb = Number(s.fnb_before) + Number(s.fnb_while)
+        const list = Array.from({ length: n }, (_, i) => i + 1).map((seat) => ({ seat, s: at(sys.id, seat) }))
+        const playing = list.filter((x) => x.s).map((x) => x.s)
+        const free = freeSeats(sys)
+        const anyRunning = playing.some((s) => !s.paused_at), anyPaused = playing.some((s) => s.paused_at)
         return (
-          <div key={sys.id} className={`card gx-sys ${state}`}>
+          <div key={sys.id} className={`card gx-sys ${playing.length ? 'busy' : 'free'} gx-multi`}>
             <div className="gx-sys-top">
               <span className={`gx-badge ${sys.kind === 'PS' ? 'ps' : ''}`}>{sys.name}</span>
-              <div className="grow">
-                <div className="gx-name">{s.customer_name}{s.players > 1 ? ` · ${s.players} players` : ''}</div>
-                <div className="muted small">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s))}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''}</div>
+              <div className="grow"><div className={playing.length ? 'gx-name' : 'gx-free'}>{playing.length ? `${playing.length} of ${n} playing` : 'Free'}</div>
+                <div className="muted small">{free.length ? `${free.length} controller${free.length === 1 ? '' : 's'} free` : 'All controllers busy'}</div></div>
+              {free.length > 0 && <button className="btn small gx-ok" onClick={() => setSheet({ kind: 'start', system: sys, seats: free })}>Start{free.length > 1 ? '…' : ''}</button>}
+            </div>
+            {playing.length > 1 && (
+              <div className="gx-btns">
+                {anyRunning && <button className="btn small" onClick={() => pause(playing.filter((s) => !s.paused_at), true)}>⏸ Pause all</button>}
+                {anyPaused && <button className="btn small" onClick={() => pause(playing.filter((s) => s.paused_at), false)}>▶ Resume all</button>}
               </div>
-              <span className={`pill gx-pill ${state}`}>{left <= 0 ? `Time up ${durLabel(-left)} ago` : `${durLabel(left)} left`}</span>
-            </div>
-            <div className="gx-bar"><i style={{ width: `${pct}%` }} /></div>
-            <div className="gx-btns">
-              <button className="btn small" onClick={() => setSheet({ kind: 'fnb', system: sys, session: s })}>+ F&amp;B</button>
-              <button className="btn small" onClick={() => setSheet({ kind: 'extend', system: sys, session: s })}>Extend</button>
-              <button className="btn small primary" style={{ marginLeft: 'auto' }} onClick={() => setSheet({ kind: 'end', system: sys, session: s })}>End &amp; collect</button>
-            </div>
+            )}
+            {list.map(({ seat, s }) => s ? (
+              <div key={seat} className={`gx-seat ${stateOf(s, now)}`}>
+                <SessionRow sys={sys} s={s} now={now} badge={`🎮${seat}`} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} />
+              </div>
+            ) : (
+              <div key={seat} className="gx-seat free">
+                <div className="gx-sys-top">
+                  <span className="gx-badge sm">🎮{seat}</span>
+                  <div className="grow"><span className="gx-free">Controller {seat} free</span></div>
+                  <button className="btn small gx-ok" onClick={() => setSheet({ kind: 'start', system: sys, seats: [seat] })}>Start</button>
+                </div>
+              </div>
+            ))}
           </div>
         )
       })}
-      {sheet?.kind === 'start' && <StartSheet system={sheet.system} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} free={freeSeats(sheet.system)} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} onClose={close} onDone={done} />}
       {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
@@ -76,13 +108,40 @@ export default function Floor({ shop, householdId, toast }) {
   )
 }
 
+const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
+
+// One running session (a PC, or one PS5 controller): customer, times, code for the timer screen, actions.
+function SessionRow({ sys, s, now, badge, onSheet, onPause }) {
+  const left = minutesLeft(s, now)
+  const state = stateOf(s, now)
+  const pct = Math.min(100, Math.max(0, 100 - (left / s.minutes) * 100))
+  const fnb = Number(s.fnb_before) + Number(s.fnb_while)
+  return (<>
+    <div className="gx-sys-top">
+      <span className={`gx-badge ${badge.length > 3 ? 'sm' : ''} ${sys.kind === 'PS' ? 'ps' : ''}`}>{badge}</span>
+      <div className="grow">
+        <div className="gx-name">{s.customer_name}{s.players > 1 ? ` · ${s.players} players` : ''}</div>
+        <div className="muted small">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s, now))}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''} · code <b className="mono">{shortCode(s.id)}</b></div>
+      </div>
+      <span className={`pill gx-pill ${state}`}>{s.paused_at ? `Paused · ${durLabel(left)} left` : left <= 0 ? `Time up ${durLabel(-left)} ago` : `${durLabel(left)} left`}</span>
+    </div>
+    <div className="gx-bar"><i style={{ width: `${pct}%` }} /></div>
+    <div className="gx-btns">
+      <button className="btn small" onClick={() => onSheet('fnb')}>+ F&amp;B</button>
+      <button className="btn small" onClick={() => onSheet('extend')}>Extend</button>
+      <button className="btn small" onClick={() => onPause(!s.paused_at)}>{s.paused_at ? '▶ Resume' : '⏸ Pause'}</button>
+      <button className="btn small primary" style={{ marginLeft: 'auto' }} onClick={() => onSheet('end')}>End &amp; collect</button>
+    </div>
+  </>)
+}
+
 const FNB = [[0, 'None'], [10, '₹10'], [20, '₹20'], [30, '₹30'], [40, '₹40'], [60, '₹60']]
 
-const MAX_PLAYERS = { PS: 3 } // one PS5, three controllers; PCs are one per head
-
-function StartSheet({ system, booking, dues, rates, settings, happy, householdId, onClose, onDone }) {
+// Start one PC, or one or more PS5 controllers together (each controller = one customer, one timer, priced
+// per head). A booking's amount is split across its controllers as already paid online.
+function StartSheet({ system, seats, free, booking, dues, rates, settings, happy, householdId, onClose, onDone }) {
   const now = useNow(30_000)
-  const [players, setPlayers] = useState(booking?.players || 1)
+  const [picked, setPicked] = useState(seats || [free[0]])
   const [name, setName] = useState(booking?.customer_name || '')
   const [phone, setPhone] = useState(booking?.customer_phone || '')
   const [mins, setMins] = useState(booking?.minutes || 60)
@@ -90,40 +149,48 @@ function StartSheet({ system, booking, dues, rates, settings, happy, householdId
   const [pay, setPay] = useState(booking ? 'booked' : 'end')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const multi = (system.seats || 1) > 1
+  const count = picked.length
   const each = priceFor(rates, system.kind, mins, happy)
-  const gaming = booking && mins === booking.minutes && players === booking.players ? Number(booking.amount) : each * players
+  const bookedSame = booking && mins === booking.minutes && count === (booking.players || 1)
+  const gaming = bookedSame ? Number(booking.amount) : each * count
   const total = gaming + fnb
-  const maxPlayers = MAX_PLAYERS[system.kind] || 1
-  // Old dues for this customer (matched by mobile, else name), so staff can ask for them.
   const key = customerKey(name, phone)
   const owes = key.length > 2 ? duesByCustomer(dues).find((d) => d.key === key) : null
+  const toggle = (n) => setPicked((p) => (p.includes(n) ? (p.length > 1 ? p.filter((x) => x !== n) : p) : [...p, n].sort()))
 
   async function save() {
-    setBusy(true)
-    const { data: created, error } = await supabase.from('shop_sessions').insert({
-      household_id: householdId, system_id: system.id, system_name: system.name,
-      customer_name: name.trim() || 'Walk-in', customer_phone: phone.trim() || null,
-      base_minutes: mins, minutes: mins, gaming_amount: gaming, fnb_before: fnb, players, happy,
-      paid_cash: pay === 'cash' ? total : 0, paid_online: pay === 'online' ? total : pay === 'booked' ? Number(booking.amount) : 0,
-    }).select('id').single()
+    setBusy(true); setError(null)
+    const split = (v) => Math.round((v / count) * 100) / 100
+    const rows = picked.map((seat, i) => {
+      const g = bookedSame ? split(Number(booking.amount)) : each
+      const f = i === 0 ? fnb : 0
+      return {
+        household_id: householdId, system_id: system.id, system_name: system.name, seat,
+        customer_name: (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
+        base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
+        paid_cash: pay === 'cash' ? g + f : 0, paid_online: pay === 'online' ? g + f : pay === 'booked' ? split(Number(booking.amount)) : 0,
+      }
+    })
+    const { data: created, error } = await supabase.from('shop_sessions').insert(rows).select('id')
     setBusy(false)
-    if (error) { setError(error.code === '23505' ? `${system.name} is already running.` : error.message); return }
-    if (booking) await supabase.from('shop_bookings').update({ status: 'arrived', session_id: created.id }).eq('id', booking.id)
-    onDone(`${system.name} started for ${name.trim() || 'walk-in'} · ends ${timeLabel(new Date(new Date().getTime() + mins * 60_000))}`)
+    if (error) { setError(error.code === '23505' ? (multi ? `Another controller on ${system.name} can’t start until the database update for controllers is approved. Start one at a time for now.` : `${system.name} is already running.`) : error.message); return }
+    if (booking) await supabase.from('shop_bookings').update({ status: 'arrived', session_id: created[0].id }).eq('id', booking.id)
+    onDone(`${system.name}${multi ? ` · controller${count > 1 ? 's' : ''} ${picked.join(', ')}` : ''} started for ${name.trim() || 'walk-in'} · ends ${timeLabel(new Date(Date.now() + mins * 60_000))}`)
   }
 
   return (
     <Sheet title={`Start ${system.name}`} sub={`${timeLabel(now)} – ${timeLabel(now + mins * 60_000)}${happy ? ' · happy hours' : ''}`} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
+      {multi && (<>
+        <div className="caps muted">Controllers · one customer each, charged per head</div>
+        <div className="chips">{free.map((n) => <button type="button" key={n} className={`chip chip-btn ${picked.includes(n) ? 'on' : ''}`} onClick={() => toggle(n)}>🎮 {n}</button>)}</div>
+      </>)}
       <div className="grid2">
         <label>Customer<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" autoComplete="off" /></label>
         <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} placeholder="Optional" inputMode="tel" autoComplete="off" /></label>
       </div>
       {owes && <div className="alert error" style={{ margin: 0 }}>{owes.name} owes {rs(owes.total)} from before · collect it in Cash → Customer dues</div>}
-      {maxPlayers > 1 && (<>
-        <div className="caps muted">Players · charged per head</div>
-        <Chips options={Array.from({ length: maxPlayers }, (_, i) => [i + 1, String(i + 1)])} value={players} onChange={setPlayers} />
-      </>)}
       <div className="caps muted">Time</div>
       <Chips scroll options={DURATIONS.map((m) => [m, durLabel(m)])} value={mins} onChange={setMins} />
       <div className="caps muted">F&amp;B before gaming</div>
@@ -132,11 +199,11 @@ function StartSheet({ system, booking, dues, rates, settings, happy, householdId
       <Chips options={[...(booking ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online']]} value={pay} onChange={setPay} />
       {pay === 'online' && <UpiQrButton settings={settings} amount={total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
       <div className="gx-box">
-        <SumRow label={`Gaming · ${durLabel(mins)}${players > 1 ? ` × ${players}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
+        <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
         <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : total)} />
       </div>
-      <SheetActions onClose={onClose} busy={busy} label="Start timer" />
+      <SheetActions onClose={onClose} busy={busy} label={count > 1 ? `Start ${count} timers` : 'Start timer'} />
     </Sheet>
   )
 }
@@ -168,7 +235,7 @@ function ExtendSheet({ system, session, rates, onClose, onDone }) {
   const minutes = session.minutes + add
   const extend = Math.max(0, priceFor(rates, system.kind, minutes, session.happy) * (session.players || 1) - Number(session.gaming_amount))
   const extra = extend - Number(session.extend_amount)
-  const newEnd = new Date(new Date(session.started_at).getTime() + minutes * 60_000)
+  const newEnd = sessionEnd({ ...session, minutes })
   async function save() {
     setBusy(true)
     const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: extend }).eq('id', session.id)

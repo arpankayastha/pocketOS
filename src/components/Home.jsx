@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { BrandMark } from '../lib/icons'
 import { DAY_NAMES, dayStart, durLabel, rs, timeLabel } from '../lib/shop'
 import { googleEnabled, isCustomer, signInWithGoogle, useMyStatus } from '../lib/mine'
+import Passkeys, { passkeyError, signInWithFingerprint } from './Passkeys'
+import { PasskeyIcon } from '../lib/icons'
 
 // The café's public home page (the owner's brief, 12 Oct): "Welcome to GRANDXGAMER" over the owner's photo,
 // Book your slots now, the events (GTA VI slot booking, the Valorant tournament), job openings, and Google
@@ -41,17 +43,24 @@ export default function Home({ session }) {
               {(status?.me?.name || customer.user.user_metadata?.full_name || 'Me').split(' ')[0]} · Sign out
             </button>
           ) : (
-            <button className="btn small home-google" onClick={google_}><GoogleG /> Sign in</button>
+            <span className="home-signin">
+              <button className="btn small home-google" onClick={google_}><GoogleG /> Sign in</button>
+              <button className="btn small home-google" aria-label="Sign in with fingerprint" title="Sign in with fingerprint" onClick={async () => {
+                const { error } = await signInWithFingerprint().catch((e) => ({ error: e }))
+                if (error) setError(passkeyError(error))
+              }}><PasskeyIcon /></button>
+            </span>
           )}
         </nav>
         <div className="home-hero-text">
           <div className="home-kicker">PC &amp; PS5 gaming café</div>
           <h1>Welcome to <span>GRANDXGAMER</span></h1>
-          <a className="btn primary home-cta" href="#book">Book your slots now</a>
+          <div className="home-ctas"><a className="btn primary home-cta" href="#book">Book your slots now</a>
+            <a className="btn home-cta ghostlight" href="#timer">Have a code? Timer</a></div>
           {current && info && (
             <div className="home-live">
               <span><i className={current.PC ? 'on' : ''} />{current.PC} of {info.systems?.PC} PCs free</span>
-              <span><i className={current.PS ? 'on' : ''} />PS5 {current.PS ? 'free' : 'busy'}</span>
+              <span><i className={current.PS ? 'on' : ''} />PS5 {current.PS ? `${current.PS} of 3 controllers free` : 'busy'}</span>
             </div>
           )}
         </div>
@@ -61,6 +70,7 @@ export default function Home({ session }) {
         {error && <div className="alert error">{error}</div>}
         {customer && status && !status.me?.phone && <Profile me={status.me} session={customer} onSaved={reload} />}
         {status && <Mine status={status} />}
+        {customer && status?.me?.phone && <details className="card home-fp"><summary>Fingerprint sign-in</summary><Passkeys /></details>}
 
         <section className="home-section">
           <h2>Events</h2>
@@ -133,6 +143,8 @@ function EventCard({ ev }) {
 // My bookings / entries and, while playing, the time left (staff pressed Start on the Floor).
 function Mine({ status }) {
   const [, tick] = useState(0)
+  const [fetched, setFetched] = useState(() => Date.now())
+  useEffect(() => { setFetched(Date.now()) }, [status])
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t) }, [])
   const items = [...status.bookings, ...status.event_bookings, ...status.entries]
   if (!status.playing.length && !items.length) return null
@@ -140,14 +152,15 @@ function Mine({ status }) {
   return (
     <section className="home-section">
       {status.playing.map((s) => {
-        const end = new Date(s.started_at).getTime() + s.minutes * 60_000
+        // ends_at already counts pauses; while paused it keeps moving with the clock.
+        const end = new Date(s.ends_at).getTime() + (s.paused_at ? Date.now() - fetched : 0)
         const left = Math.max(0, end - Date.now())
         const mm = Math.floor(left / 60_000), ss = Math.floor((left % 60_000) / 1000)
         return (
           <div key={s.id} className="card home-timer">
-            <span className="muted small">Playing on {s.system}{s.players > 1 ? ` · ${s.players} players` : ''}</span>
+            <span className="muted small">Playing on {s.system}{s.seats > 1 ? ` · controller ${s.seat}` : ''}</span>
             <div className={`home-timer-big ${left < 5 * 60_000 ? 'neg' : ''}`}>{left ? `${Math.floor(mm / 60) ? `${Math.floor(mm / 60)}:${String(mm % 60).padStart(2, '0')}` : mm}:${String(ss).padStart(2, '0')}` : 'Time up'}</div>
-            <span className="muted small">{left ? 'left' : 'Ask at the counter to extend'} · ends {timeLabel(end)}</span>
+            <span className="muted small">{s.paused_at ? 'Paused · your time is safe' : left ? `left · ends ${timeLabel(end)}` : 'Ask at the counter to extend'} · code {s.code}</span>
             <div className="gx-bar"><i style={{ width: `${Math.min(100, 100 - (left / (s.minutes * 60_000)) * 100)}%` }} /></div>
           </div>
         )

@@ -5,6 +5,7 @@ import { DAY_NAMES, durLabel, rs } from '../../lib/shop'
 import { Appearance, Collapsible, FingerprintCard, SecurityCard, SignOutCard } from '../Settings'
 import { Chips, Sheet, SheetActions } from './ui'
 import { uploadShopImage } from '../../lib/media'
+import Passkeys from '../Passkeys'
 
 // Shop ⚙: systems and the rate card (admin), then the per-login cards everyone has.
 export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, toast }) {
@@ -20,6 +21,7 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
       <PaymentAlerts toast={toast} />
       {admin && <Payments shop={shop} householdId={householdId} toast={toast} />}
       {admin && <LoginPassword toast={toast} />}
+      <Passkeys Wrap={Collapsible} />
       <Appearance />
       {vault?.status === 'unlocked' && <SecurityCard vault={vault} member={member} />}
       {member && appLock && <FingerprintCard appLock={appLock} />}
@@ -186,7 +188,7 @@ function PaymentAlerts({ toast }) {
   }
   return (
     <Collapsible id="gx-alerts" title="Payment alerts" summary={perm === 'granted' ? 'On for this phone' : 'Off for this phone'}>
-      <p className="muted small" style={{ marginTop: 0 }}>When a customer books or enters online, every phone with GRANDXGAMER open beeps and shows it. Check the UPI app, then tap Received or Not received on the Floor.</p>
+      <p className="muted small" style={{ marginTop: 0 }}>When a customer books or enters online, every phone with GRANDXGAMER open beeps and shows it. Check the UPI app, then tap Received or Not received in Slots.</p>
       {perm === 'granted' ? <div className="small pos">Phone notifications are on.</div>
         : perm === 'unsupported' ? <div className="small muted">This browser can’t show notifications; the in-app alert still shows.</div>
         : <button className="btn small primary" onClick={enable}>Turn on phone notifications</button>}
@@ -206,7 +208,7 @@ function OnlineBooking({ shop, householdId, toast }) {
   }
   return (
     <Collapsible id="gx-booking" title="Online booking" summary={on ? `On · ${open}–${close}` : 'Off'} defaultOpen>
-      <p className="muted small" style={{ marginTop: 0 }}>Customers scan the banner at the shop, pick a PC or PS5 for today or tomorrow, pay by UPI and send a request. It shows on the Floor to confirm.</p>
+      <p className="muted small" style={{ marginTop: 0 }}>Customers scan the banner at the shop, pick a PC or PS5 for today or tomorrow, pay by UPI and send a request. It shows in Slots to confirm.</p>
       <div className="grid2">
         <label>Opens<input type="time" value={open} onChange={(e) => setOpen(e.target.value)} /></label>
         <label>Closes<input type="time" value={close} onChange={(e) => setClose(e.target.value)} /></label>
@@ -240,7 +242,7 @@ function Payments({ shop, householdId, toast }) {
   return (
     <Collapsible id="gx-payments" title="Payments" summary={shop.settings?.upi_id ? `UPI QR · ${shop.settings.upi_id}` : 'Add the UPI ID for QR codes'} defaultOpen={!shop.settings?.upi_id}>
       <form className="stack" onSubmit={save}>
-        <p className="muted small" style={{ margin: 0 }}>Online payments on the Floor, deposits and event advances show a QR with the amount filled in. Customers scan it with any UPI app.</p>
+        <p className="muted small" style={{ margin: 0 }}>Online payments in Slots, deposits and event advances show a QR with the amount filled in. Customers scan it with any UPI app.</p>
         <label>UPI ID<input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="e.g. shopname@okicici" autoCapitalize="none" spellCheck={false} /></label>
         <label>Name shown to the customer<input value={name} onChange={(e) => setName(e.target.value)} /></label>
         {upi.trim() && !valid && <div className="alert error" style={{ margin: 0 }}>That doesn’t look like a UPI ID (name@bank).</div>}

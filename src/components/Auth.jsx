@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { BrandMark } from '../lib/icons'
 import { signInMember } from '../lib/members'
+import { signInWithFingerprint, passkeyError } from './Passkeys'
+import { PasskeyIcon } from '../lib/icons'
 
 // GRANDXGAMER sign-in: every login (admin and staff) is a username + PIN or password, made by the admin
 // (Shop → Staff). Opened from the home page's "Staff login" link (/#staff). Customers sign in with Google on the home page.
@@ -22,7 +24,7 @@ export default function Auth() {
       <div className="auth-glow" aria-hidden="true" />
       <div className="card auth">
         <div className="brand big"><BrandMark size={28} />GRANDXGAMER</div>
-        <p className="auth-tagline">Floor, bookings, staff and money for the café, in one app.</p>
+        <p className="auth-tagline">Slots, bookings, staff and money for the café, in one app.</p>
         {msg && <div className="alert error">{msg}</div>}
         <form className="stack" onSubmit={signIn}>
           <label>Username
@@ -33,7 +35,13 @@ export default function Auth() {
           </label>
           <button className="btn primary" disabled={busy || !username.trim() || pin.length < 6}>{busy ? 'Signing in…' : 'Sign in'}</button>
         </form>
-        <p className="auth-hint">Staff: use the username and 6-digit PIN from the admin, then turn on fingerprint.</p>
+        <div className="auth-divider">or</div>
+        <button type="button" className="btn passkey" disabled={busy} onClick={async () => {
+          setBusy(true); setMsg(null)
+          const { error } = await signInWithFingerprint().catch((e) => ({ error: e }))
+          if (error) { setMsg(passkeyError(error)); setBusy(false) }
+        }}><PasskeyIcon /> Sign in with fingerprint</button>
+        <p className="auth-hint">Staff: the first time, use the username and 6-digit PIN from the admin, then add fingerprint sign-in in ⚙.</p>
         <a className="auth-hint" href="#">‹ Back to the home page</a>
       </div>
     </div>

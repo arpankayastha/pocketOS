@@ -38,6 +38,7 @@ const Book = lazy(() => import('./components/Book'))
 const Poster = lazy(() => import('./components/Poster'))
 const Home = lazy(() => import('./components/Home'))
 const EventPage = lazy(() => import('./components/EventPage'))
+const Timer = lazy(() => import('./components/Timer'))
 const loadShop = () => import('./components/shop/ShopModule')
 const ShopModule = lazy(loadShop)
 function preloadBudget() {
@@ -89,6 +90,7 @@ export default function App() {
   if (hash === '#jobs') return <Suspense fallback={<Splash />}><Jobs /></Suspense>
   if (hash === '#book') return <Suspense fallback={<Splash />}><Book /></Suspense>
   if (hash === '#poster') return <Suspense fallback={<Splash />}><Poster /></Suspense>
+  if (hash === '#timer') return <Suspense fallback={<Splash />}><Timer /></Suspense>
   if (session === undefined) return <Splash />
   if (hash.startsWith('#event/')) return <Suspense fallback={<Splash />}><EventPage id={hash.slice(7)} session={session} /></Suspense>
   // Signed out: the café's home page (owner's brief); staff sign in from its "Staff login" link (#staff).

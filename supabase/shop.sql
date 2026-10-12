@@ -546,3 +546,22 @@ create table if not exists public.shop_dues_paid (
 alter table public.shop_dues_paid enable row level security;   -- shop reads / shop writes / admin deletes
 -- trigger shop_dues_paid_apply → private.apply_dues_paid(); realtime: shop_entries, shop_dues_paid, shop_event_bookings.
 -- Seeded: "Valorant Tournament" (tournament, PC, date and fee to be set by the owner).
+
+-- ---------------------------------------------------------------------------------------------
+-- PS5 controllers, pause / resume, timer screen (12 Oct 2026, evening). Migrations controllers_pause_seats,
+-- seat_availability_pause_timer, my_status_controllers_pause.
+alter table public.shop_systems add column if not exists seats int not null default 1 check (seats between 1 and 8);
+update public.shop_systems set seats = 3 where kind = 'PS' and seats = 1;          -- 3 controllers
+alter table public.shop_sessions add column if not exists seat int not null default 1 check (seat between 1 and 8);
+alter table public.shop_sessions add column if not exists paused_at timestamptz;
+alter table public.shop_sessions add column if not exists paused_minutes numeric(10,2) not null default 0;
+alter table public.shop_sessions add column if not exists booking_id uuid references public.shop_bookings(id) on delete set null;
+create index if not exists shop_sessions_booking_idx on public.shop_sessions (booking_id);
+create unique index if not exists shop_sessions_one_running_seat on public.shop_sessions (system_id, seat) where status = 'running';
+-- STILL TO APPLY (the migration was cancelled 3 times; run it in the SQL editor): without it only one PS5
+-- controller can run at a time.
+drop index if exists public.shop_sessions_one_running;
+-- private.session_end(session) = started_at + minutes + paused minutes (a paused session keeps its time left);
+-- private.free_systems now counts seats (PS5 = 3) and uses session_end; public_book needs `players` free seats;
+-- public.public_timer(code) (anon) = sessions for a 6-character booking / session code, for the #timer screen;
+-- public_my_status returns seat, pause and ends_at, and sessions started from a booking (booking_id).

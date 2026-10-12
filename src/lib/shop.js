@@ -36,7 +36,14 @@ export function priceFor(rates, kind, minutes, happy = false) {
   return cost[minutes]
 }
 
-export const sessionEnd = (s) => new Date(new Date(s.started_at).getTime() + s.minutes * MIN)
+// When a session ends: its minutes plus any time it was paused (technical failure). While paused the end keeps
+// moving, so the customer never loses time. Same rule as private.session_end in the database.
+export function sessionEnd(s, now = Date.now()) {
+  const base = new Date(s.started_at).getTime() + (Number(s.minutes) + Number(s.paused_minutes || 0)) * MIN
+  return new Date(s.paused_at ? now + (base - new Date(s.paused_at).getTime()) : base)
+}
+// The code a customer types on the PC / phone timer (#timer): first 6 characters of the id, like booking codes.
+export const shortCode = (id) => String(id || '').replace(/-/g, '').slice(0, 6).toUpperCase()
 export const sessionTotal = (s) => Number(s.gaming_amount) + Number(s.extend_amount) + Number(s.fnb_before) + Number(s.fnb_while) - Number(s.discount)
 export const sessionPaid = (s) => Number(s.paid_cash) + Number(s.paid_online) + Number(s.paid_deposit || 0)
 
@@ -62,7 +69,7 @@ export const balanceFor = (deposits, name, phone) => {
   const k = customerKey(name, phone)
   return depositBalances(deposits).find((r) => r.key === k || (!phone && r.name.trim().toLowerCase() === (name || '').trim().toLowerCase()))
 }
-export const minutesLeft = (s, now = Date.now()) => (sessionEnd(s).getTime() - now) / MIN
+export const minutesLeft = (s, now = Date.now()) => (sessionEnd(s, now).getTime() - now) / MIN
 
 export function useNow(ms = 15_000) {
   const [now, setNow] = useState(() => Date.now())
