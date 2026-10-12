@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
+import { customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
 import CustomerFields from './CustomerFields'
+import { useDialog } from '../../lib/dialog'
 
 // The counter drawer for today: opening cash + cash collected (sessions, event advances, cash in)
 // − cash paid out = what should be in the drawer. Online money is shown but isn't in the drawer.
@@ -42,15 +43,35 @@ export default function Cash({ shop, householdId, toast, admin }) {
   const [spend] = useRpc('shop_spend', householdId, shop.cash.length)
   const [plan] = useRpc('shop_plan_items', householdId, shop.cash.length)
   const [sheet, setSheet] = useState(null) // 'open' | 'in' | 'out' | 'count'
+  const dialog = useDialog()
+  // Owner: "admin can do any actions" — delete any of today's lines, write off dues, clear a deposit.
+  async function remove(e) {
+    const what = { shop_sessions: 'This removes the whole session (its bill and payments).', shop_cash: 'The drawer and the Cashbook update.', shop_deposits: 'Their deposit balance goes down by this amount.', shop_dues_paid: 'The amount goes back to their dues.' }[e.table]
+    if (!await dialog.confirm({ title: `Delete “${e.title}”?`, message: `${rs(e.amount)} · ${what}`, confirmLabel: 'Delete', danger: true })) return
+    const { error } = await supabase.from(e.table).delete().eq('id', e.id)
+    if (error) toast(error.message); else { toast('Deleted'); shop.reload() }
+  }
+  async function writeOff(r) {
+    if (!await dialog.confirm({ title: `Clear ${r.name}’s dues?`, message: `${rs(r.total)} won't be collected. The sessions stay in the records with nothing owed.`, confirmLabel: 'Clear dues', danger: true })) return
+    const results = await Promise.all(r.sessions.map((x) => supabase.from('shop_sessions').update({ owed: 0, note: `Dues ${rs(x.owed)} written off` }).eq('id', x.id)))
+    const err = results.find((x) => x.error)?.error
+    if (err) toast(err.message); else { toast(`${r.name}’s dues cleared`); shop.reload() }
+  }
+  async function clearDeposit(r) {
+    if (!await dialog.confirm({ title: `Clear ${r.name}’s deposit?`, message: `All of this month's deposit entries for them are deleted (${rs(r.balance)} left now).`, confirmLabel: 'Clear deposit', danger: true })) return
+    const ids = (shop.deposits || []).filter((d) => customerKey(d.customer_name, d.customer_phone) === r.key).map((d) => d.id)
+    const { error } = await supabase.from('shop_deposits').delete().in('id', ids)
+    if (error) toast(error.message); else { toast('Deposit cleared'); shop.reload() }
+  }
   const entries = [
     ...shop.sessions.filter((s) => s.status === 'closed' || sessionHasPay(s)).map((s) => ({
-      id: s.id, at: s.ended_at || s.started_at, title: `${s.system_name} · ${s.customer_name} · ${durLabel(s.minutes)}`,
+      id: s.id, table: 'shop_sessions', at: s.ended_at || s.started_at, title: `${s.system_name} · ${s.customer_name} · ${durLabel(s.minutes)}`,
       sub: payLabel(s), amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
     })),
     ...shop.advances.map((b) => ({ id: b.id, at: b.created_at, title: `Event advance · ${b.customer_name}`, sub: b.advance_mode === 'online' ? 'Online' : 'Cash', amount: Number(b.advance_paid), sign: 1, by: b.entered_by })),
-    ...shop.cash.map((c) => ({ id: c.id, at: c.at, title: [c.category, c.note].filter(Boolean).join(' · ') || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0, by: c.entered_by })),
-    ...(shop.deposits || []).filter((d) => d.kind === 'add' && new Date(d.created_at) >= dayStart()).map((d) => ({ id: d.id, at: d.created_at, title: `Deposit · ${d.customer_name}`, sub: d.mode === 'online' ? 'Online' : 'Cash', amount: Number(d.amount), sign: 1, by: d.entered_by })),
-    ...(shop.duesPaid || []).map((p) => ({ id: p.id, at: p.created_at, title: `Dues paid · ${p.customer_name}`, sub: p.mode === 'online' ? 'Online' : 'Cash', amount: Number(p.amount), sign: 1, by: p.entered_by })),
+    ...shop.cash.map((c) => ({ id: c.id, table: 'shop_cash', at: c.at, title: [c.category, c.note].filter(Boolean).join(' · ') || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0, by: c.entered_by })),
+    ...(shop.deposits || []).filter((d) => d.kind === 'add' && new Date(d.created_at) >= dayStart()).map((d) => ({ id: d.id, table: 'shop_deposits', at: d.created_at, title: `Deposit · ${d.customer_name}`, sub: d.mode === 'online' ? 'Online' : 'Cash', amount: Number(d.amount), sign: 1, by: d.entered_by })),
+    ...(shop.duesPaid || []).map((p) => ({ id: p.id, table: 'shop_dues_paid', at: p.created_at, title: `Dues paid · ${p.customer_name}`, sub: p.mode === 'online' ? 'Online' : 'Cash', amount: Number(p.amount), sign: 1, by: p.entered_by })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at))
 
   return (
@@ -63,8 +84,8 @@ export default function Cash({ shop, householdId, toast, admin }) {
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet(dayTotals(shop).open ? 'count' : 'open')}>{dayTotals(shop).open ? 'Count' : 'Opening'}</button>
       </div>
       {admin && <PlanClaims rows={plan} />}
-      <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} />
-      <Deposits shop={shop} onAdd={() => setSheet('deposit')} />
+      <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} onClear={admin ? writeOff : null} />
+      <Deposits shop={shop} onAdd={() => setSheet('deposit')} onClear={admin ? clearDeposit : null} />
       </div>
       <div className="gx-col">
       <div className="card">
@@ -73,6 +94,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
           <div key={e.id} className="line">
             <div className="grow"><div className="gx-ellipsis">{e.title}</div><div className="muted small">{timeLabel(e.at)} · {e.sub}{e.by ? ` · by ${e.by}` : ''}</div></div>
             <b className={e.sign > 0 ? 'pos' : e.sign < 0 ? 'neg' : 'muted'}>{e.sign > 0 ? '+' : e.sign < 0 ? '−' : ''}{rs(e.amount)}</b>
+            {admin && e.table && <button className="btn icon gx-del" aria-label={`Delete ${e.title}`} title="Delete" onClick={() => remove(e)}>✕</button>}
           </div>
         ))}
       </div>
@@ -128,7 +150,7 @@ function CashSheet({ kind, categories, plan, householdId, onClose, onDone }) {
 
 // Customer deposits (owner's rule): paid ahead, used on later visits within the same month, then they lapse.
 // Not refundable. Used from the End sheet on the Floor.
-function Deposits({ shop, onAdd }) {
+function Deposits({ shop, onAdd, onClear }) {
   const rows = depositBalances(shop.deposits || [])
   const month = new Date().toLocaleDateString('en-IN', { month: 'long' })
   return (
@@ -138,6 +160,7 @@ function Deposits({ shop, onAdd }) {
         <div key={r.key} className="line">
           <div className="grow"><div className="gx-ellipsis">{r.name}</div>{r.phone && <div className="muted small">{r.phone}</div>}</div>
           <b className="pos">{rs(r.balance)}</b>
+          {onClear && <button className="btn icon gx-del" aria-label={`Clear ${r.name}'s deposit`} title="Clear" onClick={() => onClear(r)}>✕</button>}
         </div>
       ))}
     </div>
@@ -171,7 +194,7 @@ function DepositSheet({ settings, householdId, onClose, onDone }) {
 }
 
 // Customer dues (owner: staff must see them too): sessions ended as "Owes", any day, until paid back.
-function CustomerDues({ shop, onCollect }) {
+function CustomerDues({ shop, onCollect, onClear }) {
   const rows = duesByCustomer(shop.dues)
   const total = rows.reduce((a, r) => a + r.total, 0)
   return (
@@ -185,6 +208,7 @@ function CustomerDues({ shop, onCollect }) {
           </div>
           <b className="neg">{rs(r.total)}</b>
           <button className="btn small" onClick={() => onCollect(r)}>Collect</button>
+          {onClear && <button className="btn icon gx-del" aria-label={`Clear ${r.name}'s dues`} title="Clear dues" onClick={() => onClear(r)}>✕</button>}
         </div>
       ))}
     </div>

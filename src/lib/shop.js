@@ -144,7 +144,7 @@ export function useShop(householdId) {
 }
 
 // A past day's sessions, cash and event advances (Today's ‹ › day switch). Same shape as useShop's.
-export function useDay(householdId, day) {
+export function useDay(householdId, day, version = 0) {
   const [data, setData] = useState(null)
   const key = day ? day.toISOString() : null
   useEffect(() => {
@@ -162,7 +162,7 @@ export function useDay(householdId, day) {
       if (live) setData({ sessions: s.data || [], cash: c.data || [], advances: (a.data || []).filter((b) => b.status !== 'cancelled' && b.payment_ok !== false), shifts: [], deposits: d.data || [], duesPaid: p.data || [] })
     })
     return () => { live = false }
-  }, [householdId, key])
+  }, [householdId, key, version])
   return data
 }
 

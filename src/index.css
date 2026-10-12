@@ -1190,3 +1190,5 @@ label.btn.disabled { opacity: .6; pointer-events: none; }
 .gx-cal .chips { align-items: center; }
 .gx-cal-count { margin-left: 4px; }
 .gx-slot.past { opacity: .55; }
+.gx-del { min-height: 32px; min-width: 32px; padding: 4px; color: var(--muted); font-size: 13px; }
+.gx-del:hover { color: var(--neg); }

@@ -3,13 +3,15 @@ import { supabase } from '../../lib/supabase'
 import { addDays, dayLabel, dayStart, dayTotals, durLabel, hoursLabel, minutesLeft, sessionTotal, timeLabel, useDay, useNow, rs } from '../../lib/shop'
 import { DrawerCard } from './Cash'
 import { useSwipe } from '../../lib/useSwipe'
+import { useDialog } from '../../lib/dialog'
 
 // Admin's first screen: today's money, sessions, hours by system, who is on shift, and the drawer.
-export default function Today({ shop: live, householdId, onOpen }) {
+export default function Today({ shop: live, householdId, onOpen, toast }) {
+  const [version, setVersion] = useState(0)
   const now = useNow(30_000)
   const [back, setBack] = useState(0) // days before today
   const day = back ? addDays(dayStart(), -back) : null
-  const past = useDay(householdId, day)
+  const past = useDay(householdId, day, version)
   const shop = back ? { ...live, ...(past || { sessions: [], cash: [], advances: [], shifts: [], deposits: [], duesPaid: [] }) } : live
   const t = dayTotals(shop, day || dayStart())
   const daySwipe = useSwipe({ ignore: '.gx-scroll', onLeft: () => setBack((b) => Math.max(0, b - 1)), onRight: () => setBack((b) => b + 1) })
@@ -51,7 +53,7 @@ export default function Today({ shop: live, householdId, onOpen }) {
           ))}
         </div>
       </div>
-      <Sessions sessions={shop.sessions} order={5} />
+      <Sessions sessions={shop.sessions} order={5} toast={toast} onChanged={() => { live.reload(); setVersion((v) => v + 1) }} />
       </div>
       <div className="gx-col">
       <div className="gx-kpis" style={{ order: 2 }}>
@@ -111,8 +113,15 @@ const whoLine = (s) => {
   return ` · by ${s.entered_by || '—'}, ended by ${s.handled_by}`
 }
 
-function Sessions({ sessions, order }) {
+function Sessions({ sessions, order, toast, onChanged }) {
   const [all, setAll] = useState(false)
+  const dialog = useDialog()
+  async function remove(s) {
+    if (!await dialog.confirm({ title: `Delete ${s.system_name} · ${s.customer_name}?`, message: `${rs(sessionTotal(s))} · the whole session, its bill and payments, is removed from the records.`, confirmLabel: 'Delete', danger: true })) return
+    const { error } = await supabase.from('shop_sessions').delete().eq('id', s.id)
+    toast?.(error ? error.message : 'Session deleted')
+    if (!error) onChanged?.()
+  }
   const rows = sessions.filter((s) => s.status === 'closed')
   if (!rows.length) return null
   const shown = all ? rows : rows.slice(0, 8)
@@ -128,6 +137,7 @@ function Sessions({ sessions, order }) {
             <div className="muted small">{timeLabel(s.started_at)} · {durLabel(s.minutes)}{Number(s.fnb_before) + Number(s.fnb_while) ? ` · F&B ${rs(Number(s.fnb_before) + Number(s.fnb_while))}` : ''} · {mode(s)}{whoLine(s)}</div>
           </div>
           <b className={Number(s.owed) > 0 ? 'neg' : ''}>{rs(sessionTotal(s))}</b>
+          <button className="btn icon gx-del" aria-label="Delete session" title="Delete" onClick={() => remove(s)}>✕</button>
         </div>
       ))}
       {rows.length > 8 && <button className="btn link" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${rows.length}`}</button>}

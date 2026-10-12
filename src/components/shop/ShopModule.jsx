@@ -56,7 +56,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   let body
   if (!householdId || shop.loading) body = <ListSkeleton />
   else if (shop.error) body = <div className="alert error">Couldn’t load the shop: {shop.error}</div>
-  else if (tab === 'today') body = <Today {...props} onOpen={setTab} />
+  else if (tab === 'today') body = <Today {...props} onOpen={setTab} toast={toast} />
   else if (tab === 'floor') body = <Floor {...props} admin={!member} />
   else if (tab === 'shift') body = <Shift householdId={householdId} userId={userId} toast={toast} />
   else if (tab === 'cash') body = <Cash {...props} admin={!member} />
