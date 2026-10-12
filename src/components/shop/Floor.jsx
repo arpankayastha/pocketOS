@@ -166,7 +166,7 @@ export function useTimeUpAlarm(running, now, onAlert) {
         const key = `${s.id}:${s.minutes}:${mark}`
         if (left <= mark && left > mark - 3 && !fired.current.has(key)) {
           fired.current.add(key)
-          alarm(mark === 0 ? 4 : 2)
+          alarm(mark === 0 ? 10 : 5) // seconds: 5 at 5 min left, 10 at time up
           const title = `${s.system_name}${s.seat > 1 || s.system_name.startsWith('PS') ? ` · controller ${s.seat || 1}` : ''}: ${msg}`
           onAlert?.(`⏰ ${title} · ${s.customer_name}`)
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {

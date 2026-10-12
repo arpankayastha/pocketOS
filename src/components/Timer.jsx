@@ -49,7 +49,7 @@ export default function Timer() {
     const left = (new Date(s.ends_at).getTime() - now) / 60_000
     for (const mark of [5, 0]) {
       const key = `${s.system}:${s.seat}:${s.ends_at}:${mark}`
-      if (left <= mark && left > mark - 1 && !beeped.has(key)) { beeped.add(key); alarm(mark === 0 ? 3 : 1) }
+      if (left <= mark && left > mark - 1 && !beeped.has(key)) { beeped.add(key); alarm(mark === 0 ? 10 : 5) }
     }
   }
   const ended = (data?.sessions || []).filter((s) => s.status !== 'running')
