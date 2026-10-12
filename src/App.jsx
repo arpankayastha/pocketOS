@@ -95,7 +95,8 @@ export default function App() {
   if (hash.startsWith('#event/')) return <Suspense fallback={<Splash />}><EventPage id={hash.slice(7)} session={session} /></Suspense>
   // Signed out: the café's home page (owner's brief); staff sign in from its "Staff login" link (#staff).
   // Customers signed in with Google stay on the home page (their bookings and time left).
-  if (!session || isCustomer(session)) return hash === '#staff' && !session ? <Auth /> : <Suspense fallback={<Splash />}><Home session={session} /></Suspense>
+  // #staff works for a signed-in customer too (e.g. a Google account not linked to a staff login yet).
+  if (!session || isCustomer(session)) return hash === '#staff' ? <Auth customer={session && isCustomer(session) ? session : null} /> : <Suspense fallback={<Splash />}><Home session={session} /></Suspense>
   return isMember(session) ? <MemberShell session={session} /> : <Shell session={session} />
 }
 

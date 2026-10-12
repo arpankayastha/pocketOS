@@ -59,8 +59,8 @@ export default function Home({ session }) {
             <a className="btn home-cta ghostlight" href="#timer">Have a code? Timer</a></div>
           {current && info && (
             <div className="home-live">
-              <span><i className={current.PC ? 'on' : ''} />{current.PC} of {info.systems?.PC} PCs free</span>
-              <span><i className={current.PS ? 'on' : ''} />PS5 {current.PS ? `${current.PS} of 3 controllers free` : 'busy'}</span>
+              <span><i className={current.PC ? 'on' : ''} />{current.PC} of {info.systems?.PC} PCs available</span>
+              <span><i className={current.PS ? 'on' : ''} />{current.PS ? 'PS5 available' : 'PS5 busy'}</span>
             </div>
           )}
         </div>

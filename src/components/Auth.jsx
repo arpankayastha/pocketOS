@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { BrandMark } from '../lib/icons'
 import { signInMember } from '../lib/members'
+import { supabase } from '../lib/supabase'
 import { signInWithFingerprint, passkeyError } from './Passkeys'
 import { PasskeyIcon } from '../lib/icons'
 import { signInWithGoogle } from '../lib/mine'
 
 // GRANDXGAMER sign-in: every login (admin and staff) is a username + PIN or password, made by the admin
 // (Shop → Staff). Opened from the home page's "Staff login" link (/#staff). Customers sign in with Google on the home page.
-export default function Auth() {
+export default function Auth({ customer }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   const [username, setUsername] = useState('')
@@ -26,6 +27,12 @@ export default function Auth() {
       <div className="card auth">
         <div className="brand big"><BrandMark size={28} />GRANDXGAMER</div>
         <p className="auth-tagline">Slots, bookings, staff and money for the café, in one app.</p>
+        {customer && (
+          <div className="alert error">
+            You’re signed in with Google as {customer.user.email}, which is a customer account — it isn’t linked to a staff or admin login.
+            Sign in below with your username, then link Google in ⚙. <button type="button" className="btn link" style={{ padding: 0 }} onClick={() => supabase.auth.signOut()}>Sign out of Google</button>
+          </div>
+        )}
         {msg && <div className="alert error">{msg}</div>}
         <form className="stack" onSubmit={signIn}>
           <label>Username
