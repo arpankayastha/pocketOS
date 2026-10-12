@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { addDays, dayLabel, dayStart, durLabel, hoursLabel, timeLabel, useNow } from '../../lib/shop'
+import { addDays, dayLabel, dayStart, dayTotals, duesByCustomer, durLabel, hoursLabel, minutesLeft, rs, sessionTotal, timeLabel, useNow } from '../../lib/shop'
 
-// Staff: shift Log in / Log out (owner's wording; rpc shop_clock) and this week's hours. The admin pays from these hours.
-export default function Shift({ householdId, userId, toast }) {
+// Staff home (owner, 12 Oct: "too spacious — compact, with the details their role needs"): a one-line shift bar
+// (Log in / Log out, rpc shop_clock; the admin pays from these hours), then what needs doing now — systems
+// playing / free, time running out, payments to check, today's bookings — today's money and the customers
+// this person took. Each tile opens the tab that handles it.
+export default function Shift({ householdId, userId, toast, shop, onOpen }) {
   const now = useNow(30_000)
   const [shifts, setShifts] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -40,35 +43,82 @@ export default function Shift({ householdId, userId, toast }) {
   const mins = (s) => ((s.clock_out ? new Date(s.clock_out) : new Date(now)) - new Date(s.clock_in)) / 60_000
   const week = (shifts || []).reduce((a, s) => a + mins(s), 0)
 
+  const [me, setMe] = useState(null)
+  useEffect(() => {
+    supabase.from('household_members').select('display_name, username, designation').eq('user_id', userId).maybeSingle().then(({ data }) => setMe(data))
+  }, [userId])
+
+  const running = (shop?.sessions || []).filter((x) => x.status === 'running')
+  const seats = (shop?.systems || []).filter((x) => x.active !== false).reduce((a, x) => a + (x.seats || 1) - (x.off_seats || []).filter((n) => n <= (x.seats || 1)).length, 0)
+  const playing = running.reduce((a, x) => a + Math.max(1, Number(x.players) || 1), 0)
+  const ending = running.filter((x) => !x.paused_at && minutesLeft(x, now) <= 10).sort((a, b) => minutesLeft(a, now) - minutesLeft(b, now))
+  const toCheck = (shop?.bookings || []).filter((b) => b.status === 'requested').length + (shop?.eventChecks || []).length + (shop?.entryChecks || []).length
+  const today = dayStart(), tomorrow = addDays(today, 1)
+  const upcoming = (shop?.bookings || []).filter((b) => ['requested', 'confirmed'].includes(b.status) && new Date(b.starts_at) >= new Date(now - 30 * 60_000) && new Date(b.starts_at) < tomorrow)
+    .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))
+  const totals = shop ? dayTotals(shop) : null
+  const dues = duesByCustomer(shop?.dues)
+  const myName = me?.display_name || me?.username
+  const mine = (shop?.sessions || []).filter((x) => myName && x.entered_by === myName && new Date(x.started_at) >= today)
+  const tile = (to, label, value, sub, tone) => (
+    <button className={`card gx-tile ${tone || ''}`} onClick={() => onOpen?.(to)}>
+      <span className="muted small">{label}</span><b>{value}</b>{sub && <span className="small muted gx-tile-sub">{sub}</span>}
+    </button>
+  )
+
   return (
-    <section className="gx-split even">
+    <section className="gx-split even gx-home">
       <div className="gx-col">
-      <div className="card gx-clock">
-        {error && <div className="alert error">{error}</div>}
-        {open ? (<>
-          <span className="pill gx-pill free">On shift</span>
-          <div className="muted small" style={{ marginTop: 8 }}>Since {timeLabel(open.clock_in)}</div>
-          <div className="gx-big">{durLabel(mins(open))}</div>
-          <button className="gx-clock-btn out" disabled={busy || !shifts} onClick={() => clock('out')}>LOG<br />OUT</button>
-        </>) : (<>
-          <span className="pill gx-pill">Off shift</span>
-          <div className="muted small" style={{ marginTop: 8 }}>{dayLabel(now)}</div>
-          {other && <div className="alert error" style={{ margin: '10px 0 0' }}>{other.name} is on duty since {timeLabel(other.since)}. Only one person can be logged in — ask them to log out first.</div>}
-          <button className="gx-clock-btn in" disabled={busy || !shifts || !!other} onClick={() => clock('in')}>LOG<br />IN</button>
-        </>)}
-        <p className="muted small" style={{ margin: 0 }}>Forgot to log out? Ask the admin to fix it.</p>
+      <div className={`card gx-shiftbar ${open ? 'on' : ''}`}>
+        <div className="grow">
+          <div className="gx-shiftbar-who">{myName || 'Shift'}{me?.designation ? <span className="muted small"> · {me.designation}</span> : null}</div>
+          <div className="small muted">{open ? <>On duty since {timeLabel(open.clock_in)} · <b className="pos">{durLabel(mins(open))}</b></> : 'Off duty'}</div>
+        </div>
+        {open
+          ? <button className="btn danger" disabled={busy || !shifts} onClick={() => clock('out')}>Log out</button>
+          : <button className="btn primary" disabled={busy || !shifts || !!other} onClick={() => clock('in')}>Log in</button>}
       </div>
+      {error && <div className="alert error">{error}</div>}
+      {!open && other && <div className="alert error" style={{ margin: 0 }}>{other.name} is on duty since {timeLabel(other.since)}. Only one person can be logged in — ask them to log out first.</div>}
+
+      {shop && (<>
+        <h3 className="gx-home-h">Right now</h3>
+        <div className="gx-tiles">
+          {tile('floor', 'Playing', `${playing} / ${seats}`, `${Math.max(0, seats - playing)} free`, playing >= seats ? 'warn' : '')}
+          {tile('floor', 'Ending soon', ending.length || '—', ending.length ? ending.slice(0, 2).map((x) => `${x.system_name}${x.seat ? ` C${x.seat}` : ''} ${minutesLeft(x, now) <= 0 ? 'time up' : `${Math.ceil(minutesLeft(x, now))}m`}`).join(' · ') : 'nobody in the next 10 min', ending.length ? 'warn' : '')}
+          {tile('floor', 'Payments to check', toCheck || '—', toCheck ? 'online bookings · advances · fees' : 'all checked', toCheck ? 'warn' : '')}
+          {tile('floor', 'Bookings today', upcoming.length || '—', upcoming[0] ? `next ${timeLabel(upcoming[0].starts_at)} · ${upcoming[0].customer_name}` : 'none coming up')}
+        </div>
+      </>)}
       </div>
+
       <div className="gx-col">
-      <div className="card">
-        <div className="card-head"><h3>Last 7 days</h3><span className="amt muted small">{hoursLabel(week)}</span></div>
+      {totals && (
+        <button className="card gx-money" onClick={() => onOpen?.('cash')}>
+          <div className="card-head"><h3>Today's money</h3><span className="muted small">Cash ›</span></div>
+          <div className="line"><span>Should be in drawer</span><b>{rs(totals.drawer)}</b></div>
+          <div className="line"><span className="muted">Online today</span><span>{rs(totals.online)}</span></div>
+          <div className="line"><span className="muted">Customer dues</span><span className={dues.length ? 'neg' : 'muted'}>{dues.length ? `${rs(dues.reduce((a, d) => a + d.total, 0))} · ${dues.length}` : 'none'}</span></div>
+        </button>
+      )}
+      {myName && shop && (
+        <div className="card">
+          <div className="card-head"><h3>My customers today</h3><span className="muted small">{mine.length} · {rs(mine.reduce((a, x) => a + sessionTotal(x), 0))}</span></div>
+          {mine.length === 0 ? <div className="muted small">None yet.</div> : mine.slice(0, 6).map((x) => (
+            <div key={x.id} className="line"><span>{x.system_name} · {x.customer_name}<span className="muted small"> · {timeLabel(x.started_at)}</span></span><span className={x.status === 'running' ? 'pos small' : 'small muted'}>{x.status === 'running' ? 'playing' : rs(sessionTotal(x))}</span></div>
+          ))}
+        </div>
+      )}
+      <details className="card gx-week">
+        <summary><b>My hours · last 7 days</b><span className="muted small">{hoursLabel(week)}</span></summary>
         {shifts === null ? <div className="muted small">Loading…</div> : shifts.length === 0 ? <div className="muted small">No shifts yet.</div> : shifts.map((s) => (
           <div key={s.id} className="line">
             <div><div>{dayLabel(s.clock_in)}</div><div className="muted small">{timeLabel(s.clock_in)} – {s.clock_out ? timeLabel(s.clock_out) : 'now'}</div></div>
             <b>{durLabel(mins(s))}</b>
           </div>
         ))}
-      </div>
+        <p className="muted small" style={{ margin: '8px 0 0' }}>Forgot to log out? Ask the admin to fix it.</p>
+      </details>
       </div>
     </section>
   )

@@ -4,6 +4,7 @@ import { RANKS, eventImage, durLabel, rs, timeLabel } from '../lib/shop'
 import { qrSvg, upiLink } from '../lib/upi'
 import { isCustomer, readMine, rememberMine } from '../lib/mine'
 import PublicNav from './PublicNav'
+import ContactFields from './ContactFields'
 
 // One event from the home page (/#event/<id>): book GTA VI-style hours (advance by UPI) or enter a
 // tournament (Valorant: name, mobile, rank, entry fee by UPI). Checked again on the server
@@ -117,10 +118,7 @@ function Slots({ ev, info, me }) {
           {slots.map((s) => <button key={s.t} type="button" disabled={!fits(s.t)} className={`book-slot ${start === s.t ? 'on' : ''}`} onClick={() => setStart(s.t)}>{timeLabel(s.t)}</button>)}
         </div>
       )}
-      <div className="grid2">
-        <label>Name<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></label>
-        <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" autoComplete="tel" placeholder="10 digits" /></label>
-      </div>
+      <ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} />
       <div className="book-total"><span className="muted">{durLabel(hours * ev.slot_minutes)}{players > 1 ? ` × ${players}` : ''}{advance ? ` · advance ${rs(advance)}` : ''}</span><b>{rs(amount)}</b></div>
       {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
       <button className="btn primary block" disabled={!ready || busy} onClick={() => { setError(null); if (advance) setStep('pay'); else send() }}>{start ? (advance ? `Book · pay ${rs(advance)} advance` : 'Book') : 'Pick a start time'}</button>
@@ -168,10 +166,7 @@ function Tournament({ ev, info, me }) {
     <div className="card book-form">
       <div className="book-total"><span>{when}</span><b>{fee === null ? 'Fee TBA' : rs(fee)}</b></div>
       {left !== null && <div className="muted small">{left} place{left === 1 ? '' : 's'} left</div>}
-      <div className="grid2">
-        <label>Name<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></label>
-        <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" autoComplete="tel" placeholder="10 digits" /></label>
-      </div>
+      <ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} />
       <div className="caps muted">Your rank</div>
       <div className="chips">{RANKS.map((r) => <button key={r} type="button" className={`chip chip-btn ${rank === r ? 'on' : ''}`} onClick={() => setRank(r)}>{r}</button>)}</div>
       {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}

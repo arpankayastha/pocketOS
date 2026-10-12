@@ -4,6 +4,7 @@ import { addDays, dayStart, durLabel, priceFor, rs, timeLabel } from '../lib/sho
 import { qrSvg, upiLink } from '../lib/upi'
 import { rememberMine } from '../lib/mine'
 import PublicNav from './PublicNav'
+import ContactFields from './ContactFields'
 
 // Public booking page (/#book) — what the "Scan to book" banner at the shop opens. No login: the page only
 // talks to public_shop_info / public_availability / public_book (security definer, checked on the server).
@@ -135,10 +136,7 @@ export default function Book() {
             })}
           </div>
         )}
-        <div className="grid2">
-          <label>Name<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></label>
-          <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" autoComplete="tel" placeholder="10 digits" /></label>
-        </div>
+        <ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} />
         <div className="book-total">
           <span className="muted">{durLabel(minutes)}{players > 1 ? ` × ${players}` : ''}{happy ? ' · happy hours' : ''}</span>
           <b>{rs(amount)}</b>

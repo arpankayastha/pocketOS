@@ -1259,3 +1259,21 @@ html:fullscreen .pub-page.timer-page { padding-top: 16px; }
   .toast { bottom: calc(80px + var(--safe-b)); }
   body:has(:is(input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file]), textarea):focus) :is(.fab-wrap, .pill-nav) { display: none; }
 }
+.contact-me { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--card-2); font-size: 14px; }
+/* Staff home (Shift.jsx): one-line shift bar, "Right now" tiles, today's money */
+.gx-home .gx-col > * { margin: 0; }
+.gx-shiftbar { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-left: 4px solid var(--line); }
+.gx-shiftbar.on { border-left-color: var(--pos); }
+.gx-shiftbar-who { font-weight: 700; }
+.gx-shiftbar .btn { min-width: 96px; }
+.gx-home-h { margin: 4px 2px -4px; font: 600 11px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.gx-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.gx-tile { display: grid; gap: 2px; align-content: start; text-align: left; margin: 0; padding: 12px 14px; font: inherit; color: inherit; cursor: pointer; min-height: 92px; }
+.gx-tile b { font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.gx-tile-sub { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.gx-tile.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.gx-tile.warn b { color: var(--warn); }
+.gx-money { display: block; width: 100%; text-align: left; font: inherit; font-size: 14px; color: inherit; cursor: pointer; }
+.gx-week summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; list-style: none; }
+.gx-week summary::-webkit-details-marker { display: none; }
+.gx-week[open] summary { margin-bottom: 8px; }
