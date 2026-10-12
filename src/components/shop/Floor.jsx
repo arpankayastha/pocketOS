@@ -196,6 +196,7 @@ function SessionRow({ sys, s, now, badge, onSheet, onPause }) {
       </div>
       <span className={`pill gx-pill ${state}`}>{s.paused_at ? `Paused · ${durLabel(left)} left` : left <= 0 ? `Time up ${durLabel(-left)} ago` : `${durLabel(left)} left`}</span>
     </div>
+    <PaidLine s={s} />
     <div className="gx-bar"><i style={{ width: `${pct}%` }} /></div>
     <div className="gx-btns">
       <button className="btn small" onClick={() => onSheet('fnb')}>+ F&amp;B</button>
@@ -205,6 +206,20 @@ function SessionRow({ sys, s, now, badge, onSheet, onPause }) {
       <button className="btn small primary" style={{ marginLeft: 'auto' }} onClick={() => onSheet('end')}>End &amp; collect</button>
     </div>
   </>)
+}
+
+// Owner: the running customer's row should say the bill so far, how much was taken, cash or online, and by whom.
+function PaidLine({ s }) {
+  const bill = sessionTotal(s), cash = Number(s.paid_cash), online = Number(s.paid_online), dep = Number(s.paid_deposit || 0)
+  const paid = cash + online + dep, due = Math.max(0, bill - paid)
+  const how = [cash && `${rs(cash)} cash`, online && `${rs(online)} online`, dep && `${rs(dep)} deposit`].filter(Boolean).join(' + ')
+  return (
+    <div className="gx-paid">
+      <span>Bill <b>{rs(bill)}</b></span>
+      {paid ? <span className="ok">Paid {how}{s.entered_by ? ` · taken by ${s.entered_by}` : ''}</span> : <span className="muted">Nothing paid yet</span>}
+      {due > 0 && <span className="due">{rs(due)} to collect</span>}
+    </div>
+  )
 }
 
 const FNB = [[0, 'None'], [10, '₹10'], [20, '₹20'], [30, '₹30'], [40, '₹40'], [60, '₹60']]

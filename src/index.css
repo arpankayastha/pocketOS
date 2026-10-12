@@ -1240,3 +1240,7 @@ html:fullscreen .pub-page.timer-page { padding-top: 16px; }
   .pub-page, .pub-page.home, .pub-page.jobs-page, .pub-page.timer-page { padding-bottom: 32px; }
 }
 @media (max-width: 799px) { .pub-me { padding: 6px; border: none; } .pub-me span { display: none; } .pub-me:not(:has(img)) { display: none; } }
+/* Slots: bill / paid / to collect on a running customer's row */
+.gx-paid { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; margin: 8px 0 2px; }
+.gx-paid .ok { color: var(--pos); }
+.gx-paid .due { color: var(--neg); font-weight: 600; }
