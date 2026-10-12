@@ -648,3 +648,99 @@ create table if not exists private.app_pins (
 -- signed-in users keep the old rule, anon reads open rows only.
 alter policy "public reads open" on public.shop_vacancies to authenticated;
 create policy "anon reads open" on public.shop_vacancies for select to anon using (open);
+
+-- ===== Multiple admins (owner, 12 Oct; migration multiple_admins) =====
+-- Besides the household owner, any number of admins with the owner's rights, managed from Staff → Admins.
+-- Added by the Gmail they signed in with (or a staff username); their app_metadata.role becomes 'admin', so
+-- the app opens the admin shell. Removing sets removed_at (no deletes) and drops the role again.
+create table if not exists public.shop_admins (
+  household_id uuid not null references public.households(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  added_by text,
+  created_at timestamptz not null default now(),
+  removed_at timestamptz,
+  primary key (household_id, user_id)
+);
+alter table public.shop_admins enable row level security;
+create index if not exists shop_admins_user_idx on public.shop_admins (user_id);
+
+create or replace function private.my_admin_household_ids() returns setof uuid
+language sql stable security definer set search_path = '' as $$
+  select h.id from public.households h where h.user_id = auth.uid()
+  union
+  select a.household_id from public.shop_admins a where a.user_id = auth.uid() and a.removed_at is null
+$$;
+create or replace function private.my_household_ids() returns setof uuid
+language sql stable security definer set search_path = '' as $$
+  select h.id from public.households h where h.user_id = auth.uid()
+  union
+  select a.household_id from public.shop_admins a where a.user_id = auth.uid() and a.removed_at is null
+  union
+  select m.household_id from public.household_members m where m.user_id = auth.uid() and m.role = 'staff'
+$$;
+
+create policy "admins read" on public.shop_admins for select to authenticated
+  using (household_id in (select private.my_admin_household_ids()));
+
+alter policy "owner or self reads" on public.household_members
+  using (user_id = (select auth.uid()) or household_id in (select private.my_admin_household_ids()));
+alter policy "owner updates staff" on public.household_members
+  using (household_id in (select private.my_admin_household_ids()))
+  with check (household_id in (select private.my_admin_household_ids()));
+alter policy "owner updates" on public.households
+  using (id in (select private.my_admin_household_ids()))
+  with check (id in (select private.my_admin_household_ids()));
+
+create or replace function public.shop_admin_list(p_household uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if p_household not in (select private.my_admin_household_ids()) then raise exception 'Admins only.'; end if;
+  return (select coalesce(jsonb_agg(x order by x->>'since'), '[]') from (
+    select jsonb_build_object('user_id', u.id, 'email', u.email, 'owner', true, 'since', h.created_at,
+      'name', coalesce(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'username', split_part(u.email, '@', 1))) x
+    from public.households h join auth.users u on u.id = h.user_id where h.id = p_household
+    union all
+    select jsonb_build_object('user_id', u.id, 'email', u.email, 'owner', false, 'since', a.created_at, 'added_by', a.added_by,
+      'name', coalesce(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'username', split_part(u.email, '@', 1)))
+    from public.shop_admins a join auth.users u on u.id = a.user_id where a.household_id = p_household and a.removed_at is null) t);
+end $$;
+
+create or replace function public.add_shop_admin(p_household uuid, p_email text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare v_user auth.users; v_email text := lower(trim(coalesce(p_email, '')));
+begin
+  if p_household not in (select private.my_admin_household_ids()) then raise exception 'Admins only.'; end if;
+  if v_email !~ '@' then v_email := v_email || '@staff.grandxgamer.app'; end if;
+  select * into v_user from auth.users u where lower(u.email) = v_email limit 1;
+  if v_user.id is null then raise exception 'No sign-in found for %. Ask them to sign in once with Google on the home page, then add them again.', p_email; end if;
+  if exists (select 1 from public.households h where h.id = p_household and h.user_id = v_user.id) then raise exception 'They are already the owner.'; end if;
+  if exists (select 1 from public.household_members m where m.user_id = v_user.id and m.role = 'staff') then
+    raise exception 'That is a staff login. Remove it from Staff first, or add their Gmail instead.'; end if;
+  insert into public.shop_admins (household_id, user_id, added_by) values (p_household, v_user.id, private.who_name(auth.uid()))
+    on conflict (household_id, user_id) do update set removed_at = null, created_at = now(), added_by = excluded.added_by;
+  update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}') || '{"role":"admin"}' where id = v_user.id;
+  return jsonb_build_object('user_id', v_user.id, 'email', v_user.email);
+end $$;
+
+create or replace function public.remove_shop_admin(p_household uuid, p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if p_household not in (select private.my_admin_household_ids()) then raise exception 'Admins only.'; end if;
+  if exists (select 1 from public.households h where h.id = p_household and h.user_id = p_user) then raise exception 'The owner can''t be removed.'; end if;
+  update public.shop_admins a set removed_at = now() where a.household_id = p_household and a.user_id = p_user;
+  if not exists (select 1 from public.shop_admins a where a.user_id = p_user and a.removed_at is null) then
+    update auth.users set raw_app_meta_data = raw_app_meta_data - 'role' where id = p_user and raw_app_meta_data->>'role' = 'admin';
+  end if;
+end $$;
+
+revoke execute on function public.shop_admin_list(uuid), public.add_shop_admin(uuid, text), public.remove_shop_admin(uuid, uuid) from public, anon;
+grant execute on function public.shop_admin_list(uuid), public.add_shop_admin(uuid, text), public.remove_shop_admin(uuid, uuid) to authenticated;
+
+-- "Entered by" for Google admins: their first name, not the Gmail prefix.
+create or replace function private.who_name(p_uid uuid) returns text language sql stable security definer set search_path = '' as $$
+  select coalesce(
+    (select coalesce(m.display_name, initcap(m.username)) from public.household_members m where m.user_id = p_uid limit 1),
+    (select coalesce(nullif(split_part(u.raw_user_meta_data->>'full_name', ' ', 1), ''), initcap(coalesce(u.raw_user_meta_data->>'username', split_part(u.email, '@', 1))))
+       from auth.users u where u.id = p_uid),
+    'Online')
+$$;

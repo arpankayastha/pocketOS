@@ -1,5 +1,5 @@
 // Staff logins for the shop (Shop → Staff). Several per shop.
-// Only the shop's admin (the household owner) may call this; staff are rejected. Uses the service role
+// Only the shop's admins (the household owner, or anyone in shop_admins) may call this; staff are rejected. Uses the service role
 // (auto-injected env) to create/reset/remove auth users, which the client must never hold.
 //   { action: 'list' }                                  → members of all the caller's households
 //   { action: 'create', householdId, username, pin, name, rate } → new staff login
@@ -31,9 +31,13 @@ Deno.serve(async (req) => {
   try { body = await req.json() } catch { return json({ error: 'Bad request.' }, 400) }
   const { action, householdId, userId } = body
 
+  // Households the caller runs: owned, or added as an admin (multiple admins, 12 Oct).
+  const { data: owned } = await admin.from('households').select('id').eq('user_id', user.id)
+  const { data: extra } = await admin.from('shop_admins').select('household_id').eq('user_id', user.id).is('removed_at', null)
+  const adminOf = new Set([...(owned || []).map((h) => h.id), ...(extra || []).map((a) => a.household_id)])
+
   if (action === 'list') {
-    const { data: hhs } = await admin.from('households').select('id').eq('user_id', user.id)
-    const ids = (hhs || []).map((h) => h.id)
+    const ids = [...adminOf]
     if (!ids.length) return json({ members: [] })
     const { data: rows, error } = await admin.from('household_members').select('*').in('household_id', ids)
     if (error) return json({ error: error.message }, 500)
@@ -46,7 +50,7 @@ Deno.serve(async (req) => {
 
   // Every other action targets one household the caller must own.
   const { data: hh } = await admin.from('households').select('id, user_id').eq('id', householdId || '').maybeSingle()
-  if (!hh || hh.user_id !== user.id) return json({ error: 'Not your household.' }, 403)
+  if (!hh || !adminOf.has(hh.id)) return json({ error: 'Not your household.' }, 403)
 
   const pinOk = (pin: string) => /^\d{6}$/.test(pin || '')
   const memberOf = async (id: string) => {
@@ -88,9 +92,9 @@ Deno.serve(async (req) => {
   if (action === 'remove') {
     if (!await memberOf(userId)) return json({ error: 'Not a member of this household.' }, 404)
     // Rows reference auth.users with on delete cascade: hand the member's entries to the
-    // owner first so removing the login never deletes shop data. Shifts keep the staff name.
+    // household owner first so removing the login never deletes shop data. Shifts keep the staff name.
     for (const t of FINANCE_TABLES) {
-      const { error } = await admin.from(t).update({ user_id: user.id }).eq('user_id', userId)
+      const { error } = await admin.from(t).update({ user_id: hh.user_id }).eq('user_id', userId)
       if (error) return json({ error: `${t}: ${error.message}` }, 500)
     }
     const { data: m } = await admin.from('household_members').select('username, display_name').eq('user_id', userId).maybeSingle()

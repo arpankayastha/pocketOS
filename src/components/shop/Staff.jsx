@@ -99,6 +99,7 @@ export default function Staff({ householdId, toast }) {
       )}
       <button className="btn primary block" style={{ order: 5 }} onClick={() => setSheet({ kind: 'add' })}>+ Add staff login</button>
       <Vacancies householdId={householdId} toast={toast} />
+      <Admins householdId={householdId} toast={toast} />
       </div>
       <div className="gx-col gx-staff-cards">
       {staff === null ? <div className="card muted small">Loading…</div> : rows.length === 0 && (
@@ -155,6 +156,46 @@ export default function Staff({ householdId, toast }) {
       {sheet?.kind === 'login' && <LoginDetails {...sheet} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'shift' && <ShiftEditor shift={sheet.shift} name={sheet.name} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
     </section>
+  )
+}
+
+// Multiple admins (owner, 12 Oct): anyone added here gets the owner's rights — Shop, Money, Staff, settings.
+// Add by the Gmail they signed in with on the home page (rpc add_shop_admin); the owner can't be removed.
+function Admins({ householdId, toast }) {
+  const dialog = useDialog()
+  const [list, setList] = useState(null)
+  const [error, setError] = useState(null)
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.rpc('shop_admin_list', { p_household: householdId })
+    if (error) setError(error.message); else setList(data)
+  }, [householdId])
+  useEffect(() => { load() }, [load])
+  async function add() {
+    const email = await dialog.prompt({ title: 'Add an admin', label: 'Their Gmail', placeholder: 'name@gmail.com', confirmLabel: 'Add admin',
+      message: 'They get full admin access: Shop, Money, Staff and settings. They must have signed in once with Google on the home page.' })
+    if (!email) return
+    const { error } = await supabase.rpc('add_shop_admin', { p_household: householdId, p_email: email })
+    if (error) { dialog.alert({ title: 'Couldn’t add the admin', message: error.message }); return }
+    toast(`${email} is now an admin. They sign out and back in to see it.`); load()
+  }
+  async function remove(a) {
+    if (!await dialog.confirm({ title: `Remove ${a.name} as admin?`, message: 'They go back to a normal customer account.', confirmLabel: 'Remove', danger: true })) return
+    const { error } = await supabase.rpc('remove_shop_admin', { p_household: householdId, p_user: a.user_id })
+    if (error) { dialog.alert({ title: 'Couldn’t remove', message: error.message }); return }
+    toast(`${a.name} is no longer an admin`); load()
+  }
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Admins</h3><button className="btn small" onClick={add}>+ Add</button></div>
+      {error && <div className="alert error">{error}</div>}
+      {list === null ? <div className="muted small">Loading…</div> : list.map((a) => (
+        <div key={a.user_id} className="line">
+          <div className="grow" style={{ minWidth: 0 }}><div>{a.name}{a.owner && <span className="pill gx-pill" style={{ marginLeft: 6 }}>Owner</span>}</div>
+            <div className="muted small ellipsis">{a.email?.endsWith('@staff.grandxgamer.app') ? `@${a.email.split('@')[0]}` : a.email}{a.added_by ? ` · added by ${a.added_by}` : ''}</div></div>
+          {!a.owner && <button className="btn small icon" aria-label={`Remove ${a.name}`} onClick={() => remove(a)}>✕</button>}
+        </div>
+      ))}
+    </div>
   )
 }
 
