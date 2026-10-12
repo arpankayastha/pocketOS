@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { BrandMark } from '../lib/icons'
 import { timeLabel } from '../lib/shop'
-import { alarm } from '../lib/alarm'
+import { alarm, scheduleAlarm } from '../lib/alarm'
 
 // Timer screen (/#timer) — open it on each PC (or on the customer's phone): type the 6-character code from the
 // booking, or the one staff read from Slots for a walk-in. Once staff press Start it shows the time left, live,
 // and "Paused" during a technical failure. Only public_timer is used: system, controller and times, no names.
 const KEY = 'gx.timerCode'
-const beeped = new Set()
 
 export default function Timer() {
   const [code, setCode] = useState(() => { try { return localStorage.getItem(KEY) || '' } catch { return '' } })
@@ -31,6 +30,29 @@ export default function Timer() {
     return () => { clearInterval(t); clearInterval(s) }
   }, [load])
 
+  // Beep at 5 minutes left (5 s) and at time up (10 s). Booked ahead on the audio clock so it rings on time
+  // even with a full-screen game in front; re-booked whenever the end time changes (extend / pause / resume).
+  // A mark passed less than a minute ago (page just opened) rings at once.
+  const booked = useRef({ key: '', cancel: [] })
+  useEffect(() => {
+    const list = (data?.sessions || []).filter((x) => x.status === 'running' && !x.paused_at)
+    const key = list.map((x) => `${x.system}:${x.seat}:${x.ends_at}`).join('|')
+    if (key === booked.current.key) return
+    booked.current.cancel.forEach((f) => f())
+    const cancel = []
+    const off = new Date(data?.now || Date.now()).getTime() - Date.now()
+    for (const x of list) {
+      const end = new Date(x.ends_at).getTime() - off // on this device's clock
+      for (const [mark, secs] of [[5, 5], [0, 10]]) {
+        const at = end - mark * 60_000
+        if (at > Date.now()) cancel.push(scheduleAlarm(at, secs))
+        else if (Date.now() - at < 60_000) alarm(secs)
+      }
+    }
+    booked.current = { key, cancel }
+  }, [data])
+  useEffect(() => () => booked.current.cancel.forEach((f) => f()), [])
+
   function use(e) {
     e.preventDefault()
     const c = input.replace(/[^0-9a-f]/gi, '').toUpperCase()
@@ -43,15 +65,6 @@ export default function Timer() {
 
   const now = Date.now() + skew
   const running = (data?.sessions || []).filter((s) => s.status === 'running')
-  // Beep at 5 minutes left and at time up (owner: "alarm when time ends").
-  for (const s of running) {
-    if (s.paused_at) continue
-    const left = (new Date(s.ends_at).getTime() - now) / 60_000
-    for (const mark of [5, 0]) {
-      const key = `${s.system}:${s.seat}:${s.ends_at}:${mark}`
-      if (left <= mark && left > mark - 1 && !beeped.has(key)) { beeped.add(key); alarm(mark === 0 ? 10 : 5) }
-    }
-  }
   const ended = (data?.sessions || []).filter((s) => s.status !== 'running')
 
   return (
