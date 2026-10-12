@@ -15,7 +15,7 @@ export default function Jobs() {
   return (
     <div className="jobs-page">
       <header className="jobs-head">
-        <div className="brand big"><BrandMark size={34} />GRANDXGAMER</div>
+        <a className="brand big" href="#"><BrandMark size={34} />GRANDXGAMER</a>
         <h1>We’re hiring</h1>
         <p className="muted">Gaming café · Pune</p>
       </header>
@@ -40,6 +40,7 @@ export default function Jobs() {
           </article>
         ))}
       </div>
+      <p className="muted small" style={{ textAlign: 'center' }}><a href="#">‹ Home</a></p>
     </div>
   )
 }

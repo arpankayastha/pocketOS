@@ -7,9 +7,11 @@ import { Chips, Sheet, SheetActions } from './ui'
 import { useSwipe } from '../../lib/useSwipe'
 import Vacancies from './Vacancies'
 
-// Admin: staff logins, monthly salaries (owner's rule: paid per month; staff never see pay), days and hours
-// worked this month (from clock in / out),
-// and fixing shifts (a missed clock-out, a wrong time).
+// Admin: staff logins with their designation, hourly pay (owner, 12 Oct: ₹33 an hour; staff never see pay),
+// days and hours worked this month (from shift Log in / Log out) and pay = hours × rate,
+// and fixing shifts (a missed log-out, a wrong time).
+const DESIGNATIONS = ['Supervisor', 'Sr Manager', 'Manager', 'Trainee']
+const DEFAULT_RATE = 33
 export default function Staff({ householdId, toast }) {
   const dialog = useDialog()
   const [month, setMonth] = useState(0) // 0 = this month, -1 = last month
@@ -38,7 +40,7 @@ export default function Staff({ householdId, toast }) {
     const own = shifts.filter((s) => s.user_id === m.user_id)
     const minutes = own.reduce((a, s) => a + mins(s), 0)
     const days = new Set(own.map((s) => new Date(s.clock_in).toDateString())).size
-    return { ...m, own, minutes, days, pay: Number(m.monthly_salary) || 0, on: own.find((s) => !s.clock_out) }
+    return { ...m, own, minutes, days, pay: Math.round((minutes / 60) * (Number(m.hourly_rate) || 0)), on: own.find((s) => !s.clock_out) }
   })
   const removed = shifts.filter((s) => !s.user_id)
   const monthSwipe = useSwipe({ onLeft: () => setMonth((m) => Math.min(0, m + 1)), onRight: () => setMonth((m) => m - 1) })
@@ -50,7 +52,7 @@ export default function Staff({ householdId, toast }) {
   }
   async function clockOutNow(s) {
     const { error } = await supabase.from('shop_shifts').update({ clock_out: new Date().toISOString(), edited_by: (await supabase.auth.getUser()).data.user?.id }).eq('id', s.id)
-    if (error) toast(error.message); else { toast('Clocked out'); load() }
+    if (error) toast(error.message); else { toast('Logged out'); load() }
   }
 
   return (
@@ -60,7 +62,7 @@ export default function Staff({ householdId, toast }) {
       <div className="gx-dateswipe" style={{ order: 1 }} {...monthSwipe}>
       <Chips options={[[0, 'This month'], [-1, 'Last month']]} value={month < -1 ? null : month} onChange={setMonth} />
       <div className="card">
-        <div className="muted small">Monthly salaries · {start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</div>
+        <div className="muted small">Staff pay · {start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} · hours × hourly rate</div>
         <div className="gx-big">{rs(totalPay)}</div>
         <div className="muted small">{hoursLabel(rows.reduce((a, r) => a + r.minutes, 0))} · {rows.length} staff · swipe for other months</div>
       </div>
@@ -75,7 +77,7 @@ export default function Staff({ householdId, toast }) {
       </div>
       <div className="gx-col gx-staff-cards">
       {staff === null ? <div className="card muted small">Loading…</div> : rows.length === 0 && (
-        <div className="card" style={{ order: 2 }}><p className="muted" style={{ margin: 0 }}>No staff logins yet. Add one for each employee: they sign in with a username and PIN, then clock in and run the Floor.</p></div>
+        <div className="card" style={{ order: 2 }}><p className="muted" style={{ margin: 0 }}>No staff logins yet. Add one for each employee: they sign in with a username and PIN, then Log in for their shift and run the Floor.</p></div>
       )}
       {rows.map((m) => (
         <div key={m.user_id} className="card" style={{ order: 3 }}>
@@ -83,16 +85,17 @@ export default function Staff({ householdId, toast }) {
             <span className="gx-badge round">{(m.display_name || m.username)[0].toUpperCase()}</span>
             <div className="grow">
               <div className="gx-name">{m.display_name || m.username} <span className="muted small">@{m.username}</span></div>
-              <div className={`small ${m.on ? 'pos' : 'muted'}`}>{m.on ? `On shift since ${timeLabel(m.on.clock_in)}` : 'Off shift'}</div>
+              {m.designation && <span className="pill gx-pill">{m.designation}</span>}
+              <div className={`small ${m.on ? 'pos' : 'muted'}`}>{m.on ? `Logged in since ${timeLabel(m.on.clock_in)}` : 'Not logged in'}</div>
             </div>
           </div>
           <div className="gx-sum" style={{ marginTop: 8 }}>
-            <span className="muted">{m.days} day{m.days === 1 ? '' : 's'} · {hoursLabel(m.minutes)} · {Number(m.monthly_salary) ? 'monthly salary' : 'no salary set'}</span>
+            <span className="muted">{m.days} day{m.days === 1 ? '' : 's'} · {hoursLabel(m.minutes)} × {rs(m.hourly_rate)}/hr</span>
             <b className="amt">{rs(m.pay)}</b>
           </div>
           <div className="gx-btns" style={{ marginTop: 8 }}>
             <button className="btn small" onClick={() => setOpen(open === m.user_id ? null : m.user_id)}>{open === m.user_id ? 'Hide shifts' : `Shifts (${m.own.length})`}</button>
-            {m.on && <button className="btn small" onClick={() => clockOutNow(m.on)}>Clock out now</button>}
+            {m.on && <button className="btn small" onClick={() => clockOutNow(m.on)}>Log out now</button>}
             <button className="btn small ghost" onClick={() => setSheet({ kind: 'edit', member: m })}>Edit</button>
             <button className="btn small danger-ghost" onClick={() => remove(m)}>Remove</button>
           </div>
@@ -121,7 +124,8 @@ export default function Staff({ householdId, toast }) {
 function AddStaff({ householdId, onClose, onCreated }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
-  const [salary, setSalary] = useState('')
+  const [rate, setRate] = useState(String(DEFAULT_RATE))
+  const [designation, setDesignation] = useState('Trainee')
   const [pin, setPin] = useState(() => generatePin())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -129,8 +133,8 @@ function AddStaff({ householdId, onClose, onCreated }) {
     if (!/^\d{6}$/.test(pin)) { setError('The PIN must be 6 digits.'); return }
     setBusy(true); setError(null)
     try {
-      const { userId } = await manageMembers('create', { householdId, username: username.trim().toLowerCase(), pin, name: name.trim(), rate: 0 })
-      if (Number(salary)) await supabase.from('household_members').update({ monthly_salary: Number(salary) }).eq('household_id', householdId).eq('user_id', userId)
+      const { userId } = await manageMembers('create', { householdId, username: username.trim().toLowerCase(), pin, name: name.trim(), rate: Number(rate) || 0 })
+      await supabase.from('household_members').update({ designation, hourly_rate: Number(rate) || 0 }).eq('household_id', householdId).eq('user_id', userId)
       onCreated(username.trim().toLowerCase(), pin)
     } catch (e) { setError(e.message); setBusy(false) }
   }
@@ -141,23 +145,26 @@ function AddStaff({ householdId, onClose, onCreated }) {
       <label>Username<input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))} autoCapitalize="none" spellCheck={false} /></label>
       <div className="grid2">
         <label>6-digit PIN<input className="mono" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
-        <label>Monthly salary (₹)<input inputMode="numeric" value={salary} onChange={(e) => setSalary(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 9000" /></label>
+        <label>Hourly pay (₹)<input inputMode="numeric" value={rate} onChange={(e) => setRate(e.target.value.replace(/\D/g, ''))} placeholder="33" /></label>
       </div>
+      <div className="caps muted">Designation</div>
+      <Chips options={DESIGNATIONS.map((d) => [d, d])} value={designation} onChange={setDesignation} />
       <SheetActions onClose={onClose} busy={busy} disabled={username.length < 3 || pin.length !== 6} label="Create login" />
     </Sheet>
   )
 }
-// Admin: change a staff member's name, monthly salary, or set a new PIN (left empty = keep the PIN).
+// Admin: change a staff member's name, designation, hourly pay, or set a new PIN (left empty = keep the PIN).
 function EditStaff({ householdId, member, onClose, onDone }) {
   const [name, setName] = useState(member.display_name || '')
-  const [salary, setSalary] = useState(String(Number(member.monthly_salary) || ''))
+  const [rate, setRate] = useState(String(Number(member.hourly_rate) || ''))
+  const [designation, setDesignation] = useState(member.designation || null)
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   async function save() {
     if (pin && !/^\d{6}$/.test(pin)) { setError('A new PIN must be 6 digits, or leave it empty.'); return }
     setBusy(true); setError(null)
-    const { error } = await supabase.from('household_members').update({ display_name: name.trim() || null, monthly_salary: Number(salary) || 0 })
+    const { error } = await supabase.from('household_members').update({ display_name: name.trim() || null, hourly_rate: Number(rate) || 0, designation })
       .eq('household_id', householdId).eq('user_id', member.user_id)
     if (error) { setError(error.message); setBusy(false); return }
     if (pin) {
@@ -166,13 +173,15 @@ function EditStaff({ householdId, member, onClose, onDone }) {
     } else onDone('Saved')
   }
   return (
-    <Sheet title={`Edit · ${member.display_name || member.username}`} sub={`Username @${member.username}. Salary is never shown to staff.`} onClose={onClose} onSubmit={save}>
+    <Sheet title={`Edit · ${member.display_name || member.username}`} sub={`Username @${member.username}. Pay is never shown to staff.`} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
       <label>Name<input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></label>
       <div className="grid2">
-        <label>Monthly salary (₹)<input inputMode="numeric" value={salary} onChange={(e) => setSalary(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 9000" /></label>
+        <label>Hourly pay (₹)<input inputMode="numeric" value={rate} onChange={(e) => setRate(e.target.value.replace(/\D/g, ''))} placeholder="33" /></label>
         <label>New PIN<input className="mono" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Keep current" /></label>
       </div>
+      <div className="caps muted">Designation</div>
+      <Chips options={DESIGNATIONS.map((d) => [d, d])} value={designation} onChange={setDesignation} />
       <SheetActions onClose={onClose} busy={busy} disabled={pin.length > 0 && pin.length !== 6} label="Save" />
     </Sheet>
   )
@@ -201,7 +210,7 @@ function ShiftEditor({ shift, name, onClose, onDone }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   async function save() {
-    if (outAt && new Date(outAt) < new Date(inAt)) { setError('Clock out is before clock in.'); return }
+    if (outAt && new Date(outAt) < new Date(inAt)) { setError('Log out is before log in.'); return }
     setBusy(true)
     const uid = (await supabase.auth.getUser()).data.user?.id
     const { error } = await supabase.from('shop_shifts').update({ clock_in: new Date(inAt).toISOString(), clock_out: outAt ? new Date(outAt).toISOString() : null, edited_by: uid }).eq('id', shift.id)
@@ -215,10 +224,10 @@ function ShiftEditor({ shift, name, onClose, onDone }) {
     if (error) setError(error.message); else onDone('Shift deleted')
   }
   return (
-    <Sheet title={`Shift · ${name}`} sub={shift.edited_by ? 'Edited by the admin before' : 'From their clock in / out'} onClose={onClose} onSubmit={save}>
+    <Sheet title={`Shift · ${name}`} sub={shift.edited_by ? 'Edited by the admin before' : 'From their Log in / Log out'} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
-      <label>Clock in<input type="datetime-local" value={inAt} onChange={(e) => setInAt(e.target.value)} required /></label>
-      <label>Clock out<input type="datetime-local" value={outAt} onChange={(e) => setOutAt(e.target.value)} /></label>
+      <label>Logged in<input type="datetime-local" value={inAt} onChange={(e) => setInAt(e.target.value)} required /></label>
+      <label>Logged out<input type="datetime-local" value={outAt} onChange={(e) => setOutAt(e.target.value)} /></label>
       <SheetActions onClose={onClose} busy={busy} label="Save" />
       <button type="button" className="btn link" style={{ justifySelf: 'start', color: 'var(--neg)' }} onClick={del}>Delete this shift</button>
     </Sheet>

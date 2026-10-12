@@ -3,7 +3,7 @@ import { BrandMark } from '../lib/icons'
 import { signInMember } from '../lib/members'
 
 // GRANDXGAMER sign-in: every login (admin and staff) is a username + PIN or password, made by the admin
-// (Shop → Staff). Customers (phase 2) will sign in with their mobile number and a passkey.
+// (Shop → Staff). Opened from the home page's "Staff login" link (/#staff). Customers sign in with Google on the home page.
 export default function Auth() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -34,6 +34,7 @@ export default function Auth() {
           <button className="btn primary" disabled={busy || !username.trim() || pin.length < 6}>{busy ? 'Signing in…' : 'Sign in'}</button>
         </form>
         <p className="auth-hint">Staff: use the username and 6-digit PIN from the admin, then turn on fingerprint.</p>
+        <a className="auth-hint" href="#">‹ Back to the home page</a>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
-import { DURATIONS, balanceFor, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, timeLabel, useNow, rs } from '../../lib/shop'
+import { DURATIONS, balanceFor, byLine, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, timeLabel, useNow, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
 
@@ -29,7 +29,9 @@ export default function Floor({ shop, householdId, toast }) {
         <span className="pill gx-pill free">{shop.systems.length - busy} free</span>
         {isHappyDay(shop.settings) && <span className="pill gx-pill happy">Happy hours today</span>}
       </div>
-      {shop.bookings?.length > 0 && <Bookings bookings={shop.bookings} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />}
+      {(shop.bookings?.length > 0 || shop.eventChecks?.length > 0 || shop.entryChecks?.length > 0) && (
+        <Bookings bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />
+      )}
       {shop.systems.map((sys) => {
         const s = running.get(sys.id)
         if (!s) {
@@ -53,7 +55,7 @@ export default function Floor({ shop, householdId, toast }) {
               <span className={`gx-badge ${sys.kind === 'PS' ? 'ps' : ''}`}>{sys.name}</span>
               <div className="grow">
                 <div className="gx-name">{s.customer_name}{s.players > 1 ? ` · ${s.players} players` : ''}</div>
-                <div className="muted small">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s))}{fnb ? ` · F&B ${rs(fnb)}` : ''}</div>
+                <div className="muted small">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s))}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''}</div>
               </div>
               <span className={`pill gx-pill ${state}`}>{left <= 0 ? `Time up ${durLabel(-left)} ago` : `${durLabel(left)} left`}</span>
             </div>
@@ -66,7 +68,7 @@ export default function Floor({ shop, householdId, toast }) {
           </div>
         )
       })}
-      {sheet?.kind === 'start' && <StartSheet system={sheet.system} booking={sheet.booking} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'start' && <StartSheet system={sheet.system} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} onClose={close} onDone={done} />}
       {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
@@ -78,7 +80,7 @@ const FNB = [[0, 'None'], [10, '₹10'], [20, '₹20'], [30, '₹30'], [40, '₹
 
 const MAX_PLAYERS = { PS: 3 } // one PS5, three controllers; PCs are one per head
 
-function StartSheet({ system, booking, rates, settings, happy, householdId, onClose, onDone }) {
+function StartSheet({ system, booking, dues, rates, settings, happy, householdId, onClose, onDone }) {
   const now = useNow(30_000)
   const [players, setPlayers] = useState(booking?.players || 1)
   const [name, setName] = useState(booking?.customer_name || '')
@@ -92,6 +94,9 @@ function StartSheet({ system, booking, rates, settings, happy, householdId, onCl
   const gaming = booking && mins === booking.minutes && players === booking.players ? Number(booking.amount) : each * players
   const total = gaming + fnb
   const maxPlayers = MAX_PLAYERS[system.kind] || 1
+  // Old dues for this customer (matched by mobile, else name), so staff can ask for them.
+  const key = customerKey(name, phone)
+  const owes = key.length > 2 ? duesByCustomer(dues).find((d) => d.key === key) : null
 
   async function save() {
     setBusy(true)
@@ -114,6 +119,7 @@ function StartSheet({ system, booking, rates, settings, happy, householdId, onCl
         <label>Customer<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" autoComplete="off" /></label>
         <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} placeholder="Optional" inputMode="tel" autoComplete="off" /></label>
       </div>
+      {owes && <div className="alert error" style={{ margin: 0 }}>{owes.name} owes {rs(owes.total)} from before · collect it in Cash → Customer dues</div>}
       {maxPlayers > 1 && (<>
         <div className="caps muted">Players · charged per head</div>
         <Chips options={Array.from({ length: maxPlayers }, (_, i) => [i + 1, String(i + 1)])} value={players} onChange={setPlayers} />
@@ -256,34 +262,73 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
   )
 }
 
-// Online bookings from the public page (/#book): check the UPI payment arrived → Payment received;
-// when they come in → Arrived starts the session on a free system, already paid.
-function Bookings({ bookings, onArrived, onChanged }) {
+// Online money to check, on every phone (admin and staff): slot bookings from /#book, event advances and
+// tournament entry fees from the home page. Staff open their UPI app, then tap Received — or Not received,
+// which cancels the request. "Arrived" on a confirmed slot booking starts its session, already paid.
+function Bookings({ bookings = [], eventChecks = [], entryChecks = [], onArrived, onChanged }) {
   const dialog = useDialog()
-  async function set(b, status, msg) {
-    if (status === 'cancelled' && !await dialog.confirm({ title: `Cancel ${b.customer_name}’s booking?`, message: 'The time opens up for others. Online advance is non-refundable.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep', danger: true })) return
-    const { error } = await supabase.from('shop_bookings').update({ status }).eq('id', b.id)
+  async function update(table, row, patch, msg, ask) {
+    if (ask && !await dialog.confirm(ask)) return
+    const { error } = await supabase.from(table).update(patch).eq('id', row.id)
     onChanged(error ? error.message : msg)
   }
-  const day = (d) => { const x = new Date(d), t = new Date(); return x.toDateString() === t.toDateString() ? 'Today' : 'Tomorrow' }
+  const notPaid = (name) => ({ title: `Payment not received from ${name}?`, message: 'This cancels the request and frees the time.', confirmLabel: 'Not received · cancel', cancelLabel: 'Keep', danger: true })
+  const day = (d) => { const x = new Date(d), t = new Date(); return x.toDateString() === t.toDateString() ? 'Today' : x.toDateString() === new Date(t.getTime() + 86_400_000).toDateString() ? 'Tomorrow' : x.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) }
+  const toCheck = bookings.filter((b) => b.status === 'requested').length + eventChecks.length + entryChecks.length
+  const by = (r) => (r.handled_by ? ` · ✓ ${r.handled_by}` : '')
   return (
     <div className="card gx-bookings">
-      <div className="card-head"><h3>Bookings</h3><span className="muted small">{bookings.filter((b) => b.status === 'requested').length} to check</span></div>
+      <div className="card-head"><h3>Online bookings</h3><span className={`small ${toCheck ? 'neg' : 'muted'}`}>{toCheck ? `${toCheck} payment${toCheck === 1 ? '' : 's'} to check` : 'All checked'}</span></div>
       {bookings.map((b) => (
         <div key={b.id} className="gx-booking">
           <div className="gx-sys-top">
             <span className={`gx-badge sm ${b.kind === 'PS' ? 'ps' : ''}`}>{b.kind === 'PS' ? 'PS5' : 'PC'}</span>
             <div className="grow">
               <div className="gx-name">{b.customer_name}{b.players > 1 ? ` · ${b.players} players` : ''}</div>
-              <div className="muted small">{day(b.starts_at)} {timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {rs(b.amount)}{b.upi_ref ? ` · ref ${b.upi_ref}` : ''}</div>
+              <div className="muted small">{day(b.starts_at)} {timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {rs(b.amount)}{b.upi_ref ? ` · ref ${b.upi_ref}` : ''} · {b.customer_phone}{by(b)}</div>
             </div>
-            <span className={`pill gx-pill ${b.status === 'requested' ? 'ending' : 'free'}`}>{b.status === 'requested' ? 'Check payment' : 'Confirmed'}</span>
+            <span className={`pill gx-pill ${b.status === 'requested' ? 'ending' : 'free'}`}>{b.status === 'requested' ? 'Payment?' : 'Paid'}</span>
           </div>
           <div className="gx-btns">
-            <a className="btn small ghost" href={`tel:${b.customer_phone}`}>{b.customer_phone}</a>
-            {b.status === 'requested' && <button className="btn small primary" onClick={() => set(b, 'confirmed', 'Booking confirmed')}>Payment received</button>}
+            <a className="btn small ghost" href={`tel:${b.customer_phone}`} title={b.customer_phone}>Call</a>
+            {b.status === 'requested' && <button className="btn small primary" onClick={() => update('shop_bookings', b, { status: 'confirmed' }, 'Payment received · booking confirmed')}>Received</button>}
+            {b.status === 'requested' && <button className="btn small danger-ghost" onClick={() => update('shop_bookings', b, { status: 'cancelled' }, 'Booking cancelled', notPaid(b.customer_name))}>Not received</button>}
             {b.status === 'confirmed' && <button className="btn small primary" onClick={() => onArrived(b)}>Arrived</button>}
-            <button className="btn small ghost" aria-label="Cancel booking" onClick={() => set(b, 'cancelled', 'Booking cancelled')}>✕</button>
+            {b.status === 'confirmed' && <button className="btn small ghost" aria-label="Cancel booking" onClick={() => update('shop_bookings', b, { status: 'cancelled' }, 'Booking cancelled', { title: `Cancel ${b.customer_name}’s booking?`, message: 'The time opens up for others. The online payment is non-refundable.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep', danger: true })}>✕</button>}
+          </div>
+        </div>
+      ))}
+      {eventChecks.map((b) => (
+        <div key={b.id} className="gx-booking">
+          <div className="gx-sys-top">
+            <span className="gx-badge sm ev">EV</span>
+            <div className="grow">
+              <div className="gx-name">{b.customer_name}{b.players > 1 ? ` · ${b.players} players` : ''}</div>
+              <div className="muted small">{b.shop_events?.name} · {day(b.slot_start)} {timeLabel(b.slot_start)} · advance {rs(b.advance_paid)} of {rs(b.amount)}{b.upi_ref ? ` · ref ${b.upi_ref}` : ''} · {b.customer_phone}</div>
+            </div>
+            <span className="pill gx-pill ending">Payment?</span>
+          </div>
+          <div className="gx-btns">
+            <a className="btn small ghost" href={`tel:${b.customer_phone}`} title={b.customer_phone}>Call</a>
+            <button className="btn small primary" onClick={() => update('shop_event_bookings', b, { payment_ok: true }, 'Advance received · slot confirmed')}>Received</button>
+            <button className="btn small danger-ghost" onClick={() => update('shop_event_bookings', b, { status: 'cancelled' }, 'Booking cancelled', notPaid(b.customer_name))}>Not received</button>
+          </div>
+        </div>
+      ))}
+      {entryChecks.map((x) => (
+        <div key={x.id} className="gx-booking">
+          <div className="gx-sys-top">
+            <span className="gx-badge sm ev">🏆</span>
+            <div className="grow">
+              <div className="gx-name">{x.name} · {x.rank}</div>
+              <div className="muted small">{x.shop_events?.name} · {Number(x.fee) ? `entry fee ${rs(x.fee)}` : 'fee not set yet'}{x.upi_ref ? ` · ref ${x.upi_ref}` : ''} · {x.phone}</div>
+            </div>
+            <span className="pill gx-pill ending">{Number(x.fee) ? 'Payment?' : 'New entry'}</span>
+          </div>
+          <div className="gx-btns">
+            <a className="btn small ghost" href={`tel:${x.phone}`} title={x.phone}>Call</a>
+            <button className="btn small primary" onClick={() => update('shop_entries', x, { status: 'confirmed' }, `${x.name} is in`)}>{Number(x.fee) ? 'Received' : 'Confirm'}</button>
+            <button className="btn small danger-ghost" onClick={() => update('shop_entries', x, { status: 'cancelled' }, 'Entry cancelled', Number(x.fee) ? notPaid(x.name) : { title: `Remove ${x.name}’s entry?`, confirmLabel: 'Remove', danger: true })}>{Number(x.fee) ? 'Not received' : 'Remove'}</button>
           </div>
         </div>
       ))}

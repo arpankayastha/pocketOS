@@ -81,31 +81,38 @@ export function useShopId(memberHouseholdId) {
 }
 
 export function useShop(householdId) {
-  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null, bookings: [] })
+  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null, bookings: [], eventChecks: [], entryChecks: [], dues: [], duesPaid: [] })
 
   const reload = useCallback(async () => {
     if (!householdId) return
     const from = dayStart().toISOString()
-    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings] = await Promise.all([
+    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid] = await Promise.all([
       supabase.from('shop_systems').select('*').eq('household_id', householdId).eq('active', true).order('sort').order('name'),
       supabase.from('shop_rates').select('*').eq('household_id', householdId).order('kind').order('minutes'),
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).neq('status', 'cancelled').order('started_at', { ascending: false }),
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).eq('status', 'running').lt('started_at', from),
       supabase.from('shop_cash').select('*').eq('household_id', householdId).gte('at', from).order('at', { ascending: false }),
-      supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status').eq('household_id', householdId).gte('created_at', from).gt('advance_paid', 0),
+      supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status, payment_ok, entered_by').eq('household_id', householdId).gte('created_at', from).gt('advance_paid', 0),
       supabase.from('shop_shifts').select('*').eq('household_id', householdId).is('clock_out', null),
       supabase.from('shop_deposits').select('*').eq('household_id', householdId).eq('month', monthStart()).order('created_at', { ascending: false }),
       supabase.from('shop_settings').select('*').eq('household_id', householdId).maybeSingle(),
       supabase.from('shop_bookings').select('*').eq('household_id', householdId).in('status', ['requested', 'confirmed'])
         .gte('starts_at', new Date(Date.now() - 3 * 3600_000).toISOString()).order('starts_at'),
+      // Online payments still to check: event advances and tournament entry fees.
+      supabase.from('shop_event_bookings').select('*, shop_events(name, slot_minutes)').eq('household_id', householdId).eq('payment_ok', false).eq('status', 'booked').order('created_at'),
+      supabase.from('shop_entries').select('*, shop_events(name)').eq('household_id', householdId).eq('status', 'requested').order('created_at'),
+      // Customer dues still open (any day) and dues paid back today.
+      supabase.from('shop_sessions').select('id, customer_name, customer_phone, system_name, started_at, owed, entered_by, handled_by').eq('household_id', householdId).gt('owed', 0).neq('status', 'cancelled').order('started_at'),
+      supabase.from('shop_dues_paid').select('*').eq('household_id', householdId).gte('created_at', from).order('created_at', { ascending: false }),
     ])
-    const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings].find((r) => r.error)?.error
+    const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid].find((r) => r.error)?.error
     if (err) { setState((s) => ({ ...s, loading: false, error: err.message })); return }
     setState({
       loading: false, error: null, systems: sys.data, rates: rates.data,
       sessions: [...todays.data, ...running.data], cash: cash.data,
-      advances: adv.data.filter((b) => b.status !== 'cancelled'), shifts: shifts.data,
+      advances: adv.data.filter((b) => b.status !== 'cancelled' && b.payment_ok !== false), shifts: shifts.data,
       deposits: deps.data, settings: settings.data, bookings: bookings.data,
+      eventChecks: evChecks.data, entryChecks: entChecks.data, dues: dues.data, duesPaid: duesPaid.data,
     })
   }, [householdId])
 
@@ -116,6 +123,9 @@ export function useShop(householdId) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_sessions', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_deposits', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_bookings', filter: `household_id=eq.${householdId}` }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_event_bookings', filter: `household_id=eq.${householdId}` }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_entries', filter: `household_id=eq.${householdId}` }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_dues_paid', filter: `household_id=eq.${householdId}` }, reload)
       .subscribe()
     const onVisible = () => { if (document.visibilityState === 'visible') reload() }
     document.addEventListener('visibilitychange', onVisible)
@@ -138,19 +148,20 @@ export function useDay(householdId, day) {
     Promise.all([
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).lt('started_at', to).neq('status', 'cancelled').order('started_at', { ascending: false }),
       supabase.from('shop_cash').select('*').eq('household_id', householdId).gte('at', from).lt('at', to).order('at', { ascending: false }),
-      supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status').eq('household_id', householdId).gte('created_at', from).lt('created_at', to).gt('advance_paid', 0),
+      supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status, payment_ok, entered_by').eq('household_id', householdId).gte('created_at', from).lt('created_at', to).gt('advance_paid', 0),
       supabase.from('shop_deposits').select('*').eq('household_id', householdId).gte('created_at', from).lt('created_at', to),
-    ]).then(([s, c, a, d]) => {
-      if (live) setData({ sessions: s.data || [], cash: c.data || [], advances: (a.data || []).filter((b) => b.status !== 'cancelled'), shifts: [], deposits: d.data || [] })
+      supabase.from('shop_dues_paid').select('*').eq('household_id', householdId).gte('created_at', from).lt('created_at', to),
+    ]).then(([s, c, a, d, p]) => {
+      if (live) setData({ sessions: s.data || [], cash: c.data || [], advances: (a.data || []).filter((b) => b.status !== 'cancelled' && b.payment_ok !== false), shifts: [], deposits: d.data || [], duesPaid: p.data || [] })
     })
     return () => { live = false }
   }, [householdId, key])
   return data
 }
 
-// One day's money from sessions, event advances, deposits paid in and the cash drawer (default: today).
+// One day's money from sessions, event advances, deposits paid in, dues paid back and the cash drawer (default: today).
 // A deposit is money in on the day it's paid; using it later on a session isn't counted again.
-export function dayTotals({ sessions, cash, advances, deposits = [] }, from = dayStart()) {
+export function dayTotals({ sessions, cash, advances, deposits = [], duesPaid = [] }, from = dayStart()) {
   const t = { cash: 0, online: 0, owed: 0, sessions: 0, fnb: 0, minutes: 0, out: 0, in: 0, open: null, count: null }
   for (const s of sessions) {
     if (new Date(s.started_at) < from) continue
@@ -165,6 +176,11 @@ export function dayTotals({ sessions, cash, advances, deposits = [] }, from = da
     if (d.mode === 'online') t.online += Number(d.amount); else t.cash += Number(d.amount)
     t.deposits = (t.deposits || 0) + Number(d.amount)
   }
+  for (const p of duesPaid) {
+    if (new Date(p.created_at) < from || new Date(p.created_at) >= to) continue
+    if (p.mode === 'online') t.online += Number(p.amount); else t.cash += Number(p.amount)
+    t.duesIn = (t.duesIn || 0) + Number(p.amount)
+  }
   for (const c of cash) {
     if (c.kind === 'out') t.out += Number(c.amount)
     else if (c.kind === 'in') t.in += Number(c.amount)
@@ -174,3 +190,22 @@ export function dayTotals({ sessions, cash, advances, deposits = [] }, from = da
   t.drawer = Number(t.open?.amount || 0) + t.cash + t.in - t.out
   return t
 }
+
+// Who made an entry (stamped by the database on insert): "by Mayank".
+export const byLine = (row) => (row?.entered_by ? `by ${row.entered_by}` : '')
+
+// Open customer dues grouped by customer (same key as deposits), oldest session first.
+export function duesByCustomer(dues = []) {
+  const m = new Map()
+  for (const s of dues) {
+    const k = customerKey(s.customer_name, s.customer_phone)
+    const row = m.get(k) || { key: k, name: s.customer_name, phone: s.customer_phone, total: 0, sessions: [] }
+    row.total += Number(s.owed); row.sessions.push(s)
+    if (s.customer_phone) row.phone = s.customer_phone
+    m.set(k, row)
+  }
+  return [...m.values()].sort((a, b) => b.total - a.total)
+}
+
+// Valorant ranks for tournament entries (lowest first).
+export const RANKS = ['Unranked', 'Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Immortal', 'Radiant']

@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { supabase } from '../../lib/supabase'
 import Topbar from '../Topbar'
 import PillNav from '../PillNav'
 import { ListSkeleton } from '../Skeleton'
@@ -41,6 +42,8 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   const timer = useRef(null)
   const toast = useCallback((m) => { setMsg(m); clearTimeout(timer.current); timer.current = setTimeout(() => setMsg(null), 2800) }, [])
 
+  useOnlineAlerts(householdId, toast)
+
   // Swipe left/right anywhere moves between tabs; date headers (.gx-dateswipe) and sideways chip rows swipe themselves.
   const at = tabs.findIndex((t) => t.id === tab)
   const swipe = useSwipe({
@@ -77,4 +80,50 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
       {msg && <div className="toast" role="status">{msg}</div>}
     </div>
   )
+}
+
+// Owner: "online payment notification should be shown to staff also — received or not". Every phone with
+// the shop open hears about new online bookings, event advances and tournament entries at once: a toast,
+// a buzz, a short beep, and a phone notification if allowed (⚙ → Payment alerts). They're then checked on the Floor.
+function useOnlineAlerts(householdId, onAlert) {
+  const cb = useRef(onAlert)
+  useEffect(() => { cb.current = onAlert })
+  useEffect(() => {
+    if (!householdId) return
+    const say = (title, body) => {
+      cb.current(`${title} · ${body}`)
+      try { navigator.vibrate?.([200, 100, 200]) } catch { /* ignore */ }
+      beep()
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        navigator.serviceWorker?.getRegistration().then((reg) => {
+          const opts = { body, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', tag: `gx-${Date.now()}` }
+          if (reg) reg.showNotification(title, opts); else new Notification(title, opts)
+        }).catch(() => {})
+      }
+    }
+    const rs = (n) => `₹${Math.round(Number(n) || 0)}`
+    const ch = supabase.channel(`alerts:${householdId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shop_bookings', filter: `household_id=eq.${householdId}` }, ({ new: b }) => {
+        if (b.source === 'online') say('New online booking', `${b.customer_name} · ${b.kind === 'PS' ? 'PS5' : 'PC'} · ${rs(b.amount)} paid? Check UPI`)
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shop_event_bookings', filter: `household_id=eq.${householdId}` }, ({ new: b }) => {
+        if (b.source === 'online') say('New event booking', `${b.customer_name} · advance ${rs(b.advance_paid)} · check UPI`)
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shop_entries', filter: `household_id=eq.${householdId}` }, ({ new: x }) => {
+        say('New tournament entry', `${x.name} · ${x.rank}${Number(x.fee) ? ` · fee ${rs(x.fee)} · check UPI` : ''}`)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [householdId])
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const o = ctx.createOscillator(), g = ctx.createGain()
+    o.frequency.value = 880; g.gain.value = 0.15
+    o.connect(g); g.connect(ctx.destination)
+    o.start(); o.stop(ctx.currentTime + 0.25)
+    setTimeout(() => ctx.close(), 500)
+  } catch { /* ignore */ }
 }

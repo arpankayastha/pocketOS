@@ -420,3 +420,129 @@ update public.shop_events set slot_minutes = 60, first_hour_price = 200, next_ho
 --     booking on, today/tomorrow (IST), on the half hour, within shop hours, 30–180 min, players ≤ 3 on PS /
 --     1 on PC, name + 10-digit mobile, free systems for every half hour (advisory lock), ≤ 3 open requests
 --     per mobile, ≤ 60 online requests a day; amount = shop_price × players (happy days from settings).
+
+-- ---------------------------------------------------------------------------------------------
+-- Owner's list (12 Oct 2026, afternoon). Applied as migrations staff_designation_hourly_entered_by,
+-- home_events_customers_tables, customer_google_signups, public_home_functions, customer_dues_payments,
+-- fix_public_event_variable_names.
+
+-- Staff: designation, hourly pay ₹33 (monthly_salary is no longer used).
+alter table public.household_members add column if not exists designation text
+  check (designation in ('Supervisor', 'Sr Manager', 'Manager', 'Trainee'));
+grant update (designation) on public.household_members to authenticated;
+alter table public.household_members alter column hourly_rate set default 33;
+update public.household_members set hourly_rate = 33 where role = 'staff' and hourly_rate = 0;
+
+-- Who made each entry ("me, Mayank, Mohit or Yashneel"): a name stamped on insert, and who changed the status.
+create or replace function private.who_name(p_uid uuid) returns text language sql stable security definer set search_path = '' as $$
+  select coalesce(
+    (select coalesce(m.display_name, initcap(m.username)) from public.household_members m where m.user_id = p_uid limit 1),
+    (select initcap(coalesce(u.raw_user_meta_data->>'username', split_part(u.email, '@', 1))) from auth.users u where u.id = p_uid),
+    'Online')
+$$;
+revoke execute on function private.who_name(uuid) from public, anon, authenticated;
+create or replace function private.stamp_entered_by() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.entered_by is null then new.entered_by := private.who_name(auth.uid()); end if;
+  return new;
+end $$;
+revoke execute on function private.stamp_entered_by() from public, anon, authenticated;
+create or replace function private.stamp_handled_by() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status is distinct from old.status and auth.uid() is not null then new.handled_by := private.who_name(auth.uid()); end if;
+  return new;
+end $$;
+revoke execute on function private.stamp_handled_by() from public, anon, authenticated;
+alter table public.shop_sessions add column if not exists entered_by text;
+alter table public.shop_sessions add column if not exists handled_by text;
+alter table public.shop_cash add column if not exists entered_by text;
+alter table public.shop_deposits add column if not exists entered_by text;
+alter table public.shop_event_bookings add column if not exists entered_by text;
+alter table public.shop_event_bookings add column if not exists handled_by text;
+alter table public.shop_bookings add column if not exists entered_by text;
+alter table public.shop_bookings add column if not exists handled_by text;
+create or replace trigger shop_sessions_entered_by before insert on public.shop_sessions for each row execute function private.stamp_entered_by();
+create or replace trigger shop_cash_entered_by before insert on public.shop_cash for each row execute function private.stamp_entered_by();
+create or replace trigger shop_deposits_entered_by before insert on public.shop_deposits for each row execute function private.stamp_entered_by();
+create or replace trigger shop_event_bookings_entered_by before insert on public.shop_event_bookings for each row execute function private.stamp_entered_by();
+create or replace trigger shop_bookings_entered_by before insert on public.shop_bookings for each row execute function private.stamp_entered_by();
+create or replace trigger shop_sessions_handled_by before update of status on public.shop_sessions for each row execute function private.stamp_handled_by();
+create or replace trigger shop_event_bookings_handled_by before update of status on public.shop_event_bookings for each row execute function private.stamp_handled_by();
+create or replace trigger shop_bookings_handled_by before update of status on public.shop_bookings for each row execute function private.stamp_handled_by();
+
+-- Events on the public home page: slot events (GTA VI) and tournaments (Valorant: name, mobile, rank, entry fee).
+alter table public.shop_events add column if not exists format text not null default 'slots' check (format in ('slots', 'tournament'));
+alter table public.shop_events add column if not exists image_url text;
+alter table public.shop_events add column if not exists description text;
+alter table public.shop_events add column if not exists entry_fee numeric(10,2);
+alter table public.shop_events add column if not exists max_entries int check (max_entries is null or max_entries > 0);
+alter table public.shop_events alter column starts_on drop not null;   -- tournament "date coming soon"
+alter table public.shop_events alter column ends_on drop not null;
+alter table public.shop_event_bookings add column if not exists source text not null default 'counter' check (source in ('counter', 'online'));
+alter table public.shop_event_bookings add column if not exists payment_ok boolean not null default true;
+alter table public.shop_event_bookings add column if not exists upi_ref text;
+alter table public.shop_event_bookings add column if not exists customer_id uuid references auth.users(id) on delete set null;
+create index if not exists shop_event_bookings_customer_idx on public.shop_event_bookings (customer_id);
+
+create table if not exists public.shop_entries (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  event_id uuid not null references public.shop_events(id) on delete cascade,
+  name text not null, phone text not null, rank text,
+  fee numeric(10,2) not null default 0, upi_ref text,
+  status text not null default 'requested' check (status in ('requested', 'confirmed', 'cancelled')),
+  source text not null default 'online' check (source in ('counter', 'online')),
+  customer_id uuid references auth.users(id) on delete set null,
+  entered_by text, handled_by text,
+  created_at timestamptz not null default now()
+);
+create index if not exists shop_entries_event_idx on public.shop_entries (event_id, created_at);
+create index if not exists shop_entries_household_idx on public.shop_entries (household_id);
+create index if not exists shop_entries_customer_idx on public.shop_entries (customer_id);
+create unique index if not exists shop_entries_one_per_phone on public.shop_entries (event_id, phone) where status <> 'cancelled';
+alter table public.shop_entries enable row level security;
+-- policies: "shop reads" / "shop writes" / "shop updates" (my_household_ids), "admin deletes"; entered_by / handled_by triggers.
+
+-- Customers: Google sign-in on the home page (provider must be switched on in Supabase Auth). They never read
+-- shop rows; only the public_* / customer_profile rpcs. block_public_signups lets provider = 'google' through;
+-- seed_new_user gives them a shop_customers row instead of a household.
+create table if not exists public.shop_customers (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  name text, email text, phone text,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists shop_customers_phone on public.shop_customers (household_id, phone) where phone is not null;
+alter table public.shop_customers enable row level security;   -- "shop reads": own row, or staff/admin
+alter table public.shop_sessions add column if not exists customer_id uuid references auth.users(id) on delete set null;
+alter table public.shop_bookings add column if not exists customer_id uuid references auth.users(id) on delete set null;
+-- private.link_session_customer (session phone → customer), private.link_booking_customer (signed-in booker),
+-- private.session_from_booking (Arrived passes the customer to the session).
+
+-- Home page picture: shop_settings.hero_url; public bucket "shop-media" (jpeg/png/webp, 5 MB), admin writes under
+-- their shop id (policies "shop media admin insert/update/delete" on storage.objects).
+alter table public.shop_settings add column if not exists hero_url text;
+
+-- Public rpcs (security definer, anon): public_home() = public_shop_info + hero_url + jobs count + open events with
+-- entries taken; public_event_slots(event, day) = free places per slot; public_event_book(event, start, hours,
+-- players, name, phone, upi_ref) = online event booking (advance online, payment_ok false until staff tick it);
+-- public_tournament_entry(event, name, phone, rank, upi_ref) (one per mobile, max_entries); public_my_status(booking
+-- ids, event booking ids, entry ids) = what this phone / signed-in customer booked, and running sessions with time
+-- left. customer_profile(name, phone) for signed-in customers.
+
+-- Customer dues paid back later (Cash → Customer dues): lowers the session's owed and counts as money in that day
+-- (dayTotals, and private.sync_floor_takings now adds shop_dues_paid by created_at day).
+create table if not exists public.shop_dues_paid (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  session_id uuid references public.shop_sessions(id) on delete set null,
+  customer_name text not null, customer_phone text,
+  amount numeric(10,2) not null check (amount > 0),
+  mode text not null check (mode in ('cash', 'online')),
+  user_id uuid default auth.uid() references auth.users(id) on delete set null,
+  entered_by text,
+  created_at timestamptz not null default now()
+);
+alter table public.shop_dues_paid enable row level security;   -- shop reads / shop writes / admin deletes
+-- trigger shop_dues_paid_apply → private.apply_dues_paid(); realtime: shop_entries, shop_dues_paid, shop_event_bookings.
+-- Seeded: "Valorant Tournament" (tournament, PC, date and fee to be set by the owner).

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { addDays, dayLabel, dayStart, durLabel, hoursLabel, timeLabel, useNow } from '../../lib/shop'
 
-// Staff: clock in / out (rpc shop_clock) and this week's hours. The admin pays from these hours.
+// Staff: shift Log in / Log out (owner's wording; rpc shop_clock) and this week's hours. The admin pays from these hours.
 export default function Shift({ householdId, userId, toast }) {
   const now = useNow(30_000)
   const [shifts, setShifts] = useState(null)
@@ -23,7 +23,7 @@ export default function Shift({ householdId, userId, toast }) {
     const { data, error } = await supabase.rpc('shop_clock', { p_household: householdId, p_action: action })
     setBusy(false)
     if (error) { setError(error.message); return }
-    toast(action === 'in' ? `Clocked in at ${timeLabel(data.clock_in)}` : `Clocked out. ${durLabel((new Date(data.clock_out) - new Date(data.clock_in)) / 60_000)} today.`)
+    toast(action === 'in' ? `Logged in at ${timeLabel(data.clock_in)}` : `Logged out. ${durLabel((new Date(data.clock_out) - new Date(data.clock_in)) / 60_000)} today.`)
     load()
   }
 
@@ -39,13 +39,13 @@ export default function Shift({ householdId, userId, toast }) {
           <span className="pill gx-pill free">On shift</span>
           <div className="muted small" style={{ marginTop: 8 }}>Since {timeLabel(open.clock_in)}</div>
           <div className="gx-big">{durLabel(mins(open))}</div>
-          <button className="gx-clock-btn out" disabled={busy || !shifts} onClick={() => clock('out')}>CLOCK<br />OUT</button>
+          <button className="gx-clock-btn out" disabled={busy || !shifts} onClick={() => clock('out')}>LOG<br />OUT</button>
         </>) : (<>
           <span className="pill gx-pill">Off shift</span>
           <div className="muted small" style={{ marginTop: 8 }}>{dayLabel(now)}</div>
-          <button className="gx-clock-btn in" disabled={busy || !shifts} onClick={() => clock('in')}>CLOCK<br />IN</button>
+          <button className="gx-clock-btn in" disabled={busy || !shifts} onClick={() => clock('in')}>LOG<br />IN</button>
         </>)}
-        <p className="muted small" style={{ margin: 0 }}>Forgot to clock out? Ask the admin to fix it.</p>
+        <p className="muted small" style={{ margin: 0 }}>Forgot to log out? Ask the admin to fix it.</p>
       </div>
       </div>
       <div className="gx-col">

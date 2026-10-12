@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { dayStart, dayTotals, depositBalances, durLabel, timeLabel, rs } from '../../lib/shop'
+import { dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
 
@@ -33,11 +33,12 @@ export default function Cash({ shop, householdId, toast }) {
   const entries = [
     ...shop.sessions.filter((s) => s.status === 'closed' || sessionHasPay(s)).map((s) => ({
       id: s.id, at: s.ended_at || s.started_at, title: `${s.system_name} · ${s.customer_name} · ${durLabel(s.minutes)}`,
-      sub: payLabel(s), amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1,
+      sub: payLabel(s), amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
     })),
-    ...shop.advances.map((b) => ({ id: b.id, at: b.created_at, title: `Event advance · ${b.customer_name}`, sub: b.advance_mode === 'online' ? 'Online' : 'Cash', amount: Number(b.advance_paid), sign: 1 })),
-    ...shop.cash.map((c) => ({ id: c.id, at: c.at, title: c.note || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0 })),
-    ...(shop.deposits || []).filter((d) => d.kind === 'add' && new Date(d.created_at) >= dayStart()).map((d) => ({ id: d.id, at: d.created_at, title: `Deposit · ${d.customer_name}`, sub: d.mode === 'online' ? 'Online' : 'Cash', amount: Number(d.amount), sign: 1 })),
+    ...shop.advances.map((b) => ({ id: b.id, at: b.created_at, title: `Event advance · ${b.customer_name}`, sub: b.advance_mode === 'online' ? 'Online' : 'Cash', amount: Number(b.advance_paid), sign: 1, by: b.entered_by })),
+    ...shop.cash.map((c) => ({ id: c.id, at: c.at, title: c.note || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0, by: c.entered_by })),
+    ...(shop.deposits || []).filter((d) => d.kind === 'add' && new Date(d.created_at) >= dayStart()).map((d) => ({ id: d.id, at: d.created_at, title: `Deposit · ${d.customer_name}`, sub: d.mode === 'online' ? 'Online' : 'Cash', amount: Number(d.amount), sign: 1, by: d.entered_by })),
+    ...(shop.duesPaid || []).map((p) => ({ id: p.id, at: p.created_at, title: `Dues paid · ${p.customer_name}`, sub: p.mode === 'online' ? 'Online' : 'Cash', amount: Number(p.amount), sign: 1, by: p.entered_by })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at))
 
   return (
@@ -49,6 +50,7 @@ export default function Cash({ shop, householdId, toast }) {
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet('in')}>+ Cash in</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet(dayTotals(shop).open ? 'count' : 'open')}>{dayTotals(shop).open ? 'Count' : 'Opening'}</button>
       </div>
+      <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} />
       <Deposits shop={shop} onAdd={() => setSheet('deposit')} />
       </div>
       <div className="gx-col">
@@ -56,14 +58,15 @@ export default function Cash({ shop, householdId, toast }) {
         <h3>Today</h3>
         {entries.length === 0 ? <div className="muted small">Nothing yet today.</div> : entries.map((e) => (
           <div key={e.id} className="line">
-            <div className="grow"><div className="gx-ellipsis">{e.title}</div><div className="muted small">{timeLabel(e.at)} · {e.sub}</div></div>
+            <div className="grow"><div className="gx-ellipsis">{e.title}</div><div className="muted small">{timeLabel(e.at)} · {e.sub}{e.by ? ` · by ${e.by}` : ''}</div></div>
             <b className={e.sign > 0 ? 'pos' : e.sign < 0 ? 'neg' : 'muted'}>{e.sign > 0 ? '+' : e.sign < 0 ? '−' : ''}{rs(e.amount)}</b>
           </div>
         ))}
       </div>
       </div>
       {sheet === 'deposit' && <DepositSheet settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
-      {sheet && sheet !== 'deposit' && <CashSheet kind={sheet} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
+      {sheet?.dues && <DuesSheet row={sheet.dues} settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
+      {typeof sheet === 'string' && sheet !== 'deposit' && <CashSheet kind={sheet} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
     </section>
   )
 }
@@ -144,6 +147,60 @@ function DepositSheet({ settings, householdId, onClose, onDone }) {
       <Chips options={[['cash', 'Cash'], ['online', 'Online / scanner']]} value={mode} onChange={setMode} />
       {mode === 'online' && <UpiQrButton settings={settings} amount={Number(amount)} note={`Deposit · ${name.trim() || 'customer'}`} />}
       <SheetActions onClose={onClose} busy={busy} disabled={!name.trim() || !Number(amount)} label="Save deposit" />
+    </Sheet>
+  )
+}
+
+// Customer dues (owner: staff must see them too): sessions ended as "Owes", any day, until paid back.
+function CustomerDues({ shop, onCollect }) {
+  const rows = duesByCustomer(shop.dues)
+  const total = rows.reduce((a, r) => a + r.total, 0)
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Customer dues</h3>{total > 0 && <b className="neg">{rs(total)}</b>}</div>
+      {rows.length === 0 ? <div className="muted small">Nobody owes the shop anything.</div> : rows.map((r) => (
+        <div key={r.key} className="line">
+          <div className="grow">
+            <div className="gx-ellipsis">{r.name}{r.phone ? <span className="muted small"> · {r.phone}</span> : null}</div>
+            <div className="muted small">{r.sessions.map((s) => `${dayLabel(s.started_at)} ${s.system_name}${s.handled_by ? ` (${s.handled_by})` : ''}`).join(' · ')}</div>
+          </div>
+          <b className="neg">{rs(r.total)}</b>
+          <button className="btn small" onClick={() => onCollect(r)}>Collect</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DuesSheet({ row, settings, householdId, onClose, onDone }) {
+  const [amount, setAmount] = useState(String(Math.round(row.total)))
+  const [mode, setMode] = useState('cash')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  async function save() {
+    let left = Math.min(Number(amount) || 0, row.total)
+    if (!left) return
+    setBusy(true)
+    // Paid back oldest session first; each payment lowers that session's dues (database trigger).
+    const rows = []
+    for (const s of row.sessions) {
+      if (left <= 0) break
+      const part = Math.min(left, Number(s.owed))
+      rows.push({ household_id: householdId, session_id: s.id, customer_name: row.name, customer_phone: row.phone || null, amount: part, mode })
+      left -= part
+    }
+    const { error } = await supabase.from('shop_dues_paid').insert(rows)
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    onDone(`${rs(amount)} dues collected from ${row.name}`)
+  }
+  return (
+    <Sheet title={`Collect dues · ${row.name}`} sub={`Owes ${rs(row.total)} from ${row.sessions.length} visit${row.sessions.length === 1 ? '' : 's'}`} onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <label>Amount (₹)<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
+      <Chips options={[['cash', 'Cash'], ['online', 'Online / scanner']]} value={mode} onChange={setMode} />
+      {mode === 'online' && <UpiQrButton settings={settings} amount={Number(amount)} note={`Dues · ${row.name}`} />}
+      <SheetActions onClose={onClose} busy={busy} disabled={!Number(amount)} label={`Collect ${rs(Math.min(Number(amount) || 0, row.total))}`} />
     </Sheet>
   )
 }

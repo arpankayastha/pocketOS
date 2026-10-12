@@ -1072,3 +1072,69 @@ a.btn { text-decoration: none; }
 .gx-floor > .gx-bookings { grid-column: 1 / -1; }
 .gx-booking { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .gx-booking:first-of-type { border-top: 0; padding-top: 0; }
+
+/* ---------- Public home page (owner's brief, 12 Oct): hero with the owner's photo, events, jobs ---------- */
+.home { min-height: 100dvh; background: var(--bg); color: var(--text); }
+.home a { color: inherit; text-decoration: none; }
+.home-hero {
+  position: relative; min-height: min(78vh, 620px); display: flex; flex-direction: column; padding: 14px 16px 28px;
+  background:
+    linear-gradient(180deg, rgb(15 13 14 / .55) 0%, rgb(15 13 14 / .35) 40%, rgb(15 13 14 / .95) 100%),
+    var(--hero, radial-gradient(80% 60% at 70% 30%, color-mix(in srgb, var(--accent-bg) 55%, transparent), transparent 70%)) center / cover no-repeat,
+    #0f0d0e;
+  color: #f3eeee;
+}
+.home-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: 1100px; width: 100%; margin: 0 auto; }
+.home-nav .brand { display: flex; align-items: center; gap: 8px; font-family: Anton, Impact, sans-serif; font-size: 20px; letter-spacing: .03em; color: #ec6a64; }
+.home-google { display: inline-flex; align-items: center; gap: 8px; background: #fff; color: #1f1f1f; border-color: transparent; font-weight: 600; }
+.home-me { display: inline-flex; align-items: center; gap: 8px; color: #f3eeee; border-color: rgb(255 255 255 / .25); background: rgb(0 0 0 / .3); }
+.home-me img { width: 22px; height: 22px; border-radius: 50%; }
+.home-hero-text { margin: auto auto 0; max-width: 1100px; width: 100%; display: grid; gap: 14px; justify-items: start; }
+.home-kicker { text-transform: uppercase; letter-spacing: .14em; font-size: 12px; font-weight: 700; color: #ec6a64; }
+.home-hero h1 { margin: 0; font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: clamp(38px, 11vw, 76px); line-height: .98; letter-spacing: .01em; text-transform: uppercase; text-shadow: 0 2px 24px rgb(0 0 0 / .5); }
+.home-hero h1 span { display: block; color: #ec6a64; }
+.home-cta { font-size: 17px; padding: 14px 22px; border-radius: 14px; }
+.home-live { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: #e6dcdc; }
+.home-live i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f0a090; margin-right: 6px; vertical-align: 1px; }
+.home-live i.on { background: #7cc29b; box-shadow: 0 0 8px #7cc29b; }
+.home-main { max-width: 1100px; margin: 0 auto; padding: 0 16px 32px; display: grid; gap: 12px; }
+.home-main > .card, .home-section > .card { margin: 0; }
+.home-section { display: grid; gap: 12px; }
+.home-section h2 { margin: 12px 0 0; font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: 26px; letter-spacing: .02em; text-transform: uppercase; }
+.home-events { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.home-event { padding: 0; overflow: hidden; display: grid; margin: 0; }
+.home-event-art {
+  position: relative; aspect-ratio: 16 / 9; display: grid; place-items: center; padding: 16px; text-align: center;
+  background: center / cover no-repeat, radial-gradient(90% 90% at 20% 10%, #b13a3e, #3a1c1d 60%, #0f0d0e);
+}
+.home-event.tour .home-event-art:not([style]) { background: radial-gradient(90% 90% at 80% 10%, #ff4655, #3b0d14 55%, #0f1923); }
+.home-event-art span { font-family: Anton, Impact, sans-serif; font-size: clamp(30px, 9vw, 48px); line-height: 1; text-transform: uppercase; color: #fff; text-shadow: 0 3px 18px rgb(0 0 0 / .45); }
+.home-event-art em { position: absolute; left: 12px; top: 12px; font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: rgb(0 0 0 / .55); color: #fff; padding: 4px 8px; border-radius: 6px; }
+.home-event-body { display: grid; gap: 4px; padding: 14px 16px 16px; }
+.home-event-body b { font-size: 18px; }
+.home-event-cta { justify-self: start; margin-top: 8px; }
+.home-two { grid-template-columns: minmax(0, 1fr); }
+.home-tile { display: grid; gap: 6px; margin: 0; align-content: start; }
+.home-tile b { font-size: 18px; }
+.home-rates { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; }
+.home-arrow { color: var(--accent); font-weight: 700; font-size: 14px; }
+.home-timer { display: grid; gap: 4px; justify-items: center; text-align: center; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.home-timer-big { font-family: Anton, Impact, sans-serif; font-size: 64px; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.home-timer .gx-bar { width: 100%; }
+.home-foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 8px; }
+.home-foot a { text-decoration: underline; }
+@media (min-width: 760px) {
+  .home-events { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-hero { padding: 20px 32px 40px; }
+}
+.gx-hero-preview, .gx-event-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; display: block; }
+.gx-event .gx-event-img { margin: 4px 0 8px; }
+.jobs-head .gx-event-img { margin: 12px 0 4px; }
+.jobs-head a.brand { color: inherit; text-decoration: none; }
+.gx-badge.ev { color: var(--accent); }
+label.btn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: inherit; font-size: inherit; }
+label.btn.primary { color: var(--on-accent); }
+label.btn.disabled { opacity: .6; pointer-events: none; }
+.jobs-page p a, .auth a.auth-hint { color: var(--accent); }
+.gx a[href^="tel"] { color: inherit; }

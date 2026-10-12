@@ -4,6 +4,7 @@ import { useDialog } from '../../lib/dialog'
 import { DAY_NAMES, durLabel, rs } from '../../lib/shop'
 import { Appearance, Collapsible, FingerprintCard, SecurityCard, SignOutCard } from '../Settings'
 import { Chips, Sheet, SheetActions } from './ui'
+import { uploadShopImage } from '../../lib/media'
 
 // Shop ⚙: systems and the rate card (admin), then the per-login cards everyone has.
 export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, toast }) {
@@ -14,7 +15,9 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
         <Rates shop={shop} householdId={householdId} toast={toast} />
       </div>}
       <div className="gx-col">
+      {admin && <HomePage shop={shop} householdId={householdId} toast={toast} />}
       {admin && <OnlineBooking shop={shop} householdId={householdId} toast={toast} />}
+      <PaymentAlerts toast={toast} />
       {admin && <Payments shop={shop} householdId={householdId} toast={toast} />}
       {admin && <LoginPassword toast={toast} />}
       <Appearance />
@@ -138,6 +141,59 @@ function RateSheet({ householdId, happy, onClose, onDone }) {
 
 // Online booking: the public page /#book (what the shop's "Scan to book" banner opens), its on/off switch
 // and shop hours (booking times run from opening to closing), plus the printable banner /#poster.
+// The public home page (the café's own link): owner's photo behind "Welcome to GRANDXGAMER", booking,
+// events (pictures are set per event in Events) and jobs.
+function HomePage({ shop, householdId, toast }) {
+  const hero = shop.settings?.hero_url
+  const [busy, setBusy] = useState(false)
+  const link = `${location.origin}/`
+  async function pick(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setBusy(true)
+    try {
+      const url = await uploadShopImage(householdId, file, 'home')
+      const { error } = await supabase.from('shop_settings').upsert({ household_id: householdId, hero_url: url, updated_at: new Date().toISOString() })
+      if (error) throw error
+      toast('Home page picture saved'); shop.reload()
+    } catch (err) { toast(err.message) }
+    setBusy(false)
+  }
+  async function remove() {
+    const { error } = await supabase.from('shop_settings').upsert({ household_id: householdId, hero_url: null, updated_at: new Date().toISOString() })
+    if (error) toast(error.message); else { toast('Picture removed'); shop.reload() }
+  }
+  return (
+    <Collapsible id="gx-home" title="Home page" summary={hero ? 'Your picture is on' : 'Add your picture'} defaultOpen={!hero}>
+      <p className="muted small" style={{ marginTop: 0 }}>What customers see at {link.replace(/^https?:\/\//, '')}: your picture behind “Welcome to GRANDXGAMER”, Book your slots, events and job openings. Event pictures are set in Events → Edit.</p>
+      {hero && <img className="gx-hero-preview" src={hero} alt="" />}
+      <div className="gx-btns">
+        <label className={`btn small primary ${busy ? 'disabled' : ''}`}>{busy ? 'Uploading…' : hero ? 'Change picture' : 'Add picture'}<input type="file" accept="image/*" hidden onChange={pick} disabled={busy} /></label>
+        {hero && <button className="btn small ghost" onClick={remove}>Remove</button>}
+        <a className="btn small ghost" href={link} target="_blank" rel="noreferrer">Open home page</a>
+      </div>
+    </Collapsible>
+  )
+}
+
+// Alerts for new online bookings / payments: on every phone with the app open (owner's request).
+function PaymentAlerts({ toast }) {
+  const supported = typeof Notification !== 'undefined'
+  const [perm, setPerm] = useState(supported ? Notification.permission : 'unsupported')
+  async function enable() {
+    try { const p = await Notification.requestPermission(); setPerm(p); toast(p === 'granted' ? 'Payment alerts are on for this phone' : 'Notifications are blocked in the browser settings') } catch (e) { toast(e.message) }
+  }
+  return (
+    <Collapsible id="gx-alerts" title="Payment alerts" summary={perm === 'granted' ? 'On for this phone' : 'Off for this phone'}>
+      <p className="muted small" style={{ marginTop: 0 }}>When a customer books or enters online, every phone with GRANDXGAMER open beeps and shows it. Check the UPI app, then tap Received or Not received on the Floor.</p>
+      {perm === 'granted' ? <div className="small pos">Phone notifications are on.</div>
+        : perm === 'unsupported' ? <div className="small muted">This browser can’t show notifications; the in-app alert still shows.</div>
+        : <button className="btn small primary" onClick={enable}>Turn on phone notifications</button>}
+    </Collapsible>
+  )
+}
+
 function OnlineBooking({ shop, householdId, toast }) {
   const st = shop.settings || {}
   const [open, setOpen] = useState((st.open_time || '10:00').slice(0, 5))

@@ -11,6 +11,7 @@ import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
 import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/AppLockScreen'
 import { isMember, memberName, markFingerprint } from './lib/members'
+import { isCustomer } from './lib/mine'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES, SHOP, VAULT } from './lib/modules'
@@ -35,6 +36,8 @@ const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) 
 const Jobs = lazy(() => import('./components/Jobs'))
 const Book = lazy(() => import('./components/Book'))
 const Poster = lazy(() => import('./components/Poster'))
+const Home = lazy(() => import('./components/Home'))
+const EventPage = lazy(() => import('./components/EventPage'))
 const loadShop = () => import('./components/shop/ShopModule')
 const ShopModule = lazy(loadShop)
 function preloadBudget() {
@@ -82,12 +85,15 @@ export default function App() {
       </div>
     )
   }
-  // Public jobs page: open to anyone with the link, signed in or not.
+  // Public pages: open to anyone with the link, signed in or not.
   if (hash === '#jobs') return <Suspense fallback={<Splash />}><Jobs /></Suspense>
   if (hash === '#book') return <Suspense fallback={<Splash />}><Book /></Suspense>
   if (hash === '#poster') return <Suspense fallback={<Splash />}><Poster /></Suspense>
   if (session === undefined) return <Splash />
-  if (!session) return <Auth />
+  if (hash.startsWith('#event/')) return <Suspense fallback={<Splash />}><EventPage id={hash.slice(7)} session={session} /></Suspense>
+  // Signed out: the café's home page (owner's brief); staff sign in from its "Staff login" link (#staff).
+  // Customers signed in with Google stay on the home page (their bookings and time left).
+  if (!session || isCustomer(session)) return hash === '#staff' && !session ? <Auth /> : <Suspense fallback={<Splash />}><Home session={session} /></Suspense>
   return isMember(session) ? <MemberShell session={session} /> : <Shell session={session} />
 }
 

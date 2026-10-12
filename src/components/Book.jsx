@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { BrandMark } from '../lib/icons'
 import { addDays, dayStart, durLabel, priceFor, rs, timeLabel } from '../lib/shop'
 import { qrSvg, upiLink } from '../lib/upi'
+import { rememberMine } from '../lib/mine'
 
 // Public booking page (/#book) — what the "Scan to book" banner at the shop opens. No login: the page only
 // talks to public_shop_info / public_availability / public_book (security definer, checked on the server).
@@ -54,6 +55,7 @@ export default function Book() {
     const { data, error } = await supabase.rpc('public_book', { p_kind: kind, p_start: start, p_minutes: minutes, p_players: players, p_name: name.trim(), p_phone: phone, p_upi_ref: ref.trim() || null })
     setBusy(false)
     if (error) { setError(error.message); if (/booked|passed|hours/i.test(error.message)) setStep('form'); return }
+    rememberMine('bookings', data.id)
     setDone({ ...data, start, minutes, kind, players }); setStep('done')
   }
 
@@ -68,8 +70,9 @@ export default function Book() {
         <h2>Booking request sent</h2>
         <div className="book-code mono">{done.code}</div>
         <p>{done.kind === 'PS' ? 'PS5' : 'PC'} · {new Date(done.start).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {timeLabel(done.start)} – {timeLabel(new Date(done.start).getTime() + done.minutes * 60_000)}{done.players > 1 ? ` · ${done.players} players` : ''} · {rs(done.amount)}</p>
-        <p className="muted small">The shop confirms it once your payment shows up. Show this code at the counter.</p>
-        <button className="btn block" onClick={() => { setStep('form'); setStart(null); setRef(''); setDone(null) }}>Book another</button>
+        <p className="muted small">The shop confirms it once your payment shows up. Show this code at the counter. Your booking and, once you start playing, your time left show on the home page.</p>
+        <div className="gx-btns"><a className="btn primary" style={{ flex: 1 }} href="#">Home</a>
+        <button className="btn" style={{ flex: 1 }} onClick={() => { setStep('form'); setStart(null); setRef(''); setDone(null) }}>Book another</button></div>
       </div>
     </Page>
   )
@@ -152,11 +155,12 @@ function Page({ children }) {
   return (
     <div className="jobs-page">
       <header className="jobs-head">
-        <div className="brand big"><BrandMark size={34} />GRANDXGAMER</div>
+        <a className="brand big" href="#"><BrandMark size={34} />GRANDXGAMER</a>
         <h1>Book your game</h1>
         <p className="muted">PC & PS5 gaming café · Pune</p>
       </header>
       {children}
+      <p className="muted small" style={{ textAlign: 'center' }}><a href="#">‹ Home</a></p>
     </div>
   )
 }
