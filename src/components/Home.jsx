@@ -30,6 +30,7 @@ export default function Home({ session }) {
         <div className="home-hero-text">
           <div className="home-kicker">PC &amp; PS5 gaming café</div>
           <h1>Welcome to <span>GRANDXGAMER</span></h1>
+          <p className="home-legacy">5 Years of Gaming Legacy — The Journey Continues! <span>(Since 2021)</span></p>
           <div className="home-ctas"><a className="btn primary home-cta" href="#book">Book your slots now</a>
             <a className="btn home-cta ghostlight" href="#timer">Have a code? Timer</a></div>
           {current && info && (
