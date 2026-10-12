@@ -59,3 +59,24 @@ export function scheduleAlarm(atMs, seconds = 5) {
   if (c.state === 'suspended') c.resume().then(book, () => {}); else book()
   return () => { for (const o of nodes) { try { o.stop(0); o.disconnect() } catch { /* ignore */ } } }
 }
+
+// Spoken announcement after the beep (owner: "can it say '5 minutes remaining' / 'your time is up'?"). Uses the
+// browser's own voice (Indian English when the device has one); said twice, a little slower, so it's heard in a noisy café.
+export function speak(text, times = 2) {
+  try {
+    const synth = window.speechSynthesis
+    if (!synth) return
+    const voices = synth.getVoices()
+    const voice = voices.find((v) => v.lang === 'en-IN') || voices.find((v) => v.lang?.startsWith('en-')) || null
+    for (let i = 0; i < times; i++) {
+      const u = new SpeechSynthesisUtterance(text)
+      if (voice) u.voice = voice
+      u.lang = voice?.lang || 'en-IN'
+      u.rate = 0.9
+      u.volume = 1
+      synth.speak(u)
+    }
+  } catch { /* ignore */ }
+}
+// Some browsers load voices late; ask once early so the first announcement has one.
+try { window.speechSynthesis?.getVoices() } catch { /* ignore */ }

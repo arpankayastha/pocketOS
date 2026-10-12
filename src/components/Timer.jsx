@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { BrandMark } from '../lib/icons'
 import { timeLabel } from '../lib/shop'
-import { alarm, scheduleAlarm } from '../lib/alarm'
+import { alarm, scheduleAlarm, speak } from '../lib/alarm'
 
 // Timer screen (/#timer) — open it on each PC (or on the customer's phone): type the 6-character code from the
 // booking, or the one staff read from Slots for a walk-in. Once staff press Start it shows the time left, live,
@@ -43,10 +43,14 @@ export default function Timer() {
     const off = new Date(data?.now || Date.now()).getTime() - Date.now()
     for (const x of list) {
       const end = new Date(x.ends_at).getTime() - off // on this device's clock
-      for (const [mark, secs] of [[5, 5], [0, 10]]) {
+      for (const [mark, secs, words] of [[5, 5, '5 minutes remaining'], [0, 10, 'Your time is up']]) {
         const at = end - mark * 60_000
-        if (at > Date.now()) cancel.push(scheduleAlarm(at, secs))
-        else if (Date.now() - at < 60_000) alarm(secs)
+        if (at > Date.now()) {
+          cancel.push(scheduleAlarm(at, secs))
+          // the voice follows the beep (a page timer, so behind a full-screen game it can be a little late)
+          const t = setTimeout(() => speak(words), at - Date.now() + secs * 1000)
+          cancel.push(() => clearTimeout(t))
+        } else if (Date.now() - at < 60_000) { alarm(secs); setTimeout(() => speak(words), secs * 1000) }
       }
     }
     booked.current = { key, cancel }

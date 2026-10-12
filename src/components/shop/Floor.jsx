@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { DURATIONS, balanceFor, byLine, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, shortCode, timeLabel, useNow, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
-import { alarm } from '../../lib/alarm'
+import { alarm, speak } from '../../lib/alarm'
 import CustomerFields from './CustomerFields'
 
 // The Floor ("Slots" tab): every system with its live state. Free → Start; playing → + F&B, Extend, Pause, End.
@@ -167,6 +167,8 @@ export function useTimeUpAlarm(running, now, onAlert) {
         if (left <= mark && left > mark - 3 && !fired.current.has(key)) {
           fired.current.add(key)
           alarm(mark === 0 ? 10 : 5) // seconds: 5 at 5 min left, 10 at time up
+          const where = s.system_name.startsWith('PS') ? `${s.system_name.replace('PS', 'P S ')}, controller ${s.seat || 1}` : s.system_name.replace(/^PC/, 'P C ')
+          setTimeout(() => speak(`${where}, ${s.customer_name.replace(/ \(\d+\/\d+\)$/, '')}, ${mark === 0 ? 'time is up' : '5 minutes remaining'}`, 1), (mark === 0 ? 10 : 5) * 1000)
           const title = `${s.system_name}${s.seat > 1 || s.system_name.startsWith('PS') ? ` · controller ${s.seat || 1}` : ''}: ${msg}`
           onAlert?.(`⏰ ${title} · ${s.customer_name}`)
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
