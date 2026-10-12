@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { DURATIONS, balanceFor, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, timeLabel, useNow, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
+import { UpiQrButton } from './UpiQr'
 
 // The Floor: every system with its live state. Free → Start; playing → + F&B, Extend, End & collect.
 // Replaces the sheet's rows (Name, System, Time in/out, F&B, Extend, Total, Payment mode).
@@ -58,10 +59,10 @@ export default function Floor({ shop, householdId, toast }) {
           </div>
         )
       })}
-      {sheet?.kind === 'start' && <StartSheet system={sheet.system} rates={shop.rates} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'start' && <StartSheet system={sheet.system} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} onClose={close} onDone={done} />}
       {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} onClose={close} onDone={done} />}
-      {sheet?.kind === 'end' && <EndSheet session={sheet.session} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
     </section>
   )
 }
@@ -70,7 +71,7 @@ const FNB = [[0, 'None'], [10, '₹10'], [20, '₹20'], [30, '₹30'], [40, '₹
 
 const MAX_PLAYERS = { PS: 3 } // one PS5, three controllers; PCs are one per head
 
-function StartSheet({ system, rates, happy, householdId, onClose, onDone }) {
+function StartSheet({ system, rates, settings, happy, householdId, onClose, onDone }) {
   const now = useNow(30_000)
   const [players, setPlayers] = useState(1)
   const [name, setName] = useState('')
@@ -115,6 +116,7 @@ function StartSheet({ system, rates, happy, householdId, onClose, onDone }) {
       <Chips scroll options={FNB} value={fnb} onChange={setFnb} />
       <div className="caps muted">Payment</div>
       <Chips options={[['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online']]} value={pay} onChange={setPay} />
+      {pay === 'online' && <UpiQrButton settings={settings} amount={total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${players > 1 ? ` × ${players}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
@@ -172,7 +174,7 @@ function ExtendSheet({ system, session, rates, onClose, onDone }) {
   )
 }
 
-function EndSheet({ session, deposits = [], householdId, onClose, onDone }) {
+function EndSheet({ session, settings, deposits = [], householdId, onClose, onDone }) {
   const now = useNow(30_000)
   const dep = balanceFor(deposits, session.customer_name, session.customer_phone)
   const [useDep, setUseDep] = useState(!!dep)
@@ -237,6 +239,7 @@ function EndSheet({ session, deposits = [], householdId, onClose, onDone }) {
       )}
       <div className="caps muted">Paid by</div>
       <Chips options={[['cash', 'Cash'], ['online', 'Online'], ['split', 'Cash + Online'], ['owes', 'Owes (dues)']]} value={mode} onChange={setMode} />
+      {(mode === 'online' || mode === 'split') && <UpiQrButton settings={settings} amount={online} note={`${session.system_name} · ${session.customer_name}`} />}
       {mode === 'split' && <label>Cash part<input inputMode="numeric" value={cashPart} onChange={(e) => setCashPart(e.target.value.replace(/\D/g, ''))} placeholder={`of ${rs(due)} — rest is online`} /></label>}
       <label>Discount (optional)<input inputMode="numeric" value={discount} onChange={(e) => setDiscount(e.target.value.replace(/\D/g, ''))} placeholder="₹" /></label>
       <SheetActions onClose={onClose} busy={busy} label={due === 0 && fromDep > 0 ? 'Paid from deposit · end' : mode === 'owes' ? `Save ${rs(due)} as dues` : `Collect ${rs(due)}`} />

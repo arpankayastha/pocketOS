@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useDialog } from '../../lib/dialog'
 import { durLabel, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
+import { UpiQrButton } from './UpiQr'
 import { useSwipe } from '../../lib/useSwipe'
 
 // Events with bookable slots — GTA VI launch now, anything later. Everything about an event (dates,
@@ -33,7 +34,7 @@ const eventPrice = (ev, hours, players = 1) => (firstPrice(ev) + Math.max(0, hou
 const covers = (ev, b, t) => { const s0 = new Date(b.slot_start).getTime(); return t >= s0 && t < s0 + (b.hours || 1) * ev.slot_minutes * 60_000 }
 const dayChip = (day) => new Date(`${day}T00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 
-export default function Events({ householdId, admin, toast }) {
+export default function Events({ householdId, admin, settings, toast }) {
   const dialog = useDialog()
   const [events, setEvents] = useState(null)
   const [eventId, setEventId] = useState(null)
@@ -139,7 +140,7 @@ export default function Events({ householdId, admin, toast }) {
       </>)}
       {!ev && admin && <button className="btn block" onClick={() => setSheet({ kind: 'event', event: null })}>+ New event</button>}
       </div>
-      {sheet?.kind === 'book' && <BookSheet ev={ev} slot={sheet.slot} householdId={householdId} onClose={() => setSheet(null)} onDone={done}
+      {sheet?.kind === 'book' && <BookSheet ev={ev} slot={sheet.slot} settings={settings} householdId={householdId} onClose={() => setSheet(null)} onDone={done}
         freeHours={(() => { // how many hours in a row are free from this slot, up to the event's max
           let n = 0
           for (const t of slots.filter((x) => x >= sheet.slot)) {
@@ -155,7 +156,7 @@ export default function Events({ householdId, admin, toast }) {
   )
 }
 
-function BookSheet({ ev, slot, freeHours, householdId, onClose, onDone }) {
+function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [players, setPlayers] = useState(1)
@@ -189,6 +190,7 @@ function BookSheet({ ev, slot, freeHours, householdId, onClose, onDone }) {
       <Chips options={Array.from({ length: ev.system_kind === 'PS' ? 3 : 1 }, (_, i) => [i + 1, String(i + 1)])} value={players} onChange={setPlayers} />
       <div className="caps muted">Advance {rs(ev.advance)} · non-refundable once paid</div>
       <Chips options={[['online', 'Online / scanner'], ['cash', 'Cash'], ['none', 'Not paid yet']]} value={mode} onChange={setMode} />
+      {mode === 'online' && <UpiQrButton settings={settings} amount={Number(ev.advance)} note={`${ev.name} advance · ${name.trim() || 'customer'}`} />}
       <div className="gx-box">
         <SumRow label={`First ${durLabel(ev.slot_minutes)}${players > 1 ? ` × ${players}` : ''}`} value={rs(firstPrice(ev) * players)} />
         {hours > 1 && <SumRow label={`${hours - 1} more × ${rs(nextPrice(ev))}${players > 1 ? ` × ${players}` : ''}`} value={rs((hours - 1) * nextPrice(ev) * players)} />}

@@ -14,6 +14,7 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
         <Rates shop={shop} householdId={householdId} toast={toast} />
       </div>}
       <div className="gx-col">
+      {admin && <Payments shop={shop} householdId={householdId} toast={toast} />}
       {admin && <LoginPassword toast={toast} />}
       <Appearance />
       {vault?.status === 'unlocked' && <SecurityCard vault={vault} member={member} />}
@@ -131,6 +132,32 @@ function RateSheet({ householdId, happy, onClose, onDone }) {
       <label>Price per head (₹)<input autoFocus inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))} /></label>
       <SheetActions onClose={onClose} busy={busy} disabled={!price} label="Save rate" />
     </Sheet>
+  )
+}
+
+// The shop's UPI ID: Floor, deposits and event advances show a QR with the amount filled in.
+function Payments({ shop, householdId, toast }) {
+  const [upi, setUpi] = useState(shop.settings?.upi_id || '')
+  const [name, setName] = useState(shop.settings?.upi_name || 'GRANDXGAMER')
+  const [busy, setBusy] = useState(false)
+  const valid = /^[\w.\-]{2,}@[a-zA-Z][\w.\-]{1,}$/.test(upi.trim())
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true)
+    const { error } = await supabase.from('shop_settings').upsert({ household_id: householdId, upi_id: upi.trim() || null, upi_name: name.trim() || null, updated_at: new Date().toISOString() })
+    setBusy(false)
+    if (error) toast(error.message); else { toast('UPI ID saved'); shop.reload() }
+  }
+  return (
+    <Collapsible id="gx-payments" title="Payments" summary={shop.settings?.upi_id ? `UPI QR · ${shop.settings.upi_id}` : 'Add the UPI ID for QR codes'} defaultOpen={!shop.settings?.upi_id}>
+      <form className="stack" onSubmit={save}>
+        <p className="muted small" style={{ margin: 0 }}>Online payments on the Floor, deposits and event advances show a QR with the amount filled in. Customers scan it with any UPI app.</p>
+        <label>UPI ID<input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="e.g. shopname@okicici" autoCapitalize="none" spellCheck={false} /></label>
+        <label>Name shown to the customer<input value={name} onChange={(e) => setName(e.target.value)} /></label>
+        {upi.trim() && !valid && <div className="alert error" style={{ margin: 0 }}>That doesn’t look like a UPI ID (name@bank).</div>}
+        <button className="btn primary" disabled={busy || (upi.trim() && !valid)}>{busy ? 'Saving…' : 'Save'}</button>
+      </form>
+    </Collapsible>
   )
 }
 

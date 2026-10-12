@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { dayStart, dayTotals, depositBalances, durLabel, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
+import { UpiQrButton } from './UpiQr'
 
 // The counter drawer for today: opening cash + cash collected (sessions, event advances, cash in)
 // − cash paid out = what should be in the drawer. Online money is shown but isn't in the drawer.
@@ -61,7 +62,7 @@ export default function Cash({ shop, householdId, toast }) {
         ))}
       </div>
       </div>
-      {sheet === 'deposit' && <DepositSheet householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
+      {sheet === 'deposit' && <DepositSheet settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet && sheet !== 'deposit' && <CashSheet kind={sheet} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
     </section>
   )
@@ -118,7 +119,7 @@ function Deposits({ shop, onAdd }) {
   )
 }
 
-function DepositSheet({ householdId, onClose, onDone }) {
+function DepositSheet({ settings, householdId, onClose, onDone }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [amount, setAmount] = useState('')
@@ -141,6 +142,7 @@ function DepositSheet({ householdId, onClose, onDone }) {
       </div>
       <label>Amount (₹)<input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
       <Chips options={[['cash', 'Cash'], ['online', 'Online / scanner']]} value={mode} onChange={setMode} />
+      {mode === 'online' && <UpiQrButton settings={settings} amount={Number(amount)} note={`Deposit · ${name.trim() || 'customer'}`} />}
       <SheetActions onClose={onClose} busy={busy} disabled={!name.trim() || !Number(amount)} label="Save deposit" />
     </Sheet>
   )
