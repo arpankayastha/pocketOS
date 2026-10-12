@@ -3,6 +3,7 @@ import { BrandMark } from '../lib/icons'
 import { signInMember } from '../lib/members'
 import { signInWithFingerprint, passkeyError } from './Passkeys'
 import { PasskeyIcon } from '../lib/icons'
+import { signInWithGoogle } from '../lib/mine'
 
 // GRANDXGAMER sign-in: every login (admin and staff) is a username + PIN or password, made by the admin
 // (Shop → Staff). Opened from the home page's "Staff login" link (/#staff). Customers sign in with Google on the home page.
@@ -41,7 +42,11 @@ export default function Auth() {
           const { error } = await signInWithFingerprint().catch((e) => ({ error: e }))
           if (error) { setMsg(passkeyError(error)); setBusy(false) }
         }}><PasskeyIcon /> Sign in with fingerprint</button>
-        <p className="auth-hint">Staff: the first time, use the username and 6-digit PIN from the admin, then add fingerprint sign-in in ⚙.</p>
+        <button type="button" className="btn google" disabled={busy} onClick={async () => {
+          const { error } = await signInWithGoogle()
+          if (error) setMsg(error.message)
+        }}>Continue with Google</button>
+        <p className="auth-hint">Staff: the first time, use the username and 6-digit PIN from the admin, then add fingerprint or link Google in ⚙.</p>
         <a className="auth-hint" href="#">‹ Back to the home page</a>
       </div>
     </div>

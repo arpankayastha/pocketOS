@@ -564,3 +564,18 @@ drop index if exists public.shop_sessions_one_running;
 -- private.free_systems now counts seats (PS5 = 3) and uses session_end; public_book needs `players` free seats;
 -- public.public_timer(code) (anon) = sessions for a 6-character booking / session code, for the #timer screen;
 -- public_my_status returns seat, pause and ends_at, and sessions started from a booking (booking_id).
+
+-- ---------------------------------------------------------------------------------------------
+-- Owner's test (12 Oct, afternoon): migration controller4_cashout_budgets.
+-- Controller 4 (broken until replaced): shop_systems.off_seats smallint[] (PS5: seats 4, off {4}). free_systems
+-- counts working seats and each running session's `players` (2 players = 2 controllers busy).
+alter table public.shop_systems add column if not exists off_seats smallint[] not null default '{}';
+-- Cash out → Cashbook: shop_cash.category; private.sync_cash_out() (trigger shop_cash_to_cashbook, after insert /
+-- update / delete) keeps one Shop-book "out" entry per cash out (hisab_entries.shop_cash_id, unique), paid from
+-- the cash drawer account, note "… · paid by <who>".
+alter table public.shop_cash add column if not exists category text;
+alter table public.hisab_entries add column if not exists shop_cash_id uuid;
+create unique index if not exists hisab_entries_shop_cash on public.hisab_entries (shop_cash_id) where shop_cash_id is not null;
+-- Monthly budget per Cashbook out-category (e.g. Snacks stock ₹12,000): hisab_categories.monthly_limit;
+-- public.shop_spend(household) = out-categories (+ limit and this month's spend for the admin).
+alter table public.hisab_categories add column if not exists monthly_limit numeric(12,2) check (monthly_limit is null or monthly_limit >= 0);

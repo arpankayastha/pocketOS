@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
@@ -28,7 +28,16 @@ export function DrawerCard({ shop, from, order }) {
 
 const KINDS = { open: 'Opening cash', in: 'Cash in', out: 'Cash out', count: 'Drawer count' }
 
-export default function Cash({ shop, householdId, toast }) {
+// Cashbook out-categories, with this month's spend against each monthly budget (spend / limit only for the admin).
+function useSpend(householdId, version) {
+  const [rows, setRows] = useState(null)
+  const load = useCallback(() => supabase.rpc('shop_spend', { p_household: householdId }).then(({ data }) => setRows(data || [])), [householdId])
+  useEffect(() => { load() }, [load, version])
+  return [rows, load]
+}
+
+export default function Cash({ shop, householdId, toast, admin }) {
+  const [spend, reloadSpend] = useSpend(householdId, shop.cash.length)
   const [sheet, setSheet] = useState(null) // 'open' | 'in' | 'out' | 'count'
   const entries = [
     ...shop.sessions.filter((s) => s.status === 'closed' || sessionHasPay(s)).map((s) => ({
@@ -36,7 +45,7 @@ export default function Cash({ shop, householdId, toast }) {
       sub: payLabel(s), amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
     })),
     ...shop.advances.map((b) => ({ id: b.id, at: b.created_at, title: `Event advance · ${b.customer_name}`, sub: b.advance_mode === 'online' ? 'Online' : 'Cash', amount: Number(b.advance_paid), sign: 1, by: b.entered_by })),
-    ...shop.cash.map((c) => ({ id: c.id, at: c.at, title: c.note || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0, by: c.entered_by })),
+    ...shop.cash.map((c) => ({ id: c.id, at: c.at, title: [c.category, c.note].filter(Boolean).join(' · ') || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0, by: c.entered_by })),
     ...(shop.deposits || []).filter((d) => d.kind === 'add' && new Date(d.created_at) >= dayStart()).map((d) => ({ id: d.id, at: d.created_at, title: `Deposit · ${d.customer_name}`, sub: d.mode === 'online' ? 'Online' : 'Cash', amount: Number(d.amount), sign: 1, by: d.entered_by })),
     ...(shop.duesPaid || []).map((p) => ({ id: p.id, at: p.created_at, title: `Dues paid · ${p.customer_name}`, sub: p.mode === 'online' ? 'Online' : 'Cash', amount: Number(p.amount), sign: 1, by: p.entered_by })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at))
@@ -50,6 +59,7 @@ export default function Cash({ shop, householdId, toast }) {
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet('in')}>+ Cash in</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet(dayTotals(shop).open ? 'count' : 'open')}>{dayTotals(shop).open ? 'Count' : 'Opening'}</button>
       </div>
+      {admin && <Budgets rows={spend} onSet={() => setSheet('budget')} />}
       <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} />
       <Deposits shop={shop} onAdd={() => setSheet('deposit')} />
       </div>
@@ -66,7 +76,8 @@ export default function Cash({ shop, householdId, toast }) {
       </div>
       {sheet === 'deposit' && <DepositSheet settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.dues && <DuesSheet row={sheet.dues} settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
-      {typeof sheet === 'string' && sheet !== 'deposit' && <CashSheet kind={sheet} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
+      {sheet === 'budget' && <BudgetSheet rows={spend} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); reloadSpend() }} />}
+      {typeof sheet === 'string' && sheet !== 'deposit' && sheet !== 'budget' && <CashSheet kind={sheet} categories={spend} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
     </section>
   )
 }
@@ -79,16 +90,18 @@ function payLabel(s) {
   return Number(s.paid_online) ? 'Online' : 'Cash'
 }
 
-const OUT_NOTES = [['Snacks restock', 'Snacks'], ['Cold drinks', 'Drinks'], ['Tea and water', 'Tea / water'], ['Repairs', 'Repairs'], ['Other', 'Other']]
 
-function CashSheet({ kind, householdId, onClose, onDone }) {
+// Cash out = a Cashbook entry too (Shop book, its category, paid from the drawer, "paid by" whoever saved it),
+// so it counts against that category's monthly budget (e.g. wafers / Snacks stock ₹12,000 a month).
+function CashSheet({ kind, categories, householdId, onClose, onDone }) {
+  const [category, setCategory] = useState(kind === 'out' ? 'Snacks stock' : null)
   const [amount, setAmount] = useState('')
-  const [note, setNote] = useState(kind === 'out' ? 'Snacks restock' : '')
+  const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   async function save() {
     setBusy(true)
-    const { error } = await supabase.from('shop_cash').insert({ household_id: householdId, kind, amount: Number(amount), note: note.trim() || null })
+    const { error } = await supabase.from('shop_cash').insert({ household_id: householdId, kind, amount: Number(amount), note: note.trim() || null, category: kind === 'out' ? category : null })
     setBusy(false)
     if (error) { setError(error.message); return }
     onDone(`${KINDS[kind]} ${rs(amount)} saved`)
@@ -96,9 +109,12 @@ function CashSheet({ kind, householdId, onClose, onDone }) {
   return (
     <Sheet title={KINDS[kind]} sub={{ open: 'Cash in the drawer when the shop opens.', in: 'Cash put into the drawer that isn’t a session.', out: 'Money taken from the drawer.', count: 'Count the notes and enter the total.' }[kind]} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
-      {kind === 'out' && <Chips scroll options={OUT_NOTES} value={note} onChange={setNote} />}
+      {kind === 'out' && (<>
+        <div className="caps muted">What for · goes into the Cashbook</div>
+        <Chips options={(categories || []).map((c) => [c.name, `${c.icon || ''} ${c.name}`.trim()])} value={category} onChange={setCategory} />
+      </>)}
       <label>Amount<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="₹" /></label>
-      {kind !== 'count' && kind !== 'open' && <label>Note<input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What for" /></label>}
+      {kind !== 'count' && kind !== 'open' && <label>Note<input value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === 'out' ? 'e.g. wafers supplier, bill no.' : 'What for'} /></label>}
       <SheetActions onClose={onClose} busy={busy} disabled={!amount} label="Save" />
     </Sheet>
   )
@@ -201,6 +217,54 @@ function DuesSheet({ row, settings, householdId, onClose, onDone }) {
       <Chips options={[['cash', 'Cash'], ['online', 'Online / scanner']]} value={mode} onChange={setMode} />
       {mode === 'online' && <UpiQrButton settings={settings} amount={Number(amount)} note={`Dues · ${row.name}`} />}
       <SheetActions onClose={onClose} busy={busy} disabled={!Number(amount)} label={`Collect ${rs(Math.min(Number(amount) || 0, row.total))}`} />
+    </Sheet>
+  )
+}
+
+// Admin: monthly budgets per Cashbook category, and how much is spent this month (cash outs + Cashbook entries).
+function Budgets({ rows, onSet }) {
+  const list = (rows || []).filter((r) => Number(r.limit) > 0 || Number(r.spent) > 0)
+  const month = new Date().toLocaleDateString('en-IN', { month: 'long' })
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Spending · {month}</h3><button className="btn small" onClick={onSet}>Set budget</button></div>
+      {list.length === 0 ? <div className="muted small">No budgets yet. Set one (e.g. Snacks stock ₹12,000 a month) and every cash out for it counts against it.</div> : list.map((r) => {
+        const limit = Number(r.limit) || 0, spent = Number(r.spent) || 0
+        return (
+          <div key={r.name} className="gx-budget">
+            <div className="gx-sum"><span>{r.icon} {r.name}</span><span className="amt">{rs(spent)}{limit ? ` of ${rs(limit)}` : ''}</span></div>
+            {limit > 0 && (<>
+              <div className={`gx-bar ${spent > limit ? 'over' : ''}`}><i style={{ width: `${Math.min(100, (spent / limit) * 100)}%` }} /></div>
+              <div className={`small ${spent > limit ? 'neg' : 'muted'}`}>{spent > limit ? `${rs(spent - limit)} over budget` : `${rs(limit - spent)} left this month`}</div>
+            </>)}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function BudgetSheet({ rows, householdId, onClose, onDone }) {
+  const [name, setName] = useState('Snacks stock')
+  const cur = (rows || []).find((r) => r.name === name)
+  const [amount, setAmount] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  useEffect(() => { setAmount(cur?.limit ? String(Math.round(cur.limit)) : '') }, [name]) // eslint-disable-line react-hooks/exhaustive-deps
+  async function save() {
+    setBusy(true)
+    const { error } = await supabase.from('hisab_categories').update({ monthly_limit: Number(amount) || null })
+      .eq('household_id', householdId).eq('direction', 'out').eq('name', name)
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    onDone(Number(amount) ? `${name}: ${rs(amount)} a month` : `${name}: budget removed`)
+  }
+  return (
+    <Sheet title="Monthly budget" sub="Cash outs and Cashbook entries in this category count against it. Empty = no budget." onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <Chips options={(rows || []).map((r) => [r.name, `${r.icon || ''} ${r.name}`.trim()])} value={name} onChange={setName} />
+      <label>Budget per month (₹)<input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 12000" /></label>
+      <SheetActions onClose={onClose} busy={busy} label="Save" />
     </Sheet>
   )
 }

@@ -1,23 +1,46 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
 import { DURATIONS, balanceFor, byLine, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, shortCode, timeLabel, useNow, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
+import { alarm } from '../../lib/alarm'
 
 // The Floor ("Slots" tab): every system with its live state. Free → Start; playing → + F&B, Extend, Pause, End.
 // A PS5 has one row per controller (owner: each controller is a separate customer with its own timer; start
 // them together or one later). Pause / Resume (technical failure) stops the clock, so no one loses time.
 // Replaces the sheet's rows (Name, System, Time in/out, F&B, Extend, Total, Payment mode).
-export default function Floor({ shop, householdId, toast }) {
+export default function Floor({ shop, householdId, toast, admin }) {
   const now = useNow(10_000)
   const [sheet, setSheet] = useState(null) // { kind: 'start'|'fnb'|'extend'|'end', system, session, seats }
   const running = shop.sessions.filter((s) => s.status === 'running')
-  const at = (sysId, seat) => running.find((s) => s.system_id === sysId && (s.seat || 1) === seat)
   const seatsOf = (sys) => sys.seats || 1
-  const freeSeats = (sys) => Array.from({ length: seatsOf(sys) }, (_, i) => i + 1).filter((n) => !at(sys.id, n))
-  const totalSeats = shop.systems.reduce((a, x) => a + seatsOf(x), 0)
-  const busySeats = shop.systems.reduce((a, x) => a + (seatsOf(x) - freeSeats(x).length), 0)
+  const off = (sys, n) => (sys.off_seats || []).includes(n)
+  // Which session holds each controller: its own seat, plus one more free controller per extra player
+  // (owner: "2 players = 2 controllers busy"). Out-of-order controllers are never free.
+  const holders = (sys) => {
+    const m = new Map()
+    const mine = running.filter((s) => s.system_id === sys.id)
+    for (const s of mine) m.set(s.seat || 1, s)
+    for (const s of mine) {
+      for (let extra = (s.players || 1) - 1; extra > 0; extra--) {
+        const n = Array.from({ length: seatsOf(sys) }, (_, i) => i + 1).find((k) => !m.has(k) && !off(sys, k))
+        if (n) m.set(n, { ...s, shared: true })
+      }
+    }
+    return m
+  }
+  const at = (sysId, seat) => { const sys = shop.systems.find((x) => x.id === sysId); return sys ? holders(sys).get(seat) : null }
+  const freeSeats = (sys) => { const h = holders(sys); return Array.from({ length: seatsOf(sys) }, (_, i) => i + 1).filter((n) => !h.has(n) && !off(sys, n)) }
+  const working = (sys) => seatsOf(sys) - (sys.off_seats || []).filter((n) => n <= seatsOf(sys)).length
+  const totalSeats = shop.systems.reduce((a, x) => a + working(x), 0)
+  const busySeats = shop.systems.reduce((a, x) => a + (working(x) - freeSeats(x).length), 0)
+  useTimeUpAlarm(running, now)
+  async function setOff(sys, n, isOff) {
+    const next = isOff ? [...new Set([...(sys.off_seats || []), n])] : (sys.off_seats || []).filter((k) => k !== n)
+    const { error } = await supabase.from('shop_systems').update({ off_seats: next }).eq('id', sys.id)
+    done(error ? error.message : isOff ? `Controller ${n} marked out of order` : `Controller ${n} is back in use`)
+  }
   const close = () => setSheet(null)
   const done = (msg) => { setSheet(null); toast(msg); shop.reload() }
 
@@ -66,15 +89,17 @@ export default function Floor({ shop, householdId, toast }) {
             </div>
           )
         }
-        const list = Array.from({ length: n }, (_, i) => i + 1).map((seat) => ({ seat, s: at(sys.id, seat) }))
-        const playing = list.filter((x) => x.s).map((x) => x.s)
+        const held = holders(sys)
+        const list = Array.from({ length: n }, (_, i) => i + 1).map((seat) => ({ seat, s: held.get(seat) }))
+        const playing = list.filter((x) => x.s && !x.s.shared).map((x) => x.s)
+        const used = list.filter((x) => x.s).length
         const free = freeSeats(sys)
         const anyRunning = playing.some((s) => !s.paused_at), anyPaused = playing.some((s) => s.paused_at)
         return (
           <div key={sys.id} className={`card gx-sys ${playing.length ? 'busy' : 'free'} gx-multi`}>
             <div className="gx-sys-top">
               <span className={`gx-badge ${sys.kind === 'PS' ? 'ps' : ''}`}>{sys.name}</span>
-              <div className="grow"><div className={playing.length ? 'gx-name' : 'gx-free'}>{playing.length ? `${playing.length} of ${n} playing` : 'Free'}</div>
+              <div className="grow"><div className={used ? 'gx-name' : 'gx-free'}>{used ? `${used} of ${working(sys)} controllers busy` : 'Free'}</div>
                 <div className="muted small">{free.length ? `${free.length} controller${free.length === 1 ? '' : 's'} free` : 'All controllers busy'}</div></div>
               {free.length > 0 && <button className="btn small gx-ok" onClick={() => setSheet({ kind: 'start', system: sys, seats: free })}>Start{free.length > 1 ? '…' : ''}</button>}
             </div>
@@ -84,7 +109,16 @@ export default function Floor({ shop, householdId, toast }) {
                 {anyPaused && <button className="btn small" onClick={() => pause(playing.filter((s) => s.paused_at), false)}>▶ Resume all</button>}
               </div>
             )}
-            {list.map(({ seat, s }) => s ? (
+            {list.map(({ seat, s }) => s?.shared ? (
+              <div key={seat} className="gx-seat">
+                <div className="gx-sys-top"><span className="gx-badge sm">🎮{seat}</span><div className="grow muted small">With {s.customer_name} (controller {s.seat || 1})</div></div>
+              </div>
+            ) : off(sys, seat) ? (
+              <div key={seat} className="gx-seat">
+                <div className="gx-sys-top"><span className="gx-badge sm">🎮{seat}</span><div className="grow muted small">Controller {seat} · out of order</div>
+                  {admin && <button className="btn small ghost" onClick={() => setOff(sys, seat, false)}>Back in use</button>}</div>
+              </div>
+            ) : s ? (
               <div key={seat} className={`gx-seat ${stateOf(s, now)}`}>
                 <SessionRow sys={sys} s={s} now={now} badge={`🎮${seat}`} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} />
               </div>
@@ -93,6 +127,7 @@ export default function Floor({ shop, householdId, toast }) {
                 <div className="gx-sys-top">
                   <span className="gx-badge sm">🎮{seat}</span>
                   <div className="grow"><span className="gx-free">Controller {seat} free</span></div>
+                  {admin && <button className="btn small ghost" onClick={() => setOff(sys, seat, true)} title="Mark out of order">Out of order</button>}
                   <button className="btn small gx-ok" onClick={() => setSheet({ kind: 'start', system: sys, seats: [seat] })}>Start</button>
                 </div>
               </div>
@@ -108,6 +143,28 @@ export default function Floor({ shop, householdId, toast }) {
   )
 }
 
+// Owner: "alarm when time ends". Every phone with Slots open beeps (and buzzes) when a session reaches
+// 5 minutes left and again when its time is up; a phone notification too if alerts are allowed.
+function useTimeUpAlarm(running, now) {
+  const fired = useRef(new Set())
+  useEffect(() => {
+    for (const s of running) {
+      if (s.paused_at) continue
+      const left = minutesLeft(s, now)
+      for (const [mark, msg] of [[5, '5 minutes left'], [0, 'time is up']]) {
+        const key = `${s.id}:${s.minutes}:${mark}`
+        if (left <= mark && left > mark - 3 && !fired.current.has(key)) {
+          fired.current.add(key)
+          alarm(mark === 0 ? 3 : 1)
+          const title = `${s.system_name}${s.seat > 1 || s.system_name.startsWith('PS') ? ` · controller ${s.seat || 1}` : ''}: ${msg}`
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            navigator.serviceWorker?.getRegistration().then((reg) => reg?.showNotification(title, { body: s.customer_name, icon: '/icons/icon-192.png', tag: key })).catch(() => {})
+          }
+        }
+      }
+    }
+  }, [running, now])
+}
 const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
 
 // One running session (a PC, or one PS5 controller): customer, times, code for the timer screen, actions.

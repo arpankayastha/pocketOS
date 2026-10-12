@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { BrandMark } from '../lib/icons'
 import { timeLabel } from '../lib/shop'
+import { alarm } from '../lib/alarm'
 
 // Timer screen (/#timer) — open it on each PC (or on the customer's phone): type the 6-character code from the
 // booking, or the one staff read from Slots for a walk-in. Once staff press Start it shows the time left, live,
 // and "Paused" during a technical failure. Only public_timer is used: system, controller and times, no names.
 const KEY = 'gx.timerCode'
+const beeped = new Set()
 
 export default function Timer() {
   const [code, setCode] = useState(() => { try { return localStorage.getItem(KEY) || '' } catch { return '' } })
@@ -41,6 +43,15 @@ export default function Timer() {
 
   const now = Date.now() + skew
   const running = (data?.sessions || []).filter((s) => s.status === 'running')
+  // Beep at 5 minutes left and at time up (owner: "alarm when time ends").
+  for (const s of running) {
+    if (s.paused_at) continue
+    const left = (new Date(s.ends_at).getTime() - now) / 60_000
+    for (const mark of [5, 0]) {
+      const key = `${s.system}:${s.seat}:${s.ends_at}:${mark}`
+      if (left <= mark && left > mark - 1 && !beeped.has(key)) { beeped.add(key); alarm(mark === 0 ? 3 : 1) }
+    }
+  }
   const ended = (data?.sessions || []).filter((s) => s.status !== 'running')
 
   return (

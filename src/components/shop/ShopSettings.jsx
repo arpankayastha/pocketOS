@@ -21,7 +21,7 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
       <PaymentAlerts toast={toast} />
       {admin && <Payments shop={shop} householdId={householdId} toast={toast} />}
       {admin && <LoginPassword toast={toast} />}
-      <Passkeys Wrap={Collapsible} />
+      <Passkeys Wrap={Collapsible} withGoogle />
       <Appearance />
       {vault?.status === 'unlocked' && <SecurityCard vault={vault} member={member} />}
       {member && appLock && <FingerprintCard appLock={appLock} />}
@@ -167,9 +167,9 @@ function HomePage({ shop, householdId, toast }) {
     if (error) toast(error.message); else { toast('Picture removed'); shop.reload() }
   }
   return (
-    <Collapsible id="gx-home" title="Home page" summary={hero ? 'Your picture is on' : 'Add your picture'} defaultOpen={!hero}>
+    <Collapsible id="gx-home" title="Home page" summary={hero ? 'Your picture is on' : 'Standard photo'}>
       <p className="muted small" style={{ marginTop: 0 }}>What customers see at {link.replace(/^https?:\/\//, '')}: your picture behind “Welcome to GRANDXGAMER”, Book your slots, events and job openings. Event pictures are set in Events → Edit.</p>
-      {hero && <img className="gx-hero-preview" src={hero} alt="" />}
+      <img className="gx-hero-preview" src={hero || '/brand/hero.jpg'} alt="" />
       <div className="gx-btns">
         <label className={`btn small primary ${busy ? 'disabled' : ''}`}>{busy ? 'Uploading…' : hero ? 'Change picture' : 'Add picture'}<input type="file" accept="image/*" hidden onChange={pick} disabled={busy} /></label>
         {hero && <button className="btn small ghost" onClick={remove}>Remove</button>}

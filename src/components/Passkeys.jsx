@@ -4,6 +4,7 @@ import { useDialog } from '../lib/dialog'
 import { PasskeyIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { deviceName } from '../lib/webauthn'
 import { authSettings } from '../lib/mine'
+import GoogleLink from './GoogleLink'
 
 // Fingerprint / face sign-in for every role (owner: "passkey + fingerprint for all users if they enroll"):
 // Supabase passkeys. Admin, staff and Google customers add one per phone; then "Sign in with fingerprint"
@@ -16,7 +17,7 @@ export const passkeyError = (error) => /not.*(enabled|found|configured)|disabled
   ? 'Fingerprint sign-in isn’t switched on yet, or there’s no passkey for this site on this phone. Sign in the usual way, then add one in Settings.'
   : error?.message
 
-export default function Passkeys({ Wrap, compact }) {
+export default function Passkeys({ Wrap, compact, withGoogle }) {
   const dialog = useDialog()
   const [passkeys, setPasskeys] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -68,7 +69,8 @@ export default function Passkeys({ Wrap, compact }) {
     {on === false ? <p className="muted small" style={{ margin: 0 }}>Being set up: fingerprint sign-in needs switching on for the shop’s account first.</p> :
     <button className="btn primary block" disabled={busy || !on} onClick={add}>{busy ? 'Waiting for fingerprint…' : '+ Add fingerprint sign-in on this phone'}</button>}
     {error && <div className="alert error" style={{ margin: '8px 0 0' }}>{error}</div>}
+    {withGoogle && <GoogleLink />}
   </>)
   const summary = passkeys === null ? '…' : passkeys.length ? `${passkeys.length} phone${passkeys.length === 1 ? '' : 's'}` : 'Not set up'
-  return Wrap ? <Wrap id="gx-passkeys" title="Fingerprint sign-in" summary={summary}>{body}</Wrap> : body
+  return Wrap ? <Wrap id="gx-passkeys" title={withGoogle ? 'Sign-in: fingerprint & Google' : 'Fingerprint sign-in'} summary={summary}>{body}</Wrap> : body
 }

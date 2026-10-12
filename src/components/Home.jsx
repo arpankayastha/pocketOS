@@ -34,7 +34,7 @@ export default function Home({ session }) {
 
   return (
     <div className="home">
-      <header className="home-hero" style={info?.hero_url ? { '--hero': `url("${info.hero_url}")` } : undefined}>
+      <header className="home-hero" style={{ '--hero': `url("${info?.hero_url || '/brand/hero.jpg'}")` }}>
         <nav className="home-nav">
           <span className="brand"><BrandMark size={26} />GRANDXGAMER</span>
           {customer ? (
