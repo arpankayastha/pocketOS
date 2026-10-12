@@ -35,6 +35,7 @@ function Page({ ev, children }) {
   return (
     <div className="jobs-page pub-page">
       <PublicNav />
+      <a className="pub-back" href="#">‹ Home</a>
       <header className="jobs-head">
         {eventImage(ev) && <img className="gx-event-img" src={eventImage(ev)} alt="" />}
         <h1>{ev ? ev.name : 'Event'}</h1>

@@ -1,6 +1,6 @@
-// Bottom tab bar on phones (owner: the floating pill "looks too bad"): fixed, full width, every tab shows its
-// icon and label, the current one in red — same as the customer pages (PublicNav). Tapping the current tab
-// scrolls to the top. `withFab` lifts the module's + button above the bar.
+// Floating pill navigation on phones and tablets (owner, 12 Oct: pill shape, labels always visible, never
+// hides) — the same pill as the customer pages (PublicNav). Tapping the current tab scrolls to the top.
+// The module's + button sits above it on the right.
 export default function PillNav({ tabs, tab, setTab, withFab }) {
   return (
     <nav className={`pill-nav ${withFab ? 'with-fab' : ''}`} style={{ '--n': tabs.length }}>

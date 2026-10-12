@@ -258,7 +258,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
 
   return (
     <div className="app">
-      <Topbar {...topbar} title={tab === 'settings' ? 'Settings' : tabs.find((t) => t.id === tab)?.label} right={data.households.length > 0 && (<>
+      <Topbar {...topbar} title={tab === 'settings' ? 'Settings' : tabs.find((t) => t.id === tab)?.label} onBack={tab === 'settings' ? () => setTab(home) : null} right={data.households.length > 0 && (<>
         {data.households.length > 1 && <HouseholdMenu member={member} households={data.households} activeId={data.activeHouseholdId} onSelect={data.setActiveHouseholdId}
           onCreate={async () => {
             const name = await dialog.prompt({ title: 'New household', label: 'Name', placeholder: "e.g. Parents' Home", confirmLabel: 'Create' })

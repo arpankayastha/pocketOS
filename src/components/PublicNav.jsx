@@ -4,7 +4,7 @@ import { BrandMark, HomeIcon, GamepadIcon, ClockIcon, UsersIcon, UserIcon } from
 import { isCustomer } from '../lib/mine'
 
 // One navigation for every customer-facing page (home, booking, timer, jobs, events, my account):
-// a top bar with the brand and, from 800 px, the page links; on phones a fixed bottom tab bar with labels.
+// a top bar with the brand and, from 800 px, the page links; on phones the floating pill with labels (as in the app).
 const LINKS = [
   { id: 'home', href: '#', label: 'Home', icon: HomeIcon },
   { id: 'book', href: '#book', label: 'Book', icon: GamepadIcon },
@@ -37,7 +37,7 @@ export default function PublicNav({ active }) {
         <span>{customer ? (customer.user.user_metadata?.full_name || 'Me').split(' ')[0] : 'Sign in'}</span>
       </a>
     </header>
-    <nav className="pub-tabs">
+    <nav className="pub-tabs pill-nav" style={{ '--n': LINKS.length + 1 }}>
       {[...LINKS, me].map((l) => (
         <a key={l.id} href={l.href} className={active === l.id ? 'active' : ''} aria-current={active === l.id ? 'page' : undefined}
           onClick={() => { if (active === l.id) window.scrollTo({ top: 0, behavior: 'smooth' }) }}>

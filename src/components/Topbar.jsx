@@ -5,7 +5,7 @@ import { householdColor } from '../lib/colors'
 
 // Shared header: brand, module switcher (when the login has more than one module), then the
 // module's own tabs (`children`, desktop only; phones use the bottom nav) and actions (`right`).
-export default function Topbar({ module, setModule, modules = MODULES, children, right, title }) {
+export default function Topbar({ module, setModule, modules = MODULES, children, right, title, onBack }) {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4)
@@ -16,7 +16,9 @@ export default function Topbar({ module, setModule, modules = MODULES, children,
 
   return (
     <header className={`topbar ${scrolled ? 'scrolled' : ''}`}>
-      <div className="brand"><BrandMark size={28} /><span className="brand-text">GRANDXGAMER</span></div>
+      {/* Phones: a page that isn't a tab (Settings) shows ‹ back to where you were in place of the logo. */}
+      {onBack && <button className="btn icon topbar-back" aria-label="Back" onClick={onBack}><ChevronLeft /></button>}
+      <div className={`brand ${onBack ? 'has-back' : ''}`}><BrandMark size={28} /><span className="brand-text">GRANDXGAMER</span></div>
       {/* Phones: the page you're on, with its section above it (the tabs themselves are in the bottom bar). */}
       {title && <div className="topbar-title"><small>{modules.length > 1 ? (modules.find((m) => m.id === module) || modules[0])?.label : 'GRANDXGAMER'}</small><b>{title}</b></div>}
       {modules.length > 1 ? <ModuleSwitch module={module} setModule={setModule} modules={modules} /> : <div className="brand-member">GRANDXGAMER</div>}
@@ -108,4 +110,8 @@ export function HouseholdMenu({ households, activeId, onSelect, onCreate, onMana
       )}
     </div>
   )
+}
+
+function ChevronLeft() {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
 }
