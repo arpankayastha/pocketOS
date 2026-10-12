@@ -60,10 +60,15 @@ export default function Staff({ householdId, toast }) {
   }
   // Owner: a staff member signed in with Google before linking it (it made a customer account) — attach it here.
   async function linkGoogle(m) {
-    const email = await dialog.prompt({ title: `Link Google · ${m.display_name || m.username}`, label: 'Their Gmail (they must have tapped Sign in with Google once)', placeholder: 'name@gmail.com', confirmLabel: 'Link' })
+    const email = await dialog.prompt({ title: `Link Google · ${m.display_name || m.username}`, label: 'Their Gmail — first they open grandxgamer.vercel.app on their phone and tap Sign in with Google once (it lands on the customer page; that’s fine)', placeholder: 'name@gmail.com', confirmLabel: 'Link' })
     if (!email?.trim()) return
     const { error } = await supabase.rpc('link_staff_google', { p_staff: m.user_id, p_email: email.trim() })
     if (error) toast(error.message); else { toast(`Google linked — ${m.display_name || m.username} can now use Continue with Google`); load() }
+  }
+  async function unlinkGoogle(m) {
+    if (!await dialog.confirm({ title: `Remove Google from ${m.display_name || m.username}?`, message: `${google[m.user_id]} won't open this staff login any more. Then use Link Google to add the right Gmail (it must tap Sign in with Google once first).`, confirmLabel: 'Remove Google', danger: true })) return
+    const { error } = await supabase.rpc('unlink_staff_google', { p_staff: m.user_id })
+    if (error) toast(error.message); else { toast('Google removed — link the new Gmail'); load() }
   }
   async function removeAdjust(x) {
     if (!await dialog.confirm({ title: `Remove “${x.reason}”?`, message: `${Number(x.amount) < 0 ? 'Deduction' : 'Bonus'} of ${rs(Math.abs(x.amount))}.`, confirmLabel: 'Remove', danger: true })) return
@@ -107,7 +112,7 @@ export default function Staff({ householdId, toast }) {
               <div className="gx-name">{m.display_name || m.username} <span className="muted small">@{m.username}</span></div>
               {m.designation && <span className="pill gx-pill">{m.designation}</span>}
               <div className={`small ${m.on ? 'pos' : 'muted'}`}>{m.on ? `Logged in since ${timeLabel(m.on.clock_in)}` : 'Not logged in'}</div>
-              {google[m.user_id] && <div className="muted small">Google · {google[m.user_id]}</div>}
+              {google[m.user_id] && <div className="muted small">Google · {google[m.user_id]} <button className="btn link" style={{ padding: 0, fontSize: 'inherit' }} onClick={() => unlinkGoogle(m)}>Change</button></div>}
             </div>
           </div>
           <div className="gx-sum" style={{ marginTop: 8 }}>

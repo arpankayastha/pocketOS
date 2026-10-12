@@ -640,3 +640,5 @@ create table if not exists private.app_pins (
 -- Hours (staff + admin); private.day_hours(household, day) → open_at / close_at (null = closed) is used by
 -- public_availability and public_book. shop_customer_hidden (household, phone): numbers the admin removed from the
 -- customer drop-down; shop_customer_search skips them.
+-- public.unlink_staff_google(staff) (migration admin_unlink_staff_google): admin only; marks the staff login's
+-- Google identity 'google-unlinked' (no delete) so another Gmail can be linked.
