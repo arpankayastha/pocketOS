@@ -33,6 +33,8 @@ const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
 const Jobs = lazy(() => import('./components/Jobs'))
+const Book = lazy(() => import('./components/Book'))
+const Poster = lazy(() => import('./components/Poster'))
 const loadShop = () => import('./components/shop/ShopModule')
 const ShopModule = lazy(loadShop)
 function preloadBudget() {
@@ -82,6 +84,8 @@ export default function App() {
   }
   // Public jobs page: open to anyone with the link, signed in or not.
   if (hash === '#jobs') return <Suspense fallback={<Splash />}><Jobs /></Suspense>
+  if (hash === '#book') return <Suspense fallback={<Splash />}><Book /></Suspense>
+  if (hash === '#poster') return <Suspense fallback={<Splash />}><Poster /></Suspense>
   if (session === undefined) return <Splash />
   if (!session) return <Auth />
   return isMember(session) ? <MemberShell session={session} /> : <Shell session={session} />

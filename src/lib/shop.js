@@ -81,12 +81,12 @@ export function useShopId(memberHouseholdId) {
 }
 
 export function useShop(householdId) {
-  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null })
+  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null, bookings: [] })
 
   const reload = useCallback(async () => {
     if (!householdId) return
     const from = dayStart().toISOString()
-    const [sys, rates, todays, running, cash, adv, shifts, deps, settings] = await Promise.all([
+    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings] = await Promise.all([
       supabase.from('shop_systems').select('*').eq('household_id', householdId).eq('active', true).order('sort').order('name'),
       supabase.from('shop_rates').select('*').eq('household_id', householdId).order('kind').order('minutes'),
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).neq('status', 'cancelled').order('started_at', { ascending: false }),
@@ -96,14 +96,16 @@ export function useShop(householdId) {
       supabase.from('shop_shifts').select('*').eq('household_id', householdId).is('clock_out', null),
       supabase.from('shop_deposits').select('*').eq('household_id', householdId).eq('month', monthStart()).order('created_at', { ascending: false }),
       supabase.from('shop_settings').select('*').eq('household_id', householdId).maybeSingle(),
+      supabase.from('shop_bookings').select('*').eq('household_id', householdId).in('status', ['requested', 'confirmed'])
+        .gte('starts_at', new Date(Date.now() - 3 * 3600_000).toISOString()).order('starts_at'),
     ])
-    const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings].find((r) => r.error)?.error
+    const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings].find((r) => r.error)?.error
     if (err) { setState((s) => ({ ...s, loading: false, error: err.message })); return }
     setState({
       loading: false, error: null, systems: sys.data, rates: rates.data,
       sessions: [...todays.data, ...running.data], cash: cash.data,
       advances: adv.data.filter((b) => b.status !== 'cancelled'), shifts: shifts.data,
-      deposits: deps.data, settings: settings.data,
+      deposits: deps.data, settings: settings.data, bookings: bookings.data,
     })
   }, [householdId])
 
@@ -113,6 +115,7 @@ export function useShop(householdId) {
     const ch = supabase.channel(`shop:${householdId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_sessions', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_deposits', filter: `household_id=eq.${householdId}` }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_bookings', filter: `household_id=eq.${householdId}` }, reload)
       .subscribe()
     const onVisible = () => { if (document.visibilityState === 'visible') reload() }
     document.addEventListener('visibilitychange', onVisible)

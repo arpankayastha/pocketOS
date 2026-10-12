@@ -405,3 +405,18 @@ select h.id, r.kind, r.minutes, r.price, r.happy from public.households h, (valu
 on conflict (household_id, kind, minutes, happy) do update set price = excluded.price;
 update public.shop_events set slot_minutes = 60, first_hour_price = 200, next_hour_price = 100, max_hours = 3, price = 200
   where name = 'GTA VI launch';
+
+-- ---------------------------------------------------------------------------------------------
+-- Online booking (12 Oct 2026): the "Scan to book" banner opens /#book (no login). Applied as migrations
+-- "online_bookings_tables" and "online_bookings_functions":
+--   shop_settings: open_time, close_time, online_booking, upi_id, upi_name
+--   shop_bookings (kind PC/PS, starts_at, minutes, players, customer_name, customer_phone, amount, upi_ref,
+--     status requested → confirmed → arrived | cancelled | no_show, source online/counter, session_id);
+--     RLS shop reads/writes/updates, admin deletes; in the realtime publication.
+--   private.shop_price(household, kind, minutes, happy) — whole hours × 1-hr rate + a half hour × 30-min rate
+--   private.public_shop() — the shop (first household); private.free_systems(household, kind, from, to)
+--   public.public_shop_info(), public.public_availability(day), public.public_book(kind, start, minutes,
+--     players, name, phone, upi_ref) — security definer, executable by anon. public_book checks: online
+--     booking on, today/tomorrow (IST), on the half hour, within shop hours, 30–180 min, players ≤ 3 on PS /
+--     1 on PC, name + 10-digit mobile, free systems for every half hour (advisory lock), ≤ 3 open requests
+--     per mobile, ≤ 60 online requests a day; amount = shop_price × players (happy days from settings).

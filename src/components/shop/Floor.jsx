@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
 import { DURATIONS, balanceFor, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, timeLabel, useNow, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
@@ -14,6 +15,11 @@ export default function Floor({ shop, householdId, toast }) {
   const close = () => setSheet(null)
   const done = (msg) => { setSheet(null); toast(msg); shop.reload() }
 
+  const startBooking = (b) => {
+    const sys = shop.systems.find((x) => x.kind === b.kind && !running.has(x.id))
+    if (!sys) { toast(`No free ${b.kind === 'PS' ? 'PS5' : 'PC'} right now`); return }
+    setSheet({ kind: 'start', system: sys, booking: b })
+  }
   if (!shop.systems.length) return <div className="card muted">No systems yet. The admin adds them in ⚙ → Systems & rates.</div>
 
   return (
@@ -23,6 +29,7 @@ export default function Floor({ shop, householdId, toast }) {
         <span className="pill gx-pill free">{shop.systems.length - busy} free</span>
         {isHappyDay(shop.settings) && <span className="pill gx-pill happy">Happy hours today</span>}
       </div>
+      {shop.bookings?.length > 0 && <Bookings bookings={shop.bookings} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />}
       {shop.systems.map((sys) => {
         const s = running.get(sys.id)
         if (!s) {
@@ -59,7 +66,7 @@ export default function Floor({ shop, householdId, toast }) {
           </div>
         )
       })}
-      {sheet?.kind === 'start' && <StartSheet system={sheet.system} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'start' && <StartSheet system={sheet.system} booking={sheet.booking} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} onClose={close} onDone={done} />}
       {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
@@ -71,31 +78,32 @@ const FNB = [[0, 'None'], [10, '₹10'], [20, '₹20'], [30, '₹30'], [40, '₹
 
 const MAX_PLAYERS = { PS: 3 } // one PS5, three controllers; PCs are one per head
 
-function StartSheet({ system, rates, settings, happy, householdId, onClose, onDone }) {
+function StartSheet({ system, booking, rates, settings, happy, householdId, onClose, onDone }) {
   const now = useNow(30_000)
-  const [players, setPlayers] = useState(1)
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [mins, setMins] = useState(60)
+  const [players, setPlayers] = useState(booking?.players || 1)
+  const [name, setName] = useState(booking?.customer_name || '')
+  const [phone, setPhone] = useState(booking?.customer_phone || '')
+  const [mins, setMins] = useState(booking?.minutes || 60)
   const [fnb, setFnb] = useState(0)
-  const [pay, setPay] = useState('end')
+  const [pay, setPay] = useState(booking ? 'booked' : 'end')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const each = priceFor(rates, system.kind, mins, happy)
-  const gaming = each * players
+  const gaming = booking && mins === booking.minutes && players === booking.players ? Number(booking.amount) : each * players
   const total = gaming + fnb
   const maxPlayers = MAX_PLAYERS[system.kind] || 1
 
   async function save() {
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').insert({
+    const { data: created, error } = await supabase.from('shop_sessions').insert({
       household_id: householdId, system_id: system.id, system_name: system.name,
       customer_name: name.trim() || 'Walk-in', customer_phone: phone.trim() || null,
       base_minutes: mins, minutes: mins, gaming_amount: gaming, fnb_before: fnb, players, happy,
-      paid_cash: pay === 'cash' ? total : 0, paid_online: pay === 'online' ? total : 0,
-    })
+      paid_cash: pay === 'cash' ? total : 0, paid_online: pay === 'online' ? total : pay === 'booked' ? Number(booking.amount) : 0,
+    }).select('id').single()
     setBusy(false)
     if (error) { setError(error.code === '23505' ? `${system.name} is already running.` : error.message); return }
+    if (booking) await supabase.from('shop_bookings').update({ status: 'arrived', session_id: created.id }).eq('id', booking.id)
     onDone(`${system.name} started for ${name.trim() || 'walk-in'} · ends ${timeLabel(new Date(new Date().getTime() + mins * 60_000))}`)
   }
 
@@ -115,12 +123,12 @@ function StartSheet({ system, rates, settings, happy, householdId, onClose, onDo
       <div className="caps muted">F&amp;B before gaming</div>
       <Chips scroll options={FNB} value={fnb} onChange={setFnb} />
       <div className="caps muted">Payment</div>
-      <Chips options={[['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online']]} value={pay} onChange={setPay} />
+      <Chips options={[...(booking ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online']]} value={pay} onChange={setPay} />
       {pay === 'online' && <UpiQrButton settings={settings} amount={total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${players > 1 ? ` × ${players}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
-        <SumRow strong label={pay === 'end' ? 'Total so far' : 'Paid now'} value={rs(total)} />
+        <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : total)} />
       </div>
       <SheetActions onClose={onClose} busy={busy} label="Start timer" />
     </Sheet>
@@ -245,5 +253,40 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
       <SheetActions onClose={onClose} busy={busy} label={due === 0 && fromDep > 0 ? 'Paid from deposit · end' : mode === 'owes' ? `Save ${rs(due)} as dues` : `Collect ${rs(due)}`} />
       {paid === 0 && <button type="button" className="btn link" style={{ justifySelf: 'start', color: 'var(--neg)' }} onClick={cancel}>Started by mistake? Remove this session</button>}
     </Sheet>
+  )
+}
+
+// Online bookings from the public page (/#book): check the UPI payment arrived → Payment received;
+// when they come in → Arrived starts the session on a free system, already paid.
+function Bookings({ bookings, onArrived, onChanged }) {
+  const dialog = useDialog()
+  async function set(b, status, msg) {
+    if (status === 'cancelled' && !await dialog.confirm({ title: `Cancel ${b.customer_name}’s booking?`, message: 'The time opens up for others. Online advance is non-refundable.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep', danger: true })) return
+    const { error } = await supabase.from('shop_bookings').update({ status }).eq('id', b.id)
+    onChanged(error ? error.message : msg)
+  }
+  const day = (d) => { const x = new Date(d), t = new Date(); return x.toDateString() === t.toDateString() ? 'Today' : 'Tomorrow' }
+  return (
+    <div className="card gx-bookings">
+      <div className="card-head"><h3>Bookings</h3><span className="muted small">{bookings.filter((b) => b.status === 'requested').length} to check</span></div>
+      {bookings.map((b) => (
+        <div key={b.id} className="gx-booking">
+          <div className="gx-sys-top">
+            <span className={`gx-badge sm ${b.kind === 'PS' ? 'ps' : ''}`}>{b.kind === 'PS' ? 'PS5' : 'PC'}</span>
+            <div className="grow">
+              <div className="gx-name">{b.customer_name}{b.players > 1 ? ` · ${b.players} players` : ''}</div>
+              <div className="muted small">{day(b.starts_at)} {timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {rs(b.amount)}{b.upi_ref ? ` · ref ${b.upi_ref}` : ''}</div>
+            </div>
+            <span className={`pill gx-pill ${b.status === 'requested' ? 'ending' : 'free'}`}>{b.status === 'requested' ? 'Check payment' : 'Confirmed'}</span>
+          </div>
+          <div className="gx-btns">
+            <a className="btn small ghost" href={`tel:${b.customer_phone}`}>{b.customer_phone}</a>
+            {b.status === 'requested' && <button className="btn small primary" onClick={() => set(b, 'confirmed', 'Booking confirmed')}>Payment received</button>}
+            {b.status === 'confirmed' && <button className="btn small primary" onClick={() => onArrived(b)}>Arrived</button>}
+            <button className="btn small ghost" aria-label="Cancel booking" onClick={() => set(b, 'cancelled', 'Booking cancelled')}>✕</button>
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

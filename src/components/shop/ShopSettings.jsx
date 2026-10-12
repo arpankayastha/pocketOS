@@ -14,6 +14,7 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
         <Rates shop={shop} householdId={householdId} toast={toast} />
       </div>}
       <div className="gx-col">
+      {admin && <OnlineBooking shop={shop} householdId={householdId} toast={toast} />}
       {admin && <Payments shop={shop} householdId={householdId} toast={toast} />}
       {admin && <LoginPassword toast={toast} />}
       <Appearance />
@@ -132,6 +133,38 @@ function RateSheet({ householdId, happy, onClose, onDone }) {
       <label>Price per head (₹)<input autoFocus inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))} /></label>
       <SheetActions onClose={onClose} busy={busy} disabled={!price} label="Save rate" />
     </Sheet>
+  )
+}
+
+// Online booking: the public page /#book (what the shop's "Scan to book" banner opens), its on/off switch
+// and shop hours (booking times run from opening to closing), plus the printable banner /#poster.
+function OnlineBooking({ shop, householdId, toast }) {
+  const st = shop.settings || {}
+  const [open, setOpen] = useState((st.open_time || '10:00').slice(0, 5))
+  const [close, setClose] = useState((st.close_time || '23:00').slice(0, 5))
+  const on = st.online_booking !== false
+  const link = `${location.origin}/#book`
+  async function save(patch, msg) {
+    const { error } = await supabase.from('shop_settings').upsert({ household_id: householdId, ...patch, updated_at: new Date().toISOString() })
+    if (error) toast(error.message); else { toast(msg); shop.reload() }
+  }
+  return (
+    <Collapsible id="gx-booking" title="Online booking" summary={on ? `On · ${open}–${close}` : 'Off'} defaultOpen>
+      <p className="muted small" style={{ marginTop: 0 }}>Customers scan the banner at the shop, pick a PC or PS5 for today or tomorrow, pay by UPI and send a request. It shows on the Floor to confirm.</p>
+      <div className="grid2">
+        <label>Opens<input type="time" value={open} onChange={(e) => setOpen(e.target.value)} /></label>
+        <label>Closes<input type="time" value={close} onChange={(e) => setClose(e.target.value)} /></label>
+      </div>
+      <div className="gx-btns" style={{ marginTop: 8 }}>
+        <button className="btn small" onClick={() => save({ open_time: open, close_time: close }, 'Shop hours saved')}>Save hours</button>
+        <button className={`btn small ${on ? 'ghost' : 'primary'}`} onClick={() => save({ online_booking: !on }, on ? 'Online booking is off' : 'Online booking is on')}>{on ? 'Turn off' : 'Turn on'}</button>
+      </div>
+      <div className="line"><span className="grow small mono gx-ellipsis">{link.replace(/^https?:\/\//, '')}</span>
+        <button className="btn small ghost" onClick={() => navigator.clipboard?.writeText(link).then(() => toast('Booking link copied'), () => toast(link))}>Copy</button>
+        <a className="btn small ghost" href={link} target="_blank" rel="noreferrer">Open</a>
+      </div>
+      <a className="btn block" href={`${location.origin}/#poster`} target="_blank" rel="noreferrer">“Scan to book” banner · print / PDF</a>
+    </Collapsible>
   )
 }
 

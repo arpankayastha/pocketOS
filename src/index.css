@@ -1025,3 +1025,50 @@ a.btn { text-decoration: none; }
 .gx-qr-amount { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .gx-qr-code { width: min(260px, 70vw); aspect-ratio: 1; background: #fff; border-radius: 12px; padding: 4px; }
 .gx-qr-code svg { width: 100%; height: 100%; display: block; }
+
+/* Public booking page (/#book) */
+.book-form, .book-pay, .book-done, .book-now { display: grid; gap: 12px; margin: 0; }
+.book-seg { grid-template-columns: 1fr 1fr; }
+.book-seg button.on { background: var(--accent-bg); color: var(--on-accent); }
+.book-slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (min-width: 600px) { .book-slots { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.book-slot { border: 1px solid var(--line); background: var(--card-2); color: var(--text); border-radius: 10px; padding: 9px 2px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.book-slot:disabled { opacity: .3; text-decoration: line-through; cursor: not-allowed; }
+.book-slot.on { background: var(--accent-bg); border-color: var(--accent-bg); color: var(--on-accent); }
+.book-total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px dashed var(--line); padding-top: 10px; }
+.book-total b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.book-pay { justify-items: center; text-align: center; }
+.book-ref { width: 100%; text-align: left; }
+.book-done { justify-items: center; text-align: center; }
+.book-done h2 { margin: 0; }
+.book-done p { margin: 0; }
+.book-tick { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; background: color-mix(in srgb, var(--pos) 20%, transparent); color: var(--pos); }
+.book-code { font-size: 28px; letter-spacing: .15em; font-weight: 700; }
+.book-now-row { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+
+/* Printable booking banner (/#poster) — always light, A4 */
+.poster-wrap { min-height: 100vh; background: #e9e6e6; display: grid; justify-items: center; align-content: start; gap: 16px; padding: 24px 12px 40px; }
+.poster { width: min(100%, 794px); aspect-ratio: 210 / 297; background: #fff; color: #141012; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  padding: 5% 6%; box-shadow: 0 10px 40px rgb(0 0 0 / .25); border-top: 14px solid #b13a3e; container-type: inline-size; text-align: center; }
+.poster-mark { width: 13cqw; height: auto; }
+.poster-brand { font: 400 9cqw/1 'Anton', 'Oswald', Impact, sans-serif; letter-spacing: .03em; color: #b13a3e; }
+.poster-title { font: 400 11cqw/1 'Anton', 'Oswald', Impact, sans-serif; text-transform: uppercase; letter-spacing: .02em; }
+.poster-sub { font-size: 3.6cqw; color: #4a4245; margin-top: -1cqw; }
+.poster-qr { width: 52cqw; aspect-ratio: 1; border: 1.2cqw solid #141012; border-radius: 3cqw; padding: 1.5cqw; }
+.poster-qr svg { width: 100%; height: 100%; display: block; }
+.poster-steps { display: flex; gap: 4cqw; font-size: 3.2cqw; font-weight: 600; }
+.poster-steps b { display: inline-grid; place-items: center; width: 5cqw; height: 5cqw; border-radius: 50%; background: #b13a3e; color: #fff; margin-right: 1cqw; font-size: 2.8cqw; }
+.poster-rates { font-size: 3cqw; line-height: 1.6; color: #2a2326; }
+.poster-rates i { color: #6b6366; font-style: normal; font-size: 2.6cqw; }
+.poster-happy { color: #b13a3e; font-weight: 700; }
+.poster-url { font: 600 3cqw/1 var(--font-mono); color: #4a4245; }
+@media print {
+  @page { size: A4; margin: 0; }
+  body, .poster-wrap { background: #fff !important; padding: 0 !important; }
+  .poster { width: 210mm; height: 297mm; box-shadow: none; aspect-ratio: auto; }
+  .poster-print { display: none !important; }
+}
+.gx-bookings { display: grid; gap: 10px; }
+.gx-floor > .gx-bookings { grid-column: 1 / -1; }
+.gx-booking { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.gx-booking:first-of-type { border-top: 0; padding-top: 0; }
