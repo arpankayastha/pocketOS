@@ -6,6 +6,7 @@ import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
 import { useSwipe } from '../../lib/useSwipe'
 import { uploadShopImage } from '../../lib/media'
+import CustomerFields from './CustomerFields'
 
 // Events with bookable slots — GTA VI launch now, anything later. Everything about an event (dates,
 // hours, slot length, how many per slot, price, advance) is set here by the admin; staff book slots
@@ -190,10 +191,7 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
   return (
     <Sheet title={`Book · ${ev.name}`} sub={`${dayChip(ymd(slot))} · ${timeLabel(slot)} – ${timeLabel(end)}`} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
-      <div className="grid2">
-        <label>Customer<input autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" /></label>
-        <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" placeholder="For reminders" /></label>
-      </div>
+      <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} autoFocus required phonePlaceholder="For reminders" />
       <div className="caps muted">How long</div>
       <Chips options={Array.from({ length: freeHours }, (_, i) => [i + 1, durLabel((i + 1) * ev.slot_minutes)])} value={hours} onChange={setHours} />
       <div className="caps muted">Players · charged per head</div>
@@ -371,10 +369,7 @@ function EntrySheet({ ev, settings, householdId, onClose, onDone }) {
   return (
     <Sheet title={`Entry · ${ev.name}`} sub={fee ? `Entry fee ${rs(fee)}, non-refundable` : 'Entry fee not set yet'} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
-      <div className="grid2">
-        <label>Name<input autoFocus required value={name} onChange={(e) => setName(e.target.value)} /></label>
-        <label>Mobile<input required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" /></label>
-      </div>
+      <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} autoFocus required phonePlaceholder="10 digits" />
       <div className="caps muted">Rank</div>
       <Chips options={RANKS.map((r) => [r, r])} value={rank} onChange={setRank} />
       {fee > 0 && (<>

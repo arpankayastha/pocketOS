@@ -5,6 +5,7 @@ import { DURATIONS, balanceFor, byLine, customerKey, duesByCustomer, durLabel, i
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
 import { alarm } from '../../lib/alarm'
+import CustomerFields from './CustomerFields'
 
 // The Floor ("Slots" tab): every system with its live state. Free → Start; playing → + F&B, Extend, Pause, End.
 // A PS5 has one row per controller (owner: each controller is a separate customer with its own timer; start
@@ -246,10 +247,7 @@ function StartSheet({ system, seats, free, booking, dues, rates, settings, happy
         <div className="caps muted">Controllers · one customer each, charged per head</div>
         <div className="chips">{free.map((n) => <button type="button" key={n} className={`chip chip-btn ${picked.includes(n) ? 'on' : ''}`} onClick={() => toggle(n)}>🎮 {n}</button>)}</div>
       </>)}
-      <div className="grid2">
-        <label>Customer<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" autoComplete="off" /></label>
-        <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} placeholder="Optional" inputMode="tel" autoComplete="off" /></label>
-      </div>
+      <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} />
       {owes && <div className="alert error" style={{ margin: 0 }}>{owes.name} owes {rs(owes.total)} from before · collect it in Cash → Customer dues</div>}
       <div className="caps muted">Time</div>
       <Chips scroll options={DURATIONS.map((m) => [m, durLabel(m)])} value={mins} onChange={setMins} />
@@ -517,6 +515,7 @@ function BookSheet({ shop, householdId, onClose, onDone }) {
   return (
     <Sheet title="Book for later" sub="A customer who called or came by. They get the slot; staff press Arrived when they come." onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
+      <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} phonePlaceholder="10 digits" required autoFocus />
       <Chips options={[['PC', 'PC'], ['PS', 'PS5']]} value={kind} onChange={(v) => { setKind(v); setPlayers(1); setTime(null) }} />
       <Chips scroll options={days.map((d, i) => [ymdLocal(d), i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })])} value={day} onChange={setDay} />
       <div className="caps muted">How long</div>
@@ -529,10 +528,6 @@ function BookSheet({ shop, householdId, onClose, onDone }) {
       {!avail ? <div className="muted small">Loading…</div> : slots.length === 0 ? <div className="muted small">No more times this day.</div> : (
         <div className="book-slots">{slots.map((a) => <button key={a.t} type="button" disabled={!fits(a.t)} className={`book-slot ${time === a.t ? 'on' : ''}`} onClick={() => setTime(a.t)}>{timeLabel(a.t)}</button>)}</div>
       )}
-      <div className="grid2">
-        <label>Customer<input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" autoComplete="off" /></label>
-        <label>Mobile<input required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" placeholder="10 digits" autoComplete="off" /></label>
-      </div>
       <div className="caps muted">Payment</div>
       <Chips options={[['counter', 'Pay at the counter'], ['cash', 'Advance · cash'], ['online', 'Advance · online']]} value={pay} onChange={(v) => { setPay(v); if (v !== 'counter' && !adv) setAdv(String(amount)) }} />
       {pay !== 'counter' && (<>

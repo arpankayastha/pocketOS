@@ -1173,3 +1173,9 @@ label.btn.disabled { opacity: .6; pointer-events: none; }
 .gx-budget:first-of-type { border-top: 0; }
 .gx-bar.over i { background: var(--neg); }
 .gx-book-btn { margin-left: auto; }
+.gx-cust { position: relative; display: grid; gap: 6px; }
+.gx-cust-list { display: grid; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card-2); }
+.gx-cust-row { display: flex; align-items: center; gap: 8px; text-align: left; padding: 10px 12px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.gx-cust-row:first-child { border-top: 0; }
+.gx-cust-row:hover, .gx-cust-row:focus { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+@media (min-width: 600px) { .gx-cust { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; } .gx-cust .gx-cust-list { grid-column: 1 / -1; grid-row: 2; } }

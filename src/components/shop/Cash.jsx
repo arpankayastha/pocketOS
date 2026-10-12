@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
+import CustomerFields from './CustomerFields'
 
 // The counter drawer for today: opening cash + cash collected (sessions, event advances, cash in)
 // − cash paid out = what should be in the drawer. Online money is shown but isn't in the drawer.
@@ -160,10 +161,7 @@ function DepositSheet({ settings, householdId, onClose, onDone }) {
   return (
     <Sheet title="Customer deposit" sub="Paid in advance, not refundable. Used on their next visits this month; whatever is left lapses at month end." onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
-      <div className="grid2">
-        <label>Customer<input autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" /></label>
-        <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" placeholder="To match them later" /></label>
-      </div>
+      <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} autoFocus required phonePlaceholder="To match them later" />
       <label>Amount (₹)<input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
       <Chips options={[['cash', 'Cash'], ['online', 'Online / scanner']]} value={mode} onChange={setMode} />
       {mode === 'online' && <UpiQrButton settings={settings} amount={Number(amount)} note={`Deposit · ${name.trim() || 'customer'}`} />}

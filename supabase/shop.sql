@@ -613,3 +613,8 @@ alter table public.shop_cash add column if not exists recurring_item_id uuid ref
 alter table public.shop_bookings add column if not exists paid numeric(10,2) check (paid is null or paid >= 0);
 alter table public.shop_bookings add column if not exists paid_mode text check (paid_mode in ('cash', 'online'));
 alter table public.shop_bookings add column if not exists note text;
+
+-- Customer look-up while typing a name or mobile (owner, 12 Oct): migration customer_search —
+-- public.shop_customer_search(household, q) (shop staff / admin): one row per mobile from sessions, bookings,
+-- deposits, event bookings and signed-up customers, latest name, visits, last seen; matched by name word start
+-- or mobile digits; max 8. Index shop_sessions_household_phone_idx.
