@@ -43,6 +43,9 @@ export default function Floor({ shop, householdId, toast, admin }) {
     done(error ? error.message : isOff ? `Controller ${n} marked out of order` : `Controller ${n} is back in use`)
   }
   const close = () => setSheet(null)
+  // Owner: a calendar in Slots like Events — see tomorrow's bookings (online and counter) and book from it.
+  const [view, setView] = useState(() => { try { return localStorage.getItem('gx.slotsView') || 'live' } catch { return 'live' } })
+  const setViewSaved = (v) => { setView(v); try { localStorage.setItem('gx.slotsView', v) } catch { /* ignore */ } }
   const done = (msg) => { setSheet(null); toast(msg); shop.reload() }
 
   const startBooking = (b) => {
@@ -63,6 +66,12 @@ export default function Floor({ shop, householdId, toast, admin }) {
 
   return (
     <section className="gx-floor">
+      <Chips options={[['live', 'Now'], ['calendar', 'Calendar']]} value={view} onChange={setViewSaved} />
+      {view === 'calendar' ? (<>
+        <SlotCalendar shop={shop} onBook={(initial) => setSheet({ kind: 'book', initial })} onArrived={startBooking} />
+        {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
+        {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      </>) : (<>
       <div className="chips">
         <span className="pill gx-pill busy">{busySeats} playing</span>
         <span className="pill gx-pill free">{totalSeats - busySeats} free</span>
@@ -136,11 +145,12 @@ export default function Floor({ shop, householdId, toast, admin }) {
         )
       })}
       {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
-      {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} onClose={close} onDone={done} />}
       {sheet?.kind === 'move' && <MoveSheet session={sheet.session} systems={shop.systems} freeOf={freeSeats} onClose={close} onDone={done} />}
       {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
+      </>)}
     </section>
   )
 }
@@ -485,10 +495,11 @@ function Bookings({ bookings = [], eventChecks = [], entryChecks = [], onArrived
 // mobile, then an advance (cash / online, kept as the customer's deposit and used at the end) or pay at the
 // counter. Free systems come from public_availability (the same count online booking uses).
 const ymdLocal = (d) => d.toLocaleDateString('en-CA')
-function BookSheet({ shop, householdId, onClose, onDone }) {
-  const [kind, setKind] = useState('PC')
-  const [day, setDay] = useState(() => ymdLocal(new Date()))
-  const [time, setTime] = useState(null)
+function BookSheet({ shop, householdId, initial, onClose, onDone }) {
+  const [kind, setKind] = useState(initial?.kind || 'PC')
+  const [day, setDay] = useState(() => initial?.day || ymdLocal(new Date()))
+  const [time, setTime] = useState(initial?.time || null)
+  const keepTime = useRef(!!initial?.time)
   const [mins, setMins] = useState(60)
   const [players, setPlayers] = useState(1)
   const [name, setName] = useState('')
@@ -500,7 +511,8 @@ function BookSheet({ shop, householdId, onClose, onDone }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   useEffect(() => {
-    setAvail(null); setTime(null)
+    setAvail(null)
+    if (keepTime.current) keepTime.current = false; else setTime(null)
     supabase.rpc('public_availability', { p_day: day }).then(({ data, error }) => { if (error) setError(error.message); else setAvail(data || []) })
   }, [day])
   const happy = (shop.settings?.happy_days || [3, 4, 5]).includes(new Date(`${day}T00:00`).getDay())
@@ -587,5 +599,75 @@ function MoveSheet({ session, systems, freeOf, onClose, onDone }) {
       {targets.length === 0 ? <div className="muted small">Nothing free to move to right now.</div> : <Chips options={targets.map((t) => [t.key, t.label])} value={to} onChange={setTo} />}
       <SheetActions onClose={onClose} busy={busy} disabled={!to} label="Move" />
     </Sheet>
+  )
+}
+
+// Slots → Calendar (owner: "a calendar like Events — see tomorrow's bookings, and book from here"). One row per
+// hour of the shop's day: how many PCs / PS5 controllers are free (public_availability, the same count online
+// booking uses) and every booking in that hour (online and counter), with Book on free hours.
+function SlotCalendar({ shop, onBook, onArrived }) {
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return d })
+  const [day, setDay] = useState(() => ymdLocal(new Date()))
+  const [kind, setKind] = useState('PC')
+  const [avail, setAvail] = useState(null)
+  const [list, setList] = useState([])
+  const version = (shop.bookings || []).map((b) => `${b.id}${b.status}`).join() + shop.sessions.length
+  useEffect(() => {
+    let live = true
+    const from = new Date(`${day}T00:00`), to = new Date(from); to.setDate(to.getDate() + 1); to.setHours(6)
+    Promise.all([
+      supabase.rpc('public_availability', { p_day: day }),
+      supabase.from('shop_bookings').select('*').eq('household_id', shop.systems[0]?.household_id).in('status', ['requested', 'confirmed', 'arrived'])
+        .gte('starts_at', from.toISOString()).lt('starts_at', to.toISOString()).order('starts_at'),
+    ]).then(([a, b]) => { if (live) { setAvail(a.data || []); setList(b.data || []) } })
+    return () => { live = false }
+  }, [day, version, shop.systems])
+  const total = shop.systems.filter((x) => x.kind === kind).reduce((a, x) => a + (x.seats || 1) - (x.off_seats || []).filter((n) => n <= (x.seats || 1)).length, 0)
+  // hour rows from the half-hour availability
+  const hours = []
+  for (let i = 0; i < (avail || []).length; i += 2) {
+    const a = avail[i], b = avail[i + 1]
+    const t0 = new Date(a.t).getTime(), t1 = t0 + 60 * 60_000
+    hours.push({
+      t: a.t, end: t1, free: Math.min(a[kind], b ? b[kind] : a[kind]), freeFirstHalf: a[kind],
+      past: t1 <= Date.now(),
+      bookings: list.filter((x) => x.kind === kind && new Date(x.starts_at).getTime() < t1 && new Date(x.starts_at).getTime() + x.minutes * 60_000 > t0),
+    })
+  }
+  const label = (d, i) => (i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }))
+  const count = list.filter((x) => x.kind === kind && x.status !== 'arrived').length
+  return (
+    <div className="gx-cal">
+      <Chips scroll options={days.map((d, i) => [ymdLocal(d), label(d, i)])} value={day} onChange={setDay} />
+      <div className="chips">
+        <Chips options={[['PC', 'PC'], ['PS', 'PS5']]} value={kind} onChange={setKind} />
+        <span className="muted small gx-cal-count">{count} booking{count === 1 ? '' : 's'}</span>
+        <button className="btn small primary gx-book-btn" onClick={() => onBook({ kind, day })}>+ Book</button>
+      </div>
+      {!avail ? <div className="card muted small">Loading…</div> : hours.length === 0 ? <div className="card muted small">Closed this day.</div> : (
+        <div className="gx-slots">
+          {hours.map((h) => (
+            <div key={h.t} className={`card gx-slot ${h.free <= 0 ? 'full' : ''} ${h.past ? 'past' : ''}`}>
+              <div className="gx-sys-top">
+                <div className="grow">
+                  <div className="gx-name">{timeLabel(h.t)} – {timeLabel(h.end)}</div>
+                  <div className={`small ${h.free <= 0 ? 'neg' : 'muted'}`}>{h.free <= 0 ? 'Full' : `${h.free} of ${total} free`}</div>
+                </div>
+                {!h.past && h.freeFirstHalf > 0 && <button className="btn small primary" onClick={() => onBook({ kind, day, time: h.t })}>Book</button>}
+              </div>
+              {h.bookings.map((b) => (
+                <div key={b.id} className="line">
+                  <div className="grow">
+                    <div>{b.customer_name}{b.players > 1 ? ` · ${b.players} players` : ''} {b.status === 'arrived' ? <span className="pill gx-pill free">Arrived</span> : b.status === 'requested' ? <span className="pill gx-pill ending">Check payment</span> : null}</div>
+                    <div className="muted small">{timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {b.customer_phone} · {b.source === 'online' ? 'online' : `by ${b.entered_by || 'staff'}`}{b.note ? ` · ${b.note}` : ''}</div>
+                  </div>
+                  {b.status === 'confirmed' && new Date(b.starts_at).toDateString() === new Date().toDateString() && <button className="btn small" onClick={() => onArrived(b)}>Arrived</button>}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
