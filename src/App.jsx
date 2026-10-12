@@ -9,8 +9,7 @@ import Auth from './components/Auth'
 import TransactionForm from './components/TransactionForm'
 import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
-import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/AppLockScreen'
-import { isMember, memberName, markFingerprint } from './lib/members'
+import { isMember, memberName } from './lib/members'
 import { isCustomer } from './lib/mine'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
@@ -138,8 +137,9 @@ function Shell({ session }) {
       </div></div>
     ) : <Splash />
   }
-  if (vault.status === 'locked') return <UnlockScreen vault={vault} onRecovered={() => { setMustResetPassword(true); setModule('vault') }} />
-  if (vault.status === 'setup' && appLock.locked) return <AppLockScreen appLock={appLock} vault={vault} />
+  // Owner (12 Oct): no lock screen in front of the app — signing in (PIN, password or fingerprint) is enough.
+  // The master password / vault fingerprint is asked only when opening the Vault (VaultModule's own gate),
+  // and once unlocked it stays open for this visit (vaultSession) until the idle auto-lock.
 
   const topbar = { module, setModule }
   return (
@@ -156,7 +156,6 @@ function Shell({ session }) {
 // A staff login's app: the Shop (no Money), plus the shop Vault once the admin enables it for them
 // (then ONE vault fingerprint opens both, like the admin's app). Without a vault they're behind the
 // per-device app lock (fingerprint, PIN as backup).
-const SETUP_SKIPPED_KEY = 'pocketos.fingerprintSkipped'
 const MEMBER_INFO_KEY = 'pocketos.memberInfo'
 function MemberShell({ session }) {
   useEffect(() => { preloadBudget() }, [])
@@ -174,7 +173,6 @@ function MemberShell({ session }) {
   const appLock = useAppLock(session)
   const dialog = useDialog()
   const [module, setModule] = useState('shop')
-  const [skipped, setSkipped] = useState(() => { try { return !!sessionStorage.getItem(SETUP_SKIPPED_KEY) } catch { return false } })
   const [toast, setToast] = useState(null)
   const vaultOn = vault.status === 'locked' || vault.status === 'unlocked'
 
@@ -186,19 +184,12 @@ function MemberShell({ session }) {
   useBackAction(module !== 'shop', () => setModule('shop'), 1)
 
   if (vault.status === 'loading' || !info) return <Splash />
-  if (vault.status === 'locked') return <UnlockScreen vault={vault} onRecovered={() => {}} />
-  if (!vaultOn) {
-    if (!appLock.enabled && !skipped) {
-      return <FingerprintSetup appLock={appLock} session={session} onDone={() => markFingerprint(session.user.id)}
-        onSkip={() => { try { sessionStorage.setItem(SETUP_SKIPPED_KEY, '1') } catch { /* ignore */ } setSkipped(true) }} />
-    }
-    if (appLock.locked) return <MemberLockScreen appLock={appLock} session={session} />
-  }
+  // Same for staff: no app lock after signing in; the Vault asks only when it's opened.
   const topbar = { module, setModule, modules: vaultOn ? [SHOP, VAULT] : [SHOP] }
   return (
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' && vaultOn ? <VaultModule topbar={topbar} vault={vault} member />
-        : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} member memberHouseholdId={info.household_id} userId={session.user.id} email={memberName(session)} appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} /></Suspense>}
+        : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} member memberHouseholdId={info.household_id} userId={session.user.id} email={memberName(session)} appLock={null} vault={vaultOn ? vault : null} /></Suspense>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -224,19 +215,6 @@ function useOfferFingerprint(vault, dialog, setToast) {
       catch (err) { dialog.alert({ title: "Couldn't turn on fingerprint", message: describeWebAuthnError(err) }) }
     })
   }, [status, unlockers, addFingerprint, dialog, setToast])
-}
-
-// Full-screen lock: one fingerprint unlocks the vault key, which opens Budget, Vault and Will.
-function UnlockScreen({ vault, onRecovered }) {
-  return (
-    <div className="auth-wrap">
-      <div className="auth-glow" />
-      <div className="unlock-wrap">
-        <div className="brand big unlock-brand"><BrandMark size={28} />GRANDXGAMER</div>
-        <VaultGate vault={vault} title="Unlock GRANDXGAMER" onRecovered={onRecovered} onRecoveryCode={() => {}} />
-      </div>
-    </div>
-  )
 }
 
 function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard', hisabOnly = false }) {
