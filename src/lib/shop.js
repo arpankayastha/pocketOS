@@ -4,7 +4,8 @@ import { supabase } from './supabase'
 // Shop module data: systems, rate card, today's sessions, counter cash, open shifts — with a
 // realtime subscription so every phone's Floor stays in step. See supabase/shop.sql.
 
-export const DURATIONS = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300] // every half hour up to 5 h (owner: 2 h 30 m, 4 h, 5 h)
+// Every half hour up to 5 h, then every hour up to 10 h (owner: 2 h 30 m, 4 h, 5 h; then "up to 10 hours").
+export const DURATIONS = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 360, 420, 480, 540, 600]
 const MIN = 60_000
 
 export const durLabel = (m) => {

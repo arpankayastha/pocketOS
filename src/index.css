@@ -1279,3 +1279,4 @@ html:fullscreen .pub-page.timer-page { padding-top: 16px; }
 .gx-week[open] summary { margin-bottom: 8px; }
 .home-legacy { margin: -4px 0 0; font-size: clamp(15px, 4.2vw, 20px); font-weight: 600; color: #f3eeee; text-shadow: 0 2px 14px rgb(0 0 0 / .6); }
 .home-legacy span { color: #ec6a64; white-space: nowrap; }
+.gx-other { max-width: 180px; }

@@ -237,6 +237,7 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
   const [phone, setPhone] = useState(booking?.customer_phone || '')
   const [mins, setMins] = useState(booking?.minutes || 60)
   const [fnb, setFnb] = useState(0)
+  const [fnbOther, setFnbOther] = useState('') // owner: type any F&B amount, not only the chips
   const online = booking && booking.source !== 'counter' // online bookings are paid in full by UPI
   const [pay, setPay] = useState(online ? 'booked' : 'end')
   const [busy, setBusy] = useState(false)
@@ -291,7 +292,9 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
       <div className="caps muted">Time</div>
       <Chips scroll options={DURATIONS.map((m) => [m, durLabel(m)])} value={mins} onChange={setMins} />
       <div className="caps muted">F&amp;B before gaming</div>
-      <Chips scroll options={FNB} value={fnb} onChange={setFnb} />
+      <Chips scroll options={FNB} value={fnbOther ? null : fnb} onChange={(v) => { setFnb(v); setFnbOther('') }} />
+      <input className="gx-other" inputMode="numeric" value={fnbOther} placeholder="Other amount ₹"
+        onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 5); setFnbOther(v); setFnb(Number(v) || 0) }} />
       <div className="caps muted">Payment</div>
       {booking && !online && Number(booking.paid) > 0 && <div className="small muted">{rs(booking.paid)} advance was taken when booking — it's offered at the end as {booking.customer_name}’s deposit.</div>}
       <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online']]} value={pay} onChange={setPay} />
@@ -345,7 +348,7 @@ function ExtendSheet({ system, session, rates, onClose, onDone }) {
   }
   return (
     <Sheet title={`Extend ${session.system_name}`} sub={`${session.customer_name} · now ends ${timeLabel(sessionEnd(session))}`} onClose={onClose} onSubmit={save}>
-      <Chips options={[[30, '+30 min'], [60, '+1 hr'], [90, '+1h 30m'], [120, '+2 hr']]} value={add} onChange={setAdd} />
+      <Chips options={[[30, '+30 min'], [60, '+1 hr'], [90, '+1h 30m'], [120, '+2 hr'], [180, '+3 hr'], [240, '+4 hr']]} value={add} onChange={setAdd} />
       <div className="gx-box">
         <SumRow label="New end" value={timeLabel(newEnd)} />
         <SumRow strong label="Extend amount" value={`+${rs(extra)}`} />
