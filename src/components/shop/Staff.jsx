@@ -18,6 +18,7 @@ export default function Staff({ householdId, toast }) {
   const [staff, setStaff] = useState(null)
   const [shifts, setShifts] = useState([])
   const [adjust, setAdjust] = useState([]) // deductions (−) and bonuses (+) this month
+  const [google, setGoogle] = useState({}) // staff user_id → linked Gmail
   const [error, setError] = useState(null)
   const [sheet, setSheet] = useState(null) // { kind: 'add' } | { kind: 'shift', shift } | { kind: 'login', ... }
   const [open, setOpen] = useState(null) // staff user_id whose shifts are listed
@@ -35,6 +36,7 @@ export default function Staff({ householdId, toast }) {
     ])
     if (m.error || s.error) { setError((m.error || s.error).message); return }
     setStaff(m.data); setShifts(s.data); setAdjust(a.data || [])
+    supabase.rpc('staff_google', { p_household: householdId }).then(({ data }) => setGoogle(data || {}))
   }, [householdId, startIso, endIso]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
 
@@ -55,6 +57,13 @@ export default function Staff({ householdId, toast }) {
   async function remove(m) {
     if (!await dialog.confirm({ title: `Remove ${m.display_name || m.username}?`, message: 'Their login stops working. Their shifts stay in the records with their name.', confirmLabel: 'Remove', danger: true })) return
     try { await manageMembers('remove', { householdId, userId: m.user_id }); toast('Login removed'); load() } catch (e) { toast(e.message) }
+  }
+  // Owner: a staff member signed in with Google before linking it (it made a customer account) — attach it here.
+  async function linkGoogle(m) {
+    const email = await dialog.prompt({ title: `Link Google · ${m.display_name || m.username}`, label: 'Their Gmail (they must have tapped Sign in with Google once)', placeholder: 'name@gmail.com', confirmLabel: 'Link' })
+    if (!email?.trim()) return
+    const { error } = await supabase.rpc('link_staff_google', { p_staff: m.user_id, p_email: email.trim() })
+    if (error) toast(error.message); else { toast(`Google linked — ${m.display_name || m.username} can now use Continue with Google`); load() }
   }
   async function removeAdjust(x) {
     if (!await dialog.confirm({ title: `Remove “${x.reason}”?`, message: `${Number(x.amount) < 0 ? 'Deduction' : 'Bonus'} of ${rs(Math.abs(x.amount))}.`, confirmLabel: 'Remove', danger: true })) return
@@ -98,6 +107,7 @@ export default function Staff({ householdId, toast }) {
               <div className="gx-name">{m.display_name || m.username} <span className="muted small">@{m.username}</span></div>
               {m.designation && <span className="pill gx-pill">{m.designation}</span>}
               <div className={`small ${m.on ? 'pos' : 'muted'}`}>{m.on ? `Logged in since ${timeLabel(m.on.clock_in)}` : 'Not logged in'}</div>
+              {google[m.user_id] && <div className="muted small">Google · {google[m.user_id]}</div>}
             </div>
           </div>
           <div className="gx-sum" style={{ marginTop: 8 }}>
@@ -117,6 +127,7 @@ export default function Staff({ householdId, toast }) {
             {m.on && <button className="btn small" onClick={() => clockOutNow(m.on)}>Log out now</button>}
             <button className="btn small ghost" onClick={() => setSheet({ kind: 'edit', member: m })}>Edit</button>
             <button className="btn small ghost" onClick={() => setSheet({ kind: 'adjust', member: m })}>Deduct / bonus</button>
+            {!google[m.user_id] && <button className="btn small ghost" onClick={() => linkGoogle(m)}>Link Google</button>}
             <button className="btn small danger-ghost" onClick={() => remove(m)}>Remove</button>
           </div>
           {open === m.user_id && (

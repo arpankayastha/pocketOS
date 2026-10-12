@@ -629,3 +629,8 @@ create table if not exists private.app_pins (
   fails int not null default 0,
   updated_at timestamptz not null default now()
 );
+
+-- Staff who signed in with Google before linking (owner, 12 Oct — Mohit), migration admin_link_staff_google:
+-- public.link_staff_google(staff, gmail) — admin only, onto their own staff, from a plain customer account: moves
+-- the Google identity onto the staff login, bans the leftover customer account. public.staff_google(household)
+-- = staff user_id → linked Gmail, for the staff cards.
