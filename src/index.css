@@ -1192,3 +1192,7 @@ label.btn.disabled { opacity: .6; pointer-events: none; }
 .gx-slot.past { opacity: .55; }
 .gx-del { min-height: 32px; min-width: 32px; padding: 4px; color: var(--muted); font-size: 13px; }
 .gx-del:hover { color: var(--neg); }
+.gx-cust-x { margin-left: 6px; padding: 4px 6px; border-radius: 6px; color: var(--muted); font-size: 12px; }
+.gx-cust-x:hover { color: var(--neg); background: color-mix(in srgb, var(--neg) 12%, transparent); }
+.gx-dayhours { margin: 0; }
+.gx-cal .gx-slot .gx-name { white-space: normal; }

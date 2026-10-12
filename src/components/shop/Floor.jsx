@@ -500,6 +500,8 @@ function BookSheet({ shop, householdId, initial, onClose, onDone }) {
   const [day, setDay] = useState(() => initial?.day || ymdLocal(new Date()))
   const [time, setTime] = useState(initial?.time || null)
   const keepTime = useRef(!!initial?.time)
+  // Owner: "some come at 10:15" — any start time can be typed instead of the half-hour chips.
+  const [custom, setCustom] = useState('')
   const [mins, setMins] = useState(60)
   const [players, setPlayers] = useState(1)
   const [name, setName] = useState('')
@@ -520,9 +522,18 @@ function BookSheet({ shop, householdId, initial, onClose, onDone }) {
   const ps = shop.systems.filter((x) => x.kind === 'PS')
   const maxPlayers = kind === 'PS' ? Math.max(1, ps.reduce((a, x) => a + (x.seats || 1) - (x.off_seats || []).length, 0)) : 1
   const fits = (t) => {
-    const i = avail.findIndex((a) => a.t === t)
-    for (let k = 0; k < Math.ceil(mins / 30); k++) { const a = avail[i + k]; if (!a || a[kind] < players) return false }
-    return new Date(t).getTime() > Date.now() - 10 * 60_000
+    // every half hour the booking touches must have room (a 10:15 start checks 10:00, 10:30, …)
+    const start = new Date(t).getTime(), end = start + mins * 60_000
+    const rows = (avail || []).filter((a) => { const x = new Date(a.t).getTime(); return x < end && x + 30 * 60_000 > start })
+    if (!rows.length || rows.length < Math.ceil((end - Math.floor(start / 1800_000) * 1800_000) / 1800_000)) return false
+    return rows.every((a) => a[kind] >= players) && start > Date.now() - 10 * 60_000
+  }
+  const pickCustom = (v) => {
+    setCustom(v)
+    if (!/^\d{2}:\d{2}$/.test(v)) return
+    const t = new Date(`${day}T${v}`)
+    if (t.getHours() < 6) t.setDate(t.getDate() + 1) // after midnight belongs to this shop day
+    setTime(t.toISOString())
   }
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return d })
   async function save() {
@@ -557,8 +568,10 @@ function BookSheet({ shop, householdId, initial, onClose, onDone }) {
       </>)}
       <div className="caps muted">Start time{happy ? ' · happy hours' : ''}</div>
       {!avail ? <div className="muted small">Loading…</div> : slots.length === 0 ? <div className="muted small">No more times this day.</div> : (
-        <div className="book-slots">{slots.map((a) => <button key={a.t} type="button" disabled={!fits(a.t)} className={`book-slot ${time === a.t ? 'on' : ''}`} onClick={() => setTime(a.t)}>{timeLabel(a.t)}</button>)}</div>
+        <div className="book-slots">{slots.map((a) => <button key={a.t} type="button" disabled={!fits(a.t)} className={`book-slot ${time === a.t && !custom ? 'on' : ''}`} onClick={() => { setCustom(''); setTime(a.t) }}>{timeLabel(a.t)}</button>)}</div>
       )}
+      <label>Or type a time<input type="time" step="300" value={custom} onChange={(e) => pickCustom(e.target.value)} /></label>
+      {custom && time && !fits(time) && <div className="alert error" style={{ margin: 0 }}>Not free for the whole {durLabel(mins)} from {timeLabel(time)}{players > 1 ? ` for ${players} players` : ''} — you can still book it.</div>}
       <div className="caps muted">Payment</div>
       <Chips options={[['counter', 'Pay at the counter'], ['cash', 'Advance · cash'], ['online', 'Advance · online']]} value={pay} onChange={(v) => { setPay(v); if (v !== 'counter' && !adv) setAdv(String(amount)) }} />
       {pay !== 'counter' && (<>
@@ -611,7 +624,8 @@ function SlotCalendar({ shop, onBook, onArrived }) {
   const [kind, setKind] = useState('PC')
   const [avail, setAvail] = useState(null)
   const [list, setList] = useState([])
-  const version = (shop.bookings || []).map((b) => `${b.id}${b.status}`).join() + shop.sessions.length
+  const [hoursVersion, setHoursVersion] = useState(0)
+  const version = (shop.bookings || []).map((b) => `${b.id}${b.status}`).join() + shop.sessions.length + ':' + hoursVersion
   useEffect(() => {
     let live = true
     const from = new Date(`${day}T00:00`), to = new Date(from); to.setDate(to.getDate() + 1); to.setHours(6)
@@ -639,12 +653,13 @@ function SlotCalendar({ shop, onBook, onArrived }) {
   return (
     <div className="gx-cal">
       <Chips scroll options={days.map((d, i) => [ymdLocal(d), label(d, i)])} value={day} onChange={setDay} />
+      <DayHours day={day} shop={shop} onChanged={() => setHoursVersion((v) => v + 1)} />
       <div className="chips">
         <Chips options={[['PC', 'PC'], ['PS', 'PS5']]} value={kind} onChange={setKind} />
         <span className="muted small gx-cal-count">{count} booking{count === 1 ? '' : 's'}</span>
         <button className="btn small primary gx-book-btn" onClick={() => onBook({ kind, day })}>+ Book</button>
       </div>
-      {!avail ? <div className="card muted small">Loading…</div> : hours.length === 0 ? <div className="card muted small">Closed this day.</div> : (
+      {!avail ? <div className="card muted small">Loading…</div> : hours.length === 0 ? <div className="card muted small">Closed this day. Use Hours above to open it.</div> : (
         <div className="gx-slots">
           {hours.map((h) => (
             <div key={h.t} className={`card gx-slot ${h.free <= 0 ? 'full' : ''} ${h.past ? 'past' : ''}`}>
@@ -666,6 +681,64 @@ function SlotCalendar({ shop, onBook, onArrived }) {
               ))}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Owner: "no fixed open / close — some days we start at 11 or 12". Hours for one date (shop_day_hours) override
+// the usual ones from ⚙ → Online booking; online booking and the calendar follow them.
+function DayHours({ day, shop, onChanged }) {
+  const dialog = useDialog()
+  const [row, setRow] = useState(undefined)
+  const [edit, setEdit] = useState(false)
+  const st = shop.settings || {}
+  const hh = shop.systems[0]?.household_id
+  useEffect(() => {
+    let live = true
+    setRow(undefined); setEdit(false)
+    supabase.from('shop_day_hours').select('*').eq('household_id', hh).eq('day', day).maybeSingle().then(({ data }) => { if (live) setRow(data || null) })
+    return () => { live = false }
+  }, [day, hh])
+  const open = (row?.open_time || st.open_time || '10:00').slice(0, 5)
+  const close = (row?.close_time || st.close_time || '23:00').slice(0, 5)
+  const [o, setO] = useState(open), [c, setC] = useState(close)
+  useEffect(() => { setO(open); setC(close) }, [open, close])
+  const t = (x) => timeLabel(`2000-01-01T${x}`)
+  async function save(patch) {
+    const { error } = await supabase.from('shop_day_hours').upsert({ household_id: hh, day, open_time: o, close_time: c, closed: false, ...patch, updated_at: new Date().toISOString() })
+    if (error) { dialog.alert(error.message); return }
+    setEdit(false); setRow({ day, open_time: o, close_time: c, closed: false, ...patch }); onChanged()
+  }
+  async function reset() {
+    const { error } = await supabase.from('shop_day_hours').delete().eq('household_id', hh).eq('day', day)
+    if (error) { dialog.alert(error.message); return }
+    setRow(null); setEdit(false); onChanged()
+  }
+  if (row === undefined) return null
+  return (
+    <div className="card gx-dayhours">
+      {!edit ? (
+        <div className="gx-sys-top">
+          <div className="grow">
+            <div className="gx-name">{row?.closed ? 'Closed this day' : `Open ${t(open)} – ${t(close)}`}</div>
+            <div className="muted small">{row ? `Set for this day${row.entered_by ? ` by ${row.entered_by}` : ''}` : 'Usual hours'}</div>
+          </div>
+          <button className="btn small" onClick={() => setEdit(true)}>Hours</button>
+        </div>
+      ) : (
+        <div className="stack">
+          <div className="grid2">
+            <label>Opens<input type="time" value={o} onChange={(e) => setO(e.target.value)} /></label>
+            <label>Closes<input type="time" value={c} onChange={(e) => setC(e.target.value)} /></label>
+          </div>
+          <div className="gx-btns">
+            <button className="btn small primary" onClick={() => save({})}>Save for this day</button>
+            <button className="btn small" onClick={() => save({ closed: true })}>Closed this day</button>
+            {row && <button className="btn small ghost" onClick={reset}>Usual hours</button>}
+            <button className="btn small ghost" onClick={() => setEdit(false)}>Cancel</button>
+          </div>
         </div>
       )}
     </div>

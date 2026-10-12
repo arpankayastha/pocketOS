@@ -634,3 +634,9 @@ create table if not exists private.app_pins (
 -- public.link_staff_google(staff, gmail) — admin only, onto their own staff, from a plain customer account: moves
 -- the Google identity onto the staff login, bans the leftover customer account. public.staff_google(household)
 -- = staff user_id → linked Gmail, for the staff cards.
+
+-- Owner (12 Oct, 6 pm): migrations shop_day_hours, customer_list_hide.
+-- shop_day_hours (household, day, open_time, close_time, closed): hours for one date, set from Slots → Calendar →
+-- Hours (staff + admin); private.day_hours(household, day) → open_at / close_at (null = closed) is used by
+-- public_availability and public_book. shop_customer_hidden (household, phone): numbers the admin removed from the
+-- customer drop-down; shop_customer_search skips them.
