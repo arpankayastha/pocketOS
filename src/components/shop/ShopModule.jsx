@@ -6,9 +6,9 @@ import { ListSkeleton } from '../Skeleton'
 import { useBackAction } from '../../lib/backNav'
 import { useSwipe } from '../../lib/useSwipe'
 import { useRouteState } from '../../lib/route'
-import { useShop, useShopId } from '../../lib/shop'
+import { useNow, useShop, useShopId } from '../../lib/shop'
 import { CalendarIcon, CashIcon, ClockIcon, HomeIcon, MonitorIcon, SettingsIcon, UsersIcon } from '../../lib/icons'
-import Floor from './Floor'
+import Floor, { useTimeUpAlarm } from './Floor'
 import Shift from './Shift'
 import Cash from './Cash'
 import Today from './Today'
@@ -44,6 +44,9 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   const toast = useCallback((m) => { setMsg(m); clearTimeout(timer.current); timer.current = setTimeout(() => setMsg(null), 2800) }, [])
 
   useOnlineAlerts(householdId, toast)
+  // 5-min-left / time-up alarm on every Shop tab, not only Slots (owner: "the PS5 5-minute sound didn't ring").
+  const alarmNow = useNow(10_000)
+  useTimeUpAlarm(shop.sessions.filter((x) => x.status === 'running'), alarmNow, (m) => toast(m))
 
   // Swipe left/right anywhere moves between tabs; date headers (.gx-dateswipe) and sideways chip rows swipe themselves.
   const at = tabs.findIndex((t) => t.id === tab)

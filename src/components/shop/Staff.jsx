@@ -149,7 +149,7 @@ export default function Staff({ householdId, toast }) {
       ))}
       </div>
       {sheet?.kind === 'add' && <AddStaff householdId={householdId} onClose={() => setSheet(null)} onCreated={(username, pin) => { load(); setSheet({ kind: 'login', username, pin }) }} />}
-      {sheet?.kind === 'edit' && <EditStaff householdId={householdId} member={sheet.member} onClose={() => setSheet(null)}
+      {sheet?.kind === 'edit' && <EditStaff householdId={householdId} member={sheet.member} gmail={google[sheet.member.user_id]} onLinkGoogle={() => { setSheet(null); linkGoogle(sheet.member) }} onUnlinkGoogle={() => { setSheet(null); unlinkGoogle(sheet.member) }} onClose={() => setSheet(null)}
         onDone={(msg, login) => { load(); if (login) setSheet({ kind: 'login', ...login, reset: true }); else { setSheet(null); toast(msg) } }} />}
       {sheet?.kind === 'adjust' && <AdjustSheet member={sheet.member} householdId={householdId} month={start} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
       {sheet?.kind === 'login' && <LoginDetails {...sheet} onClose={() => setSheet(null)} />}
@@ -191,7 +191,7 @@ function AddStaff({ householdId, onClose, onCreated }) {
   )
 }
 // Admin: change a staff member's name, designation, hourly pay, or set a new PIN (left empty = keep the PIN).
-function EditStaff({ householdId, member, onClose, onDone }) {
+function EditStaff({ householdId, member, gmail, onLinkGoogle, onUnlinkGoogle, onClose, onDone }) {
   const [name, setName] = useState(member.display_name || '')
   const [rate, setRate] = useState(String(Number(member.hourly_rate) || ''))
   const [designation, setDesignation] = useState(member.designation || null)
@@ -219,6 +219,12 @@ function EditStaff({ householdId, member, onClose, onDone }) {
       </div>
       <div className="caps muted">Designation</div>
       <Chips options={DESIGNATIONS.map((d) => [d, d])} value={designation} onChange={setDesignation} />
+      <div className="caps muted">Google sign-in</div>
+      <div className="gx-btns" style={{ alignItems: 'center' }}>
+        <span className="small grow">{gmail || 'Not linked'}</span>
+        {gmail ? <button type="button" className="btn small danger-ghost" onClick={onUnlinkGoogle}>Remove / change</button>
+          : <button type="button" className="btn small" onClick={onLinkGoogle}>Link Google</button>}
+      </div>
       <SheetActions onClose={onClose} busy={busy} disabled={pin.length > 0 && pin.length !== 6} label="Save" />
     </Sheet>
   )

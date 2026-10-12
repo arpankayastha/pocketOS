@@ -36,7 +36,6 @@ export default function Floor({ shop, householdId, toast, admin }) {
   const working = (sys) => seatsOf(sys) - (sys.off_seats || []).filter((n) => n <= seatsOf(sys)).length
   const totalSeats = shop.systems.reduce((a, x) => a + working(x), 0)
   const busySeats = shop.systems.reduce((a, x) => a + (working(x) - freeSeats(x).length), 0)
-  useTimeUpAlarm(running, now)
   async function setOff(sys, n, isOff) {
     const next = isOff ? [...new Set([...(sys.off_seats || []), n])] : (sys.off_seats || []).filter((k) => k !== n)
     const { error } = await supabase.from('shop_systems').update({ off_seats: next }).eq('id', sys.id)
@@ -157,7 +156,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
 
 // Owner: "alarm when time ends". Every phone with Slots open beeps (and buzzes) when a session reaches
 // 5 minutes left and again when its time is up; a phone notification too if alerts are allowed.
-function useTimeUpAlarm(running, now) {
+export function useTimeUpAlarm(running, now, onAlert) {
   const fired = useRef(new Set())
   useEffect(() => {
     for (const s of running) {
@@ -167,15 +166,16 @@ function useTimeUpAlarm(running, now) {
         const key = `${s.id}:${s.minutes}:${mark}`
         if (left <= mark && left > mark - 3 && !fired.current.has(key)) {
           fired.current.add(key)
-          alarm(mark === 0 ? 3 : 1)
+          alarm(mark === 0 ? 4 : 2)
           const title = `${s.system_name}${s.seat > 1 || s.system_name.startsWith('PS') ? ` · controller ${s.seat || 1}` : ''}: ${msg}`
+          onAlert?.(`⏰ ${title} · ${s.customer_name}`)
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             navigator.serviceWorker?.getRegistration().then((reg) => reg?.showNotification(title, { body: s.customer_name, icon: '/icons/icon-192.png', tag: key })).catch(() => {})
           }
         }
       }
     }
-  }, [running, now])
+  }, [running, now]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
 
