@@ -1336,3 +1336,4 @@ html:fullscreen .pill-nav { display: none; }
 /* A saved customer waiting for ▶ Start timer: amber dashed edge, no progress bar (owner, 13 Oct). */
 .gx-sys.waiting { border: 1px dashed color-mix(in srgb, var(--warn) 70%, var(--line)); }
 .gx-seat.waiting { border-left: 3px solid color-mix(in srgb, var(--warn) 70%, transparent); padding-left: 10px; }
+.timer-again { display: block; margin-top: 6px; color: var(--accent); }

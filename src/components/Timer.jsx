@@ -47,7 +47,7 @@ export default function Timer() {
     const off = new Date(data?.now || Date.now()).getTime() - Date.now()
     for (const x of list) {
       const end = new Date(x.ends_at).getTime() - off // on this device's clock
-      for (const [mark, secs, words] of [[5, 5, '5 minutes remaining'], [0, 10, 'Your time is up']]) {
+      for (const [mark, secs, words] of [[5, 5, '5 minutes remaining'], [0, 10, 'Your time is up. Thanks for playing, do visit again!']]) {
         const at = end - mark * 60_000
         if (at > Date.now()) {
           cancel.push(scheduleAlarm(at, secs))
@@ -69,7 +69,7 @@ export default function Timer() {
     const prev = wasRunning.current
     wasRunning.current = new Set((data.sessions || []).filter((x) => x.status === 'running').map(id))
     if (prev && (data.sessions || []).some((x) => x.status !== 'running' && prev.has(id(x)) && new Date(x.ends_at) > new Date(data.now))) {
-      alarm(10); setTimeout(() => speak('Your time is up'), 10_000)
+      alarm(10); setTimeout(() => speak('Your time is up. Thanks for playing, do visit again!'), 10_000)
     }
   }, [data])
   useEffect(() => () => booked.current.cancel.forEach((f) => f()), [])
@@ -106,7 +106,7 @@ export default function Timer() {
             {data.booking && data.booking.status !== 'cancelled' && !ended.length ? (<>
               <h2>Waiting to start</h2>
               <p className="muted">Booked for {timeLabel(data.booking.starts_at)}. Your timer starts here when the staff press Start.</p>
-            </>) : ended.length ? <h2>Your time is over. Thanks for playing!</h2> : <h2>No game found for code {code}</h2>}
+            </>) : ended.length ? <h2>Your time is up. Thanks for playing!<br /><span className="timer-again">Do visit again 🎮</span></h2> : <h2>No game found for code {code}</h2>}
           </div>
         )}
         {running.map((s) => {
