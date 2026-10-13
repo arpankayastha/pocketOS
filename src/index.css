@@ -1310,3 +1310,14 @@ html:fullscreen .pill-nav { display: none; }
 .gx-start-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 799px) { .gx-start-actions .btn { flex: 1 1 auto; } .gx-start-actions .btn.ghost { flex: 0 0 auto; } }
 .gx-startnow { margin: 8px 0 2px; min-height: 46px; font-size: 16px; }
+/* Popups never squash their rows: sideways-scrolling chip rows (scroll containers) have a 0 minimum height in a grid,
+   so on a short laptop screen the Time / PC / F&B chips shrank to a red line (owner's photo, 13 Oct). */
+.modal { grid-auto-rows: max-content; align-content: start; }
+.gx-scroll { min-height: max-content; }
+.gx-startall { flex-basis: 100%; min-height: 46px; font-size: 16px; }
+/* Home page: Instagram / Facebook / YouTube in the hero's top-right corner */
+.home-hero { position: relative; }
+.home-social { position: absolute; top: 14px; right: 16px; display: flex; gap: 8px; z-index: 2; }
+.home-social a { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgb(0 0 0 / .45); border: 1px solid rgb(255 255 255 / .25); backdrop-filter: blur(6px); }
+.home-social a:hover { background: var(--accent-bg); border-color: var(--accent-bg); }
+@media (min-width: 760px) { .home-social { top: 20px; right: 32px; } }

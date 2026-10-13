@@ -748,3 +748,7 @@ $$;
 -- Owner (13 Oct): details first, clock later. A waiting session holds its PC / controller (status running) but is
 -- paused from the moment it is saved; Slots → ▶ Start timer sets started_at = now, paused_at = null, waiting = false.
 alter table public.shop_sessions add column if not exists waiting boolean not null default false;
+
+-- Owner (13 Oct): Instagram / Facebook / YouTube icons on the home page; links in ⚙ → Home page. public_home
+-- returns them as 'social' (migration home_social_links re-created public_home with that one extra key).
+alter table public.shop_settings add column if not exists instagram_url text, add column if not exists facebook_url text, add column if not exists youtube_url text;

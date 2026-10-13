@@ -27,6 +27,7 @@ export default function Home({ session }) {
     <div className="home pub-page">
       <PublicNav active="home" />
       <header className="home-hero" style={{ '--hero': `url("${info?.hero_url || '/brand/hero.jpg'}")` }}>
+        <Social links={info?.social} />
         <div className="home-hero-text">
           <div className="home-kicker">PC &amp; PS5 gaming café</div>
           <h1>Welcome to <span>GRANDXGAMER</span></h1>
@@ -159,5 +160,23 @@ function Mine({ status }) {
         </div>
       )}
     </section>
+  )
+}
+
+// Owner (13 Oct): Instagram / Facebook / YouTube in the hero's top corner — links from ⚙ → Home page; empty ones hide.
+function Social({ links }) {
+  const items = [['instagram', 'Instagram', <path key="i" d="M12 2.2c3.2 0 3.6 0 4.8.1 3.3.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 3.2-1.7 4.8-4.9 4.9-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-3.3-.1-4.8-1.7-4.9-4.9C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8C2.4 3.9 3.9 2.4 7.2 2.3 8.4 2.2 8.8 2.2 12 2.2zm0 4.8a5 5 0 100 10 5 5 0 000-10zm0 8.2a3.2 3.2 0 110-6.4 3.2 3.2 0 010 6.4zm5.2-9.6a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4z" />],
+    ['facebook', 'Facebook', <path key="f" d="M13.5 21.9v-8.2h2.8l.4-3.2h-3.2V8.4c0-.9.3-1.6 1.6-1.6h1.7V4c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.4H7.3v3.2h2.8v8.2a10 10 0 113.4 0z" />],
+    ['youtube', 'YouTube', <path key="y" d="M23 7.2a3 3 0 00-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 001 7.2C.5 9.1.5 12 .5 12s0 2.9.5 4.8a3 3 0 002.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 002.1-2.1c.5-1.9.5-4.8.5-4.8s0-2.9-.5-4.8zM9.7 15.1V8.9L15.5 12l-5.8 3.1z" />]]
+    .filter(([k]) => links?.[k])
+  if (!items.length) return null
+  return (
+    <div className="home-social">
+      {items.map(([k, label, icon]) => (
+        <a key={k} href={links[k]} target="_blank" rel="noreferrer" aria-label={label} title={label}>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">{icon}</svg>
+        </a>
+      ))}
+    </div>
   )
 }

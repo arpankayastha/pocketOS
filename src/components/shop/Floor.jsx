@@ -68,6 +68,13 @@ export default function Floor({ shop, householdId, toast, admin }) {
     const { error } = await supabase.from('shop_sessions').update({ waiting: false, started_at: new Date().toISOString(), paused_at: null, paused_minutes: 0 }).eq('id', s.id)
     done(error ? error.message : `${s.system_name} started for ${s.customer_name} · ends ${timeLabel(new Date(Date.now() + s.minutes * 60_000))}`)
   }
+  // Owner (13 Oct): a squad comes — enter everyone, then start all their clocks with one tap.
+  const waitingAll = shop.sessions.filter((x) => x.status === 'running' && x.waiting)
+  async function startAll() {
+    const t = new Date().toISOString()
+    const { error } = await supabase.from('shop_sessions').update({ waiting: false, started_at: t, paused_at: null, paused_minutes: 0 }).in('id', waitingAll.map((x) => x.id))
+    done(error ? error.message : `${waitingAll.length} timers started · ${waitingAll.map((x) => x.system_name + (x.system_name.startsWith('PS') ? ` C${x.seat || 1}` : '')).join(', ')}`)
+  }
   if (!shop.systems.length) return <div className="card muted">No systems yet. The admin adds them in ⚙ → Systems & rates.</div>
 
   return (
@@ -83,6 +90,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
         <span className="pill gx-pill free">{totalSeats - busySeats} free</span>
         {isHappyDay(shop.settings) && <span className="pill gx-pill happy">Happy hours today</span>}
         <button className="btn small primary gx-book-btn" onClick={() => setSheet({ kind: 'book' })}>+ Book</button>
+        {waitingAll.length > 1 && <button className="btn primary block gx-startall" onClick={startAll}>▶ Start all {waitingAll.length} waiting</button>}
       </div>
       <Bookings bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onBook={() => setSheet({ kind: 'book' })} onChanged={(m) => { toast(m); shop.reload() }} />
       {shop.systems.map((sys) => {

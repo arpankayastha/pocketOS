@@ -177,7 +177,32 @@ function HomePage({ shop, householdId, toast }) {
         {hero && <button className="btn small ghost" onClick={remove}>Remove</button>}
         <a className="btn small ghost" href={link} target="_blank" rel="noreferrer">Open home page</a>
       </div>
+      <SocialLinks shop={shop} householdId={householdId} toast={toast} />
     </Collapsible>
+  )
+}
+
+// Owner (13 Oct): Instagram / Facebook / YouTube icons in the home page's top corner; empty = hidden.
+function SocialLinks({ shop, householdId, toast }) {
+  const st = shop.settings || {}
+  const [v, setV] = useState({ instagram_url: st.instagram_url || '', facebook_url: st.facebook_url || '', youtube_url: st.youtube_url || '' })
+  const [busy, setBusy] = useState(false)
+  const set = (k) => (e) => setV({ ...v, [k]: e.target.value })
+  const fix = (u) => { u = u.trim(); return !u ? null : /^https?:\/\//i.test(u) ? u : `https://${u}` }
+  async function save(e) {
+    e.preventDefault(); setBusy(true)
+    const { error } = await supabase.from('shop_settings').upsert({ household_id: householdId, instagram_url: fix(v.instagram_url), facebook_url: fix(v.facebook_url), youtube_url: fix(v.youtube_url), updated_at: new Date().toISOString() })
+    setBusy(false)
+    if (error) toast(error.message); else { toast('Social links saved'); shop.reload() }
+  }
+  return (
+    <form className="stack" onSubmit={save} style={{ marginTop: 14 }}>
+      <div className="caps muted">Social links · icons on the home page</div>
+      <label>Instagram<input value={v.instagram_url} onChange={set('instagram_url')} placeholder="instagram.com/grandxgamer" inputMode="url" /></label>
+      <label>Facebook<input value={v.facebook_url} onChange={set('facebook_url')} placeholder="facebook.com/…" inputMode="url" /></label>
+      <label>YouTube<input value={v.youtube_url} onChange={set('youtube_url')} placeholder="youtube.com/@…" inputMode="url" /></label>
+      <button className="btn small primary" style={{ justifySelf: 'start' }} disabled={busy}>{busy ? 'Saving…' : 'Save links'}</button>
+    </form>
   )
 }
 
