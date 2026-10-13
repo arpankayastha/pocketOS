@@ -844,7 +844,9 @@ details.section[open] .chev { transform: rotate(90deg); }
 .gx-bar.cash { margin-top: 10px; height: 8px; background: color-mix(in srgb, var(--transfer) 45%, var(--card-2)); }
 .gx-bar.cash i { background: var(--pos); }
 .gx-btns { display: flex; gap: 6px; flex-wrap: wrap; }
-.btn.gx-ok { background: var(--pos); border-color: transparent; color: var(--on-accent); font-weight: 700; }
+/* Start / free (owner, 13 Oct: the solid mint fill looked neon) — a dark green tint with a green edge and text. */
+.btn.gx-ok { background: color-mix(in srgb, var(--pos) 16%, var(--card)); border: 1px solid color-mix(in srgb, var(--pos) 55%, transparent); color: var(--pos); font-weight: 700; }
+.btn.gx-ok:hover:not(:disabled) { background: color-mix(in srgb, var(--pos) 26%, var(--card)); border-color: var(--pos); }
 .gx-big { font-size: 34px; font-weight: 800; line-height: 1.1; margin: 4px 0; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .gx-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .gx-kpi { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; display: grid; gap: 2px; }
