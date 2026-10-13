@@ -62,7 +62,7 @@ function Systems({ shop, householdId, toast }) {
     if (error) toast(error.message); else { load(); shop.reload() }
   }
   return (
-    <Collapsible id="gx-systems" title="Systems" summary={`${all.filter((s) => s.active).length} on the floor`} defaultOpen>
+    <Collapsible id="gx-systems" title="Systems" summary={`${all.filter((s) => s.active).length} on the floor`}>
       {all.map((s) => (
         <div key={s.id} className="line">
           <button type="button" className="btn link" style={{ padding: 0 }} onClick={() => rename(s)}>{s.name}</button>
@@ -105,7 +105,7 @@ function Rates({ shop, householdId, toast }) {
     )
   })
   return (
-    <Collapsible id="gx-rates" title="Rates" summary={`Happy hours: ${happyDays.map((d) => DAY_NAMES[d]).join(', ') || 'none'}`} defaultOpen>
+    <Collapsible id="gx-rates" title="Rates" summary={`Happy hours: ${happyDays.map((d) => DAY_NAMES[d]).join(', ') || 'none'}`}>
       <p className="muted small" style={{ marginTop: 0 }}>Per head: a PS5 game for 3 is 3 × the rate. Longer times use the cheapest mix (30 min ₹50 + 1 hr ₹80 → 1.5 hr ₹130). Old bills keep the price they had.</p>
       <h4 className="gx-sub">Normal days</h4>
       {table(false)}
@@ -250,7 +250,7 @@ function OnlineBooking({ shop, householdId, toast }) {
     if (error) toast(error.message); else { toast(msg); shop.reload() }
   }
   return (
-    <Collapsible id="gx-booking" title="Online booking" summary={on ? `On · ${open}–${close}` : 'Off'} defaultOpen>
+    <Collapsible id="gx-booking" title="Online booking" summary={on ? `On · ${open}–${close}` : "Off"}>
       <p className="muted small" style={{ marginTop: 0 }}>Customers scan the banner at the shop, pick a PC or PS5 for today or tomorrow, pay by UPI and send a request. It shows in Slots to confirm.</p>
       <div className="grid2">
         <label>Opens<input type="time" value={open} onChange={(e) => setOpen(e.target.value)} /></label>
@@ -264,7 +264,7 @@ function OnlineBooking({ shop, householdId, toast }) {
         <button className="btn small ghost" onClick={() => navigator.clipboard?.writeText(link).then(() => toast('Booking link copied'), () => toast(link))}>Copy</button>
         <a className="btn small ghost" href={link} target="_blank" rel="noreferrer">Open</a>
       </div>
-      <a className="btn block" href={`${location.origin}/#poster`} target="_blank" rel="noreferrer">Counter banner (QR to the home page) · print / PDF</a>
+      <a className="btn block" href={`${location.origin}/#poster`} target="_blank" rel="noreferrer">Print the counter banner</a>
     </Collapsible>
   )
 }

@@ -29,27 +29,22 @@ export default function Vacancies({ householdId, toast }) {
   return (
     <div className="card" style={{ order: 6 }}>
       <div className="card-head"><h3>Job vacancies</h3><button className="btn small" onClick={() => setEditing({})}>+ Add</button></div>
-      <div className="muted small">{open ? `${open} open on ` : 'Open ones show on '}<b>{link.replace(/^https?:\/\//, '')}</b></div>
-      <div className="gx-btns" style={{ margin: '8px 0 4px' }}>
-        <button className="btn small" onClick={() => navigator.clipboard?.writeText(link).then(() => toast('Jobs link copied'), () => toast(link))}>Copy link</button>
-        <a className="btn small ghost" href={link} target="_blank" rel="noreferrer">View page</a>
-      </div>
+      <div className="muted small">{open ? `${open} open on ` : 'Open ones show on '}<a href={link} target="_blank" rel="noreferrer">{link.replace(/^https?:\/\//, '')}</a> · <button type="button" className="btn link" style={{ padding: 0, fontSize: 'inherit' }} onClick={() => navigator.clipboard?.writeText(link).then(() => toast('Jobs link copied'), () => toast(link))}>Copy link</button></div>
       {rows?.map((v) => (
         <div key={v.id} className="line">
           <button type="button" className="grow gx-linebtn" style={{ border: 0, padding: 0 }} onClick={() => setEditing(v)}>
             <div className="gx-ellipsis">{v.title}</div>
             <div className="muted small">{[v.timing, v.pay].filter(Boolean).join(' · ') || 'Tap to edit'}</div>
           </button>
-          <button className={`btn small ${v.open ? '' : 'ghost'}`} onClick={() => toggle(v)}>{v.open ? 'Open' : 'Closed'}</button>
-          <button className="btn small ghost" aria-label="Delete vacancy" onClick={() => remove(v)}>✕</button>
+          <button className={`pill gx-pill ${v.open ? 'free' : ''}`} style={{ border: 0, cursor: 'pointer' }} title={v.open ? 'Tap to close' : 'Tap to open'} onClick={() => toggle(v)}>{v.open ? 'Open' : 'Closed'}</button>
         </div>
       ))}
-      {editing && <VacancySheet householdId={householdId} row={editing} onClose={() => setEditing(null)} onDone={(msg) => { setEditing(null); toast(msg); load() }} />}
+      {editing && <VacancySheet householdId={householdId} row={editing} onDelete={() => { const v = editing; setEditing(null); remove(v) }} onClose={() => setEditing(null)} onDone={(msg) => { setEditing(null); toast(msg); load() }} />}
     </div>
   )
 }
 
-function VacancySheet({ householdId, row, onClose, onDone }) {
+function VacancySheet({ householdId, row, onDelete, onClose, onDone }) {
   const [f, setF] = useState({ title: row.title || '', timing: row.timing || '', pay: row.pay || '', contact: row.contact || '', details: row.details || '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -73,6 +68,7 @@ function VacancySheet({ householdId, row, onClose, onDone }) {
       </div>
       <label>Call / WhatsApp<input value={f.contact} onChange={set('contact')} inputMode="tel" placeholder="Number to apply on" /></label>
       <label>Details<textarea rows={3} value={f.details} onChange={set('details')} placeholder="What the work is, who can apply" /></label>
+      {row.id && <button type="button" className="btn danger-ghost" onClick={onDelete}>Delete vacancy</button>}
       <SheetActions onClose={onClose} busy={busy} disabled={!f.title.trim()} label={row.id ? 'Save' : 'Add vacancy'} />
     </Sheet>
   )

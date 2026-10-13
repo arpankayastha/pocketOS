@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { generatePin, manageMembers } from '../../lib/members'
 import { useDialog } from '../../lib/dialog'
 import { dayLabel, durLabel, hoursLabel, timeLabel, rs } from '../../lib/shop'
-import { Chips, Sheet, SheetActions } from './ui'
+import { ActionGrid, ActionSheet, Chips, Sheet, SheetActions } from './ui'
+import { CashIcon, ClockIcon, MailIcon, PencilIcon, XIcon } from '../../lib/icons'
 import { useSwipe } from '../../lib/useSwipe'
 import Vacancies from './Vacancies'
 
@@ -87,7 +88,7 @@ export default function Staff({ householdId, toast }) {
       <div className="gx-dateswipe" style={{ order: 1 }} {...monthSwipe}>
       <Chips options={[[0, 'This month'], [-1, 'Last month']]} value={month < -1 ? null : month} onChange={setMonth} />
       <div className="card">
-        <div className="muted small">Staff pay · {start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} · hours × hourly rate − deductions + bonuses</div>
+        <div className="muted small">Staff pay · {start.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</div>
         <div className="gx-big">{rs(totalPay)}</div>
         <div className="muted small">{hoursLabel(rows.reduce((a, r) => a + r.minutes, 0))} · {rows.length} staff · swipe for other months</div>
       </div>
@@ -106,49 +107,56 @@ export default function Staff({ householdId, toast }) {
         <div className="card" style={{ order: 2 }}><p className="muted" style={{ margin: 0 }}>No staff logins yet. Add one for each employee: they sign in with a username and PIN, then Log in for their shift and run Slots.</p></div>
       )}
       {rows.map((m) => (
-        <div key={m.user_id} className="card" style={{ order: 3 }}>
-          <div className="gx-sys-top">
-            <span className="gx-badge round">{(m.display_name || m.username)[0].toUpperCase()}</span>
-            <div className="grow">
-              <div className="gx-name">{m.display_name || m.username} <span className="muted small">@{m.username}</span></div>
-              {m.designation && <span className="pill gx-pill">{m.designation}</span>}
-              <div className={`small ${m.on ? 'pos' : 'muted'}`}>{m.on ? `Logged in since ${timeLabel(m.on.clock_in)}` : 'Not logged in'}</div>
-              {google[m.user_id] && <div className="muted small">Google · {google[m.user_id]} <button className="btn link" style={{ padding: 0, fontSize: 'inherit' }} onClick={() => unlinkGoogle(m)}>Change</button></div>}
-            </div>
+        <div key={m.user_id} className="card gx-run gx-staffrow" style={{ order: 3 }} role="button" tabIndex={0} onClick={() => setOpen(m.user_id)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(m.user_id) }}>
+          <span className="gx-badge round">{(m.display_name || m.username)[0].toUpperCase()}</span>
+          <div className="gx-run-main">
+            <div className="gx-name">{m.display_name || m.username}{m.designation && <span className="muted small"> · {m.designation}</span>}</div>
+            <div className={`small ${m.on ? 'pos' : 'muted'}`}>{m.on ? `On duty since ${timeLabel(m.on.clock_in)}` : `Off duty · ${m.days} day${m.days === 1 ? '' : 's'} this month`}</div>
           </div>
-          <div className="gx-sum" style={{ marginTop: 8 }}>
-            <span className="muted">{m.days} day{m.days === 1 ? '' : 's'} · {hoursLabel(m.minutes)} × {rs(m.hourly_rate)}/hr</span>
-            <b className="amt">{rs(m.earned)}</b>
-          </div>
-          {m.adj.map((x) => (
-            <div key={x.id} className="gx-sum">
-              <span className={Number(x.amount) < 0 ? 'neg' : 'pos'}>{Number(x.amount) < 0 ? 'Deducted' : 'Bonus'} · {x.reason}</span>
-              <span className="amt"><span className={Number(x.amount) < 0 ? 'neg' : 'pos'}>{Number(x.amount) < 0 ? '−' : '+'}{rs(Math.abs(x.amount))}</span>
-                <button className="btn link" style={{ padding: '0 0 0 6px' }} aria-label="Remove" onClick={() => removeAdjust(x)}>✕</button></span>
-            </div>
-          ))}
-          {m.adj.length > 0 && <div className="gx-sum strong"><span>Pay this month</span><span className="amt">{rs(m.pay)}</span></div>}
-          <div className="gx-btns" style={{ marginTop: 8 }}>
-            <button className="btn small" onClick={() => setOpen(open === m.user_id ? null : m.user_id)}>{open === m.user_id ? 'Hide shifts' : `Shifts (${m.own.length})`}</button>
-            {m.on && <button className="btn small" onClick={() => clockOutNow(m.on)}>Log out now</button>}
-            <button className="btn small ghost" onClick={() => setSheet({ kind: 'edit', member: m })}>Edit</button>
-            <button className="btn small ghost" onClick={() => setSheet({ kind: 'adjust', member: m })}>Deduct / bonus</button>
-            {!google[m.user_id] && <button className="btn small ghost" onClick={() => linkGoogle(m)}>Link Google</button>}
-            <button className="btn small danger-ghost" onClick={() => remove(m)}>Remove</button>
-          </div>
-          {open === m.user_id && (
-            <div style={{ marginTop: 8 }}>
-              {m.own.length === 0 ? <div className="muted small">No shifts this month.</div> : m.own.map((s) => (
-                <button key={s.id} type="button" className="line gx-linebtn" onClick={() => setSheet({ kind: 'shift', shift: s, name: m.display_name || m.username })}>
-                  <span>{dayLabel(s.clock_in)} · {timeLabel(s.clock_in)} – {s.clock_out ? timeLabel(s.clock_out) : 'now'}</span>
-                  <b>{durLabel(mins(s))} ›</b>
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="gx-left"><b>{rs(m.pay)}</b><span>{hoursLabel(m.minutes)}</span></div>
         </div>
       ))}
       </div>
+      {(() => {
+        const m = rows.find((x) => x.user_id === open)
+        if (!m) return null
+        const go = (next) => { setOpen(null); next() }
+        return (
+          <ActionSheet title={m.display_name || m.username} sub={`@${m.username}${m.designation ? ` · ${m.designation}` : ''}${google[m.user_id] ? ` · Google ${google[m.user_id]}` : ''}`} onClose={() => setOpen(null)}>
+            <div className="gx-skpis">
+              <div><span>Hours</span><b>{hoursLabel(m.minutes)}</b></div>
+              <div><span>Rate</span><b>{rs(m.hourly_rate)}/h</b></div>
+              <div><span>Pay</span><b>{rs(m.pay)}</b></div>
+            </div>
+            {m.adj.length > 0 && (
+              <div className="gx-details">
+                <div><span>Earned · {m.days} day{m.days === 1 ? '' : 's'}</span><b>{rs(m.earned)}</b></div>
+                {m.adj.map((x) => (
+                  <div key={x.id}><span className={Number(x.amount) < 0 ? 'neg' : 'pos'}>{Number(x.amount) < 0 ? 'Deducted' : 'Bonus'} · {x.reason}</span>
+                    <b><span className={Number(x.amount) < 0 ? 'neg' : 'pos'}>{Number(x.amount) < 0 ? '−' : '+'}{rs(Math.abs(x.amount))}</span>
+                      <button className="btn link" style={{ padding: '0 0 0 8px' }} aria-label="Remove" onClick={() => removeAdjust(x)}>✕</button></b></div>
+                ))}
+              </div>
+            )}
+            <ActionGrid items={[
+              m.on && { label: 'Log out now', icon: <ClockIcon />, onClick: () => go(() => clockOutNow(m.on)) },
+              { label: 'Edit', icon: <PencilIcon />, onClick: () => go(() => setSheet({ kind: 'edit', member: m })) },
+              { label: 'Deduct / bonus', icon: <CashIcon />, onClick: () => go(() => setSheet({ kind: 'adjust', member: m })) },
+              { label: google[m.user_id] ? 'Change Google' : 'Link Google', icon: <MailIcon />, onClick: () => go(() => (google[m.user_id] ? unlinkGoogle(m) : linkGoogle(m))) },
+              { label: 'Remove', icon: <XIcon />, onClick: () => go(() => remove(m)), danger: true },
+            ]} />
+            <div className="caps muted">Shifts this month</div>
+            {m.own.length === 0 ? <div className="muted small">No shifts this month.</div> : (
+              <div className="gx-details">{m.own.map((x) => (
+                <button key={x.id} type="button" className="line gx-linebtn" onClick={() => go(() => setSheet({ kind: 'shift', shift: x, name: m.display_name || m.username }))}>
+                  <span>{dayLabel(x.clock_in)} · {timeLabel(x.clock_in)} – {x.clock_out ? timeLabel(x.clock_out) : 'now'}</span>
+                  <b>{durLabel(mins(x))} ›</b>
+                </button>
+              ))}</div>
+            )}
+          </ActionSheet>
+        )
+      })()}
       {sheet?.kind === 'add' && <AddStaff householdId={householdId} onClose={() => setSheet(null)} onCreated={(username, pin) => { load(); setSheet({ kind: 'login', username, pin }) }} />}
       {sheet?.kind === 'edit' && <EditStaff householdId={householdId} member={sheet.member} gmail={google[sheet.member.user_id]} onLinkGoogle={() => { setSheet(null); linkGoogle(sheet.member) }} onUnlinkGoogle={() => { setSheet(null); unlinkGoogle(sheet.member) }} onClose={() => setSheet(null)}
         onDone={(msg, login) => { load(); if (login) setSheet({ kind: 'login', ...login, reset: true }); else { setSheet(null); toast(msg) } }} />}
@@ -185,7 +193,7 @@ function Admins({ householdId, toast }) {
     toast(`${a.name} is no longer an admin`); load()
   }
   return (
-    <div className="card">
+    <div className="card" style={{ order: 7 }}>
       <div className="card-head"><h3>Admins</h3><button className="btn small" onClick={add}>+ Add</button></div>
       {error && <div className="alert error">{error}</div>}
       {list === null ? <div className="muted small">Loading…</div> : list.map((a) => (

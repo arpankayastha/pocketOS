@@ -252,3 +252,32 @@ export function CashIcon() {
 export function MonitorIcon() {
   return <svg {...base}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
 }
+
+// ---- Shop action sheets ----
+export function CupIcon() {
+  return <svg {...base}><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5Z" /><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17M8 2v3M12 2v3" /></svg>
+}
+export function ClockPlusIcon() {
+  return <svg {...base}><path d="M20.5 13A8.5 8.5 0 1 1 12 3.5" /><path d="M12 8v4l2.5 2M19 3v6M16 6h6" /></svg>
+}
+export function MoveIcon() {
+  return <svg {...base}><path d="M4 8h14l-3-3M20 16H6l3 3" /></svg>
+}
+export function PauseIcon() {
+  return <svg {...base}><path d="M9 5v14M15 5v14" /></svg>
+}
+export function PlayIcon() {
+  return <svg {...base}><path d="M7 4.5v15l12-7.5Z" /></svg>
+}
+export function QrIcon() {
+  return <svg {...base}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h3v3M21 14v.01M14 21h3M21 18v3h-3" /></svg>
+}
+export function PhoneIcon() {
+  return <svg {...base}><path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2Z" /></svg>
+}
+export function XIcon() {
+  return <svg {...base}><path d="M6 6l12 12M18 6 6 18" /></svg>
+}
+export function ChevronRightIcon() {
+  return <svg {...base} width={16} height={16}><path d="m9 6 6 6-6 6" /></svg>
+}

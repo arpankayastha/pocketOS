@@ -16,6 +16,35 @@ export function Sheet({ title, sub, onClose, onSubmit, children }) {
   )
 }
 
+// A sheet of actions for one row (tap a customer / booking / staff card): a header, optional details, a grid
+// of secondary actions and one primary action at the bottom. Keeps the lists themselves to one button each.
+export function ActionSheet({ title, sub, onClose, children, primary }) {
+  return (
+    <div className="modal-bg" onMouseDown={onClose}>
+      <div className="card modal gx-actsheet" onMouseDown={(e) => e.stopPropagation()}>
+        <div>
+          <h3 style={{ marginBottom: 2 }}>{title}</h3>
+          {sub && <div className="muted small">{sub}</div>}
+        </div>
+        {children}
+        <div className="actions">
+          <button type="button" className="btn ghost" onClick={onClose}>Close</button>
+          {primary}
+        </div>
+      </div>
+    </div>
+  )
+}
+export function ActionGrid({ items }) {
+  return (
+    <div className="gx-actgrid">
+      {items.filter(Boolean).map(({ label, icon, onClick, href, danger }) => href
+        ? <a key={label} className={`gx-act ${danger ? 'danger' : ''}`} href={href}>{icon}<span>{label}</span></a>
+        : <button type="button" key={label} className={`gx-act ${danger ? 'danger' : ''}`} onClick={onClick}>{icon}<span>{label}</span></button>)}
+    </div>
+  )
+}
+
 export function Chips({ options, value, onChange, scroll }) {
   return (
     <div className={`chips ${scroll ? 'gx-scroll' : ''}`}>

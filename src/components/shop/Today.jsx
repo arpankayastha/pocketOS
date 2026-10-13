@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { SessionBreakdown, inOut } from './ui'
+import { ActionGrid, ActionSheet, SessionBreakdown, inOut } from './ui'
+import { XIcon } from '../../lib/icons'
 import { addDays, dayLabel, dayStart, dayTotals, durLabel, hoursLabel, minutesLeft, sessionTotal, timeLabel, useDay, useNow, rs } from '../../lib/shop'
 import { DrawerCard } from './Cash'
 import { useSwipe } from '../../lib/useSwipe'
@@ -132,19 +133,24 @@ function Sessions({ sessions, order, toast, onChanged }) {
     <div className="card" style={{ order }}>
       <div className="card-head"><h3>Sessions</h3><span className="muted small">{rows.length}</span></div>
       {shown.map((s) => (
-        <div key={s.id} className="gx-entry">
-        <div className="line gx-tap" onClick={() => setOpenId(openId === s.id ? null : s.id)}>
+        <div key={s.id} className="line gx-tap" role="button" tabIndex={0} onClick={() => setOpenId(s.id)} onKeyDown={(e) => { if (e.key === 'Enter') setOpenId(s.id) }}>
           <span className={`gx-badge sm ${s.system_name.startsWith('PS') ? 'ps' : ''}`}>{s.system_name}</span>
-          <div className="grow">
-            <div className="gx-ellipsis">{s.customer_name}<span className="gx-chev">{openId === s.id ? '▴' : '▾'}</span></div>
-            <div className="muted small">{inOut(s)} · {durLabel(s.minutes)}{Number(s.fnb_before) + Number(s.fnb_while) ? ` · F&B ${rs(Number(s.fnb_before) + Number(s.fnb_while))}` : ''} · {mode(s)}{whoLine(s)}</div>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="gx-ellipsis">{s.customer_name}</div>
+            <div className="muted small gx-ellipsis">{inOut(s)} · {mode(s)}</div>
           </div>
           <b className={Number(s.owed) > 0 ? 'neg' : ''}>{rs(sessionTotal(s))}</b>
-          <button className="btn icon gx-del" aria-label="Delete session" title="Delete" onClick={(ev) => { ev.stopPropagation(); remove(s) }}>✕</button>
-        </div>
-        {openId === s.id && <SessionBreakdown s={s} />}
         </div>
       ))}
+      {(() => {
+        const s = rows.find((x) => x.id === openId)
+        return s && (
+          <ActionSheet title={`${s.system_name} · ${s.customer_name}`} sub={`${inOut(s)} · ${durLabel(s.minutes)}${whoLine(s)}`} onClose={() => setOpenId(null)}>
+            <SessionBreakdown s={s} />
+            <ActionGrid items={[{ label: 'Delete', icon: <XIcon />, onClick: () => { setOpenId(null); remove(s) }, danger: true }]} />
+          </ActionSheet>
+        )
+      })()}
       {rows.length > 8 && <button className="btn link" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${rows.length}`}</button>}
     </div>
   )

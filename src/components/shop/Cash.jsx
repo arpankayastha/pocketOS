@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
-import { Chips, SessionBreakdown, Sheet, SheetActions, SumRow, inOut } from './ui'
+import { ActionGrid, ActionSheet, Chips, SessionBreakdown, Sheet, SheetActions, SumRow, inOut } from './ui'
+import { XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
 import CustomerFields from './CustomerFields'
 import { useDialog } from '../../lib/dialog'
@@ -43,7 +44,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
   const [spend] = useRpc('shop_spend', householdId, shop.cash.length)
   const [plan] = useRpc('shop_plan_items', householdId, shop.cash.length)
   const [sheet, setSheet] = useState(null) // 'open' | 'in' | 'out' | 'count'
-  const [openId, setOpenId] = useState(null) // the session line showing its breakdown
+  const [open, setOpen] = useState(null) // a Today line, dues row or deposit row shown in its sheet
   const dialog = useDialog()
   // Owner: "admin can do any actions" — delete any of today's lines (staff too since 13 Oct; the database only
   // lets staff remove today's), write off dues, clear a deposit.
@@ -51,19 +52,19 @@ export default function Cash({ shop, householdId, toast, admin }) {
     const what = { shop_sessions: 'This removes the whole session (its bill and payments).', shop_cash: 'The drawer and the Cashbook update.', shop_deposits: 'Their deposit balance goes down by this amount.', shop_dues_paid: 'The amount goes back to their dues.' }[e.table]
     if (!await dialog.confirm({ title: `Delete “${e.title}”?`, message: `${rs(e.amount)} · ${what}`, confirmLabel: 'Delete', danger: true })) return
     const { error } = await supabase.from(e.table).delete().eq('id', e.id)
-    if (error) toast(error.message); else { toast('Deleted'); shop.reload() }
+    if (error) toast(error.message); else { setOpen(null); toast('Deleted'); shop.reload() }
   }
   async function writeOff(r) {
     if (!await dialog.confirm({ title: `Clear ${r.name}’s dues?`, message: `${rs(r.total)} won't be collected. The sessions stay in the records with nothing owed.`, confirmLabel: 'Clear dues', danger: true })) return
     const results = await Promise.all(r.sessions.map((x) => supabase.from('shop_sessions').update({ owed: 0, note: `Dues ${rs(x.owed)} written off` }).eq('id', x.id)))
     const err = results.find((x) => x.error)?.error
-    if (err) toast(err.message); else { toast(`${r.name}’s dues cleared`); shop.reload() }
+    if (err) toast(err.message); else { setOpen(null); toast(`${r.name}’s dues cleared`); shop.reload() }
   }
   async function clearDeposit(r) {
     if (!await dialog.confirm({ title: `Clear ${r.name}’s deposit?`, message: `All of their deposit entries are deleted (${rs(r.balance)} left now).`, confirmLabel: 'Clear deposit', danger: true })) return
     const ids = (shop.deposits || []).filter((d) => customerKey(d.customer_name, d.customer_phone) === r.key).map((d) => d.id)
     const { error } = await supabase.from('shop_deposits').delete().in('id', ids)
-    if (error) toast(error.message); else { toast('Deposit cleared'); shop.reload() }
+    if (error) toast(error.message); else { setOpen(null); toast('Deposit cleared'); shop.reload() }
   }
   const entries = [
     ...shop.sessions.filter((s) => s.status === 'closed' || sessionHasPay(s)).map((s) => ({
@@ -79,32 +80,47 @@ export default function Cash({ shop, householdId, toast, admin }) {
   return (
     <section className="gx-split">
       <div className="gx-col">
-      <DrawerCard shop={shop} />
-      <div className="gx-btns">
+      <DrawerCard shop={shop} order={1} />
+      <div className="gx-btns" style={{ order: 2 }}>
         <button className="btn primary" style={{ flex: 1 }} onClick={() => setSheet('out')}>− Cash out</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet('in')}>+ Cash in</button>
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet(dayTotals(shop).open ? 'count' : 'open')}>{dayTotals(shop).open ? 'Count' : 'Opening'}</button>
       </div>
-      {admin && <PlanClaims rows={plan} />}
-      <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} onClear={admin ? writeOff : null} />
-      <Deposits shop={shop} onAdd={() => setSheet('deposit')} onClear={admin ? clearDeposit : null} />
+      {admin && <PlanClaims rows={plan} order={6} />}
+      <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} onOpen={(r) => setOpen({ dues: r })} order={4} />
+      <Deposits shop={shop} onAdd={() => setSheet('deposit')} onOpen={(r) => setOpen({ deposit: r })} order={5} />
       </div>
       <div className="gx-col">
-      <div className="card">
+      <div className="card" style={{ order: 3 }}>
         <h3>Today</h3>
         {entries.length === 0 ? <div className="muted small">Nothing yet today.</div> : entries.map((e) => (
-          <div key={e.id} className="gx-entry">
-            <div className={`line ${e.session ? 'gx-tap' : ''}`} onClick={e.session ? () => setOpenId(openId === e.id ? null : e.id) : undefined}>
-              <div className="grow"><div className="gx-ellipsis">{e.title}{e.session && <span className="gx-chev">{openId === e.id ? '▴' : '▾'}</span>}</div>
-                <div className="muted small">{e.time || timeLabel(e.at)} · {e.sub}{e.by ? ` · by ${e.by}` : ''}</div></div>
-              <b className={e.sign > 0 ? 'pos' : e.sign < 0 ? 'neg' : 'muted'}>{e.sign > 0 ? '+' : e.sign < 0 ? '−' : ''}{rs(e.amount)}</b>
-              {e.table && <button className="btn icon gx-del" aria-label={`Delete ${e.title}`} title="Delete" onClick={(ev) => { ev.stopPropagation(); remove(e) }}>✕</button>}
-            </div>
-            {openId === e.id && <SessionBreakdown s={e.session} />}
+          <div key={e.id} className="line gx-tap" role="button" tabIndex={0} onClick={() => setOpen({ entry: e })} onKeyDown={(ev) => { if (ev.key === 'Enter') setOpen({ entry: e }) }}>
+            <div className="grow"><div className="gx-ellipsis">{e.title}</div>
+              <div className="muted small gx-ellipsis">{e.time || timeLabel(e.at)} · {e.sub}{e.by ? ` · ${e.by}` : ''}</div></div>
+            <b className={e.sign > 0 ? 'pos' : e.sign < 0 ? 'neg' : 'muted'}>{e.sign > 0 ? '+' : e.sign < 0 ? '−' : ''}{rs(e.amount)}</b>
           </div>
         ))}
       </div>
       </div>
+      {open?.entry && (
+        <ActionSheet title={open.entry.title} sub={`${open.entry.time || timeLabel(open.entry.at)} · ${open.entry.sub}${open.entry.by ? ` · by ${open.entry.by}` : ''}`} onClose={() => setOpen(null)}>
+          {open.entry.session ? <SessionBreakdown s={open.entry.session} /> : <SumRow strong label="Amount" value={`${open.entry.sign < 0 ? '−' : ''}${rs(open.entry.amount)}`} />}
+          {open.entry.table && <ActionGrid items={[{ label: 'Delete', icon: <XIcon />, onClick: () => remove(open.entry), danger: true }]} />}
+        </ActionSheet>
+      )}
+      {open?.dues && (
+        <ActionSheet title={open.dues.name} sub={`${open.dues.phone ? `${open.dues.phone} · ` : ''}owes ${rs(open.dues.total)}`} onClose={() => setOpen(null)}
+          primary={<button type="button" className="btn primary" onClick={() => { setSheet({ dues: open.dues }); setOpen(null) }}>Collect</button>}>
+          <div className="gx-details">{open.dues.sessions.map((x) => <div key={x.id}><span>{dayLabel(x.started_at)} · {x.system_name}{x.handled_by ? ` · ${x.handled_by}` : ''}</span><b className="neg">{rs(x.owed)}</b></div>)}</div>
+          {admin && <ActionGrid items={[{ label: 'Write off', icon: <XIcon />, onClick: () => writeOff(open.dues), danger: true }]} />}
+        </ActionSheet>
+      )}
+      {open?.deposit && (
+        <ActionSheet title={open.deposit.name} sub={`${open.deposit.phone ? `${open.deposit.phone} · ` : ''}${rs(open.deposit.balance)} left`} onClose={() => setOpen(null)}>
+          <div className="muted small">Used from the End & collect sheet on their next visit. Carries over to next month until used.</div>
+          {admin && <ActionGrid items={[{ label: 'Clear deposit', icon: <XIcon />, onClick: () => clearDeposit(open.deposit), danger: true }]} />}
+        </ActionSheet>
+      )}
       {sheet === 'deposit' && <DepositSheet settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.dues && <DuesSheet row={sheet.dues} settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {typeof sheet === 'string' && sheet !== 'deposit' && <CashSheet kind={sheet} categories={spend} plan={plan} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
@@ -157,16 +173,15 @@ function CashSheet({ kind, categories, plan, householdId, onClose, onDone }) {
 // Customer deposits: paid ahead, used on later visits — kept from month to month until used (owner, 13 Oct;
 // they used to lapse at month end).
 // Not refundable. Used from the End sheet on the Floor.
-function Deposits({ shop, onAdd, onClear }) {
+function Deposits({ shop, onAdd, onOpen, order }) {
   const rows = depositBalances(shop.deposits || [])
   return (
-    <div className="card">
+    <div className="card" style={{ order }}>
       <div className="card-head"><h3>Deposits</h3><button className="btn small" onClick={onAdd}>+ Deposit</button></div>
       {rows.length === 0 ? <div className="muted small">No deposits with money left. A deposit stays until it's used, even into next month.</div> : rows.map((r) => (
-        <div key={r.key} className="line">
+        <div key={r.key} className="line gx-tap" role="button" tabIndex={0} onClick={() => onOpen(r)}>
           <div className="grow"><div className="gx-ellipsis">{r.name}</div>{r.phone && <div className="muted small">{r.phone}</div>}</div>
           <b className="pos">{rs(r.balance)}</b>
-          {onClear && <button className="btn icon gx-del" aria-label={`Clear ${r.name}'s deposit`} title="Clear" onClick={() => onClear(r)}>✕</button>}
         </div>
       ))}
     </div>
@@ -200,21 +215,20 @@ function DepositSheet({ settings, householdId, onClose, onDone }) {
 }
 
 // Customer dues (owner: staff must see them too): sessions ended as "Owes", any day, until paid back.
-function CustomerDues({ shop, onCollect, onClear }) {
+function CustomerDues({ shop, onCollect, onOpen, order }) {
   const rows = duesByCustomer(shop.dues)
   const total = rows.reduce((a, r) => a + r.total, 0)
   return (
-    <div className="card">
+    <div className="card" style={{ order }}>
       <div className="card-head"><h3>Customer dues</h3>{total > 0 && <b className="neg">{rs(total)}</b>}</div>
       {rows.length === 0 ? <div className="muted small">Nobody owes the shop anything.</div> : rows.map((r) => (
-        <div key={r.key} className="line">
+        <div key={r.key} className="line gx-tap" role="button" tabIndex={0} onClick={() => onOpen(r)}>
           <div className="grow">
-            <div className="gx-ellipsis">{r.name}{r.phone ? <span className="muted small"> · {r.phone}</span> : null}</div>
-            <div className="muted small">{r.sessions.map((s) => `${dayLabel(s.started_at)} ${s.system_name}${s.handled_by ? ` (${s.handled_by})` : ''}`).join(' · ')}</div>
+            <div className="gx-ellipsis">{r.name}</div>
+            <div className="muted small gx-ellipsis">{r.sessions.length} visit{r.sessions.length === 1 ? '' : 's'} · last {dayLabel(r.sessions[r.sessions.length - 1].started_at)}</div>
           </div>
           <b className="neg">{rs(r.total)}</b>
-          <button className="btn small" onClick={() => onCollect(r)}>Collect</button>
-          {onClear && <button className="btn icon gx-del" aria-label={`Clear ${r.name}'s dues`} title="Clear dues" onClick={() => onClear(r)}>✕</button>}
+          <button className="btn small" onClick={(e) => { e.stopPropagation(); onCollect(r) }}>Collect</button>
         </div>
       ))}
     </div>
@@ -255,11 +269,11 @@ function DuesSheet({ row, settings, householdId, onClose, onDone }) {
 }
 
 // Admin: Plan items (Money → Plan) and how much has been claimed against each this month.
-function PlanClaims({ rows }) {
+function PlanClaims({ rows, order }) {
   const month = new Date().toLocaleDateString('en-IN', { month: 'long' })
   const list = rows || []
   return (
-    <div className="card">
+    <div className="card" style={{ order }}>
       <div className="card-head"><h3>Plan · {month}</h3><a className="btn small" href="#/money/plan">Edit Plan</a></div>
       {list.length === 0 ? <div className="muted small">No Plan items yet. Add them in Money → Plan with any monthly amount (e.g. Wafers), then claim each cash out against them.</div> : list.map((r) => {
         const limit = Number(r.expected) || 0, spent = Number(r.claimed) || 0

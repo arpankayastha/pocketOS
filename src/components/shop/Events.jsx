@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useDialog } from '../../lib/dialog'
 import { RANKS, durLabel, eventImage, timeLabel, rs } from '../../lib/shop'
-import { Chips, Sheet, SheetActions, SumRow } from './ui'
+import { ActionGrid, ActionSheet, Chips, Sheet, SheetActions, SumRow } from './ui'
+import { PhoneIcon, XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
 import { useSwipe } from '../../lib/useSwipe'
 import { uploadShopImage } from '../../lib/media'
@@ -82,9 +83,14 @@ export default function Events({ householdId, admin, settings, toast }) {
   const advance = bookings.reduce((a, b) => a + Number(b.advance_paid), 0)
   const done = (msg) => { setSheet(null); toast(msg); loadBookings(); loadEvents() }
 
+  async function received(b) {
+    const { error } = await supabase.from('shop_event_bookings').update({ payment_ok: true }).eq('id', b.id)
+    setSheet(null); toast(error ? error.message : 'Advance received'); loadBookings()
+  }
   async function setStatus(b, status) {
     if (status === 'cancelled' && !await dialog.confirm({ title: `Cancel ${b.customer_name}’s booking?`, message: Number(b.advance_paid) ? `The ${rs(b.advance_paid)} advance is non-refundable. The hours open up for someone else.` : 'The hours open up for someone else.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep', danger: true })) return
     const { error } = await supabase.from('shop_event_bookings').update({ status }).eq('id', b.id)
+    setSheet(null)
     if (error) toast(error.message); else { toast(status === 'arrived' ? `${b.customer_name} arrived` : 'Booking cancelled'); loadBookings() }
   }
 
@@ -109,8 +115,8 @@ export default function Events({ householdId, admin, settings, toast }) {
           {ev.description && <div className="small">{ev.description}</div>}
           <div className="muted small">{rs(firstPrice(ev))} first {durLabel(ev.slot_minutes)} · {rs(nextPrice(ev))} each extra · up to {ev.max_hours || 1} · per head · {rs(ev.advance)} advance, non-refundable · {ev.capacity} at a time{ev.active ? '' : ' · switched off'}</div>
           <div className="gx-kpis" style={{ marginTop: 12 }}>
-            <div className="gx-kpi"><b>{bookings.length} / {totalSlots}</b><span>Slots booked</span></div>
-            <div className="gx-kpi"><b>{rs(advance)}</b><span>Advance taken</span></div>
+            <div className="gx-kpi"><b>{bookings.length} / {totalSlots}</b><span>Booked</span></div>
+            <div className="gx-kpi"><b>{rs(advance)}</b><span>Advances</span></div>
           </div>
         </div>
         {admin && <button className="btn block gx-new-event" style={{ order: 9 }} onClick={() => setSheet({ kind: 'event', event: null })}>+ New event</button>}
@@ -120,37 +126,61 @@ export default function Events({ householdId, admin, settings, toast }) {
       {ev?.format === 'tournament' && <Entries ev={ev} settings={settings} householdId={householdId} toast={toast} />}
       {ev && ev.format !== 'tournament' && (<>
         <Chips scroll options={eventDays(ev).map((d) => [d, dayChip(d)])} value={day} onChange={setDay} />
-        <div className="gx-slots gx-dateswipe" {...daySwipe}>
-          {slots.map((t) => {
-            const here = bookings.filter((b) => covers(ev, b, t.getTime()))
-            const full = here.length >= ev.capacity
-            return (
-              <div key={t.toISOString()} className={`card gx-slot ${full ? 'full' : ''}`}>
-                <div className="gx-sys-top">
-                  <div className="grow">
-                    <div className="gx-name">{timeLabel(t)} – {timeLabel(t.getTime() + ev.slot_minutes * 60_000)}</div>
-                    <div className="muted small">{full ? 'Full' : `${ev.capacity - here.length} of ${ev.capacity} free`}</div>
-                  </div>
-                  {!full && ev.active && <button className="btn small primary" onClick={() => setSheet({ kind: 'book', slot: t })}>Book</button>}
-                </div>
-                {here.map((b) => (
-                  <div key={b.id} className="line">
-                    <div className="grow">
-                      <div>{b.customer_name}{b.players > 1 ? ` +${b.players - 1}` : ''} {b.status === 'arrived' && <span className="pill gx-pill free">Arrived</span>}{!b.payment_ok && <span className="pill gx-pill ending">Check payment</span>}</div>
-                      <div className="muted small">{timeLabel(b.slot_start)} – {timeLabel(new Date(b.slot_start).getTime() + (b.hours || 1) * ev.slot_minutes * 60_000)} · {b.customer_phone || 'No mobile'} · {Number(b.advance_paid) ? `${rs(b.advance_paid)} ${b.advance_mode}` : 'No advance'} · {b.source === 'online' ? 'online' : `by ${b.entered_by || '—'}`}{b.handled_by ? ` · ✓ ${b.handled_by}` : ''}</div>
-                    </div>
-                    {!b.payment_ok && <button className="btn small primary" onClick={async () => { const { error } = await supabase.from('shop_event_bookings').update({ payment_ok: true }).eq('id', b.id); toast(error ? error.message : 'Advance received'); loadBookings() }}>Received</button>}
-                    {b.payment_ok && b.status !== 'arrived' && <button className="btn small" onClick={() => setStatus(b, 'arrived')}>Arrived</button>}
-                    <button className="btn small ghost" aria-label="Cancel booking" onClick={() => setStatus(b, 'cancelled')}>✕</button>
-                  </div>
-                ))}
+        {(() => {
+          // Owner, 14 Oct (too many buttons): the day's hours as a grid of tiles (tap a free one to book),
+          // then the people booked that day as rows with one action; the rest is in each booking's sheet.
+          const dayBookings = bookings.filter((b) => slots.some((t) => covers(ev, b, t.getTime())))
+          return (<>
+            <div className="card gx-freecard gx-dateswipe" {...daySwipe}>
+              <div className="card-head"><h3>Slots</h3><span className="muted small">{ev.active ? 'Tap a free hour to book' : 'Bookings closed'}</span></div>
+              <div className="gx-freegrid">
+                {slots.map((t) => {
+                  const left = ev.capacity - bookings.filter((b) => covers(ev, b, t.getTime())).length
+                  return (
+                    <button key={t.toISOString()} type="button" className={`gx-freetile ${left <= 0 ? 'full' : ''}`} disabled={left <= 0 || !ev.active} onClick={() => setSheet({ kind: 'book', slot: t })}>
+                      <b>{timeLabel(t)}</b><span>{left <= 0 ? 'Full' : `${left} of ${ev.capacity} free`}</span>
+                    </button>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
+            </div>
+            <div className="card gx-bookings">
+              <div className="card-head"><h3>Booked <span className="muted">{dayBookings.length}</span></h3></div>
+              {dayBookings.length === 0 ? <div className="muted small">Nobody booked this day yet.</div> : dayBookings.map((b) => (
+                <div key={b.id} className="gx-brow" role="button" tabIndex={0} onClick={() => setSheet({ kind: 'booking', booking: b })}>
+                  <span className="gx-badge sm ev">{timeLabel(b.slot_start).replace(/:00| /g, '')}</span>
+                  <div className="gx-run-main">
+                    <div className="gx-name">{b.customer_name}{b.players > 1 ? <span className="muted"> +{b.players - 1}</span> : ''}</div>
+                    <div className="muted small">{durLabel((b.hours || 1) * ev.slot_minutes)} · {Number(b.advance_paid) ? `${rs(b.advance_paid)} ${b.advance_mode}` : 'no advance'}{!b.payment_ok ? <span className="gx-due"> · check payment</span> : b.status === 'arrived' ? ' · arrived' : ''}</div>
+                  </div>
+                  {!b.payment_ok ? <button className="btn small primary" onClick={(e) => { e.stopPropagation(); received(b) }}>Received</button>
+                    : b.status !== 'arrived' ? <button className="btn small" onClick={(e) => { e.stopPropagation(); setStatus(b, 'arrived') }}>Arrived</button>
+                    : <span className="pill gx-pill free">In</span>}
+                </div>
+              ))}
+            </div>
+          </>)
+        })()}
       </>)}
       {!ev && admin && <button className="btn block" onClick={() => setSheet({ kind: 'event', event: null })}>+ New event</button>}
       </div>
+      {sheet?.kind === 'booking' && (() => {
+        const b = sheet.booking
+        return (
+          <ActionSheet title={b.customer_name} sub={`${timeLabel(b.slot_start)} – ${timeLabel(new Date(b.slot_start).getTime() + (b.hours || 1) * ev.slot_minutes * 60_000)}${b.players > 1 ? ` · ${b.players} players` : ''}`} onClose={() => setSheet(null)}
+            primary={!b.payment_ok ? <button type="button" className="btn primary" onClick={() => received(b)}>Received</button> : b.status !== 'arrived' ? <button type="button" className="btn primary" onClick={() => setStatus(b, 'arrived')}>Arrived</button> : null}>
+            <div className="gx-details">
+              {[['Amount', rs(b.amount)], ['Advance', Number(b.advance_paid) ? `${rs(b.advance_paid)} · ${b.advance_mode}` : 'none'], ['Payment', b.payment_ok ? 'checked' : 'to check'],
+                ['UPI ref', b.upi_ref], ['Mobile', b.customer_phone], ['Booked', b.source === 'online' ? 'online' : `by ${b.entered_by || '—'}`], ['Checked by', b.handled_by]]
+                .filter(([, v]) => v).map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}
+            </div>
+            <ActionGrid items={[
+              b.customer_phone && { label: 'Call', icon: <PhoneIcon />, href: `tel:${b.customer_phone}` },
+              { label: 'Cancel booking', icon: <XIcon />, onClick: () => setStatus(b, 'cancelled'), danger: true },
+            ]} />
+          </ActionSheet>
+        )
+      })()}
       {sheet?.kind === 'book' && <BookSheet ev={ev} slot={sheet.slot} settings={settings} householdId={householdId} onClose={() => setSheet(null)} onDone={done}
         freeHours={(() => { // how many hours in a row are free from this slot, up to the event's max
           let n = 0
