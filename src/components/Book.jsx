@@ -5,6 +5,7 @@ import { qrSvg, upiLink } from '../lib/upi'
 import { rememberMine } from '../lib/mine'
 import PublicNav from './PublicNav'
 import ContactFields from './ContactFields'
+import PcPicker from './PcPicker'
 
 // Public booking page (/#book) — from the home page's Book your slots (the counter banner's QR opens the home page). No login: the page only
 // talks to public_shop_info / public_availability / public_book (security definer, checked on the server).
@@ -24,6 +25,7 @@ export default function Book() {
   const [players, setPlayers] = useState(1)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [system, setSystem] = useState(null) // a named PC, or null = any
   const [ref, setRef] = useState('')
   const [step, setStep] = useState('form') // form | pay | done
   const [busy, setBusy] = useState(false)
@@ -53,7 +55,8 @@ export default function Book() {
 
   async function send() {
     setBusy(true); setError(null)
-    const { data, error } = await supabase.rpc('public_book', { p_kind: kind, p_start: start, p_minutes: minutes, p_players: players, p_name: name.trim(), p_phone: phone, p_upi_ref: ref.trim() || null })
+    const args = { p_kind: kind, p_start: start, p_minutes: minutes, p_players: players, p_name: name.trim(), p_phone: phone, p_upi_ref: ref.trim() || null }
+    const { data, error } = system && kind === 'PC' ? await supabase.rpc('public_book_system', { p_system: system, ...args }) : await supabase.rpc('public_book', args)
     setBusy(false)
     if (error) { setError(error.message); if (/booked|passed|hours/i.test(error.message)) setStep('form'); return }
     rememberMine('bookings', data.id)
@@ -70,7 +73,7 @@ export default function Book() {
         <div className="book-tick">✓</div>
         <h2>Booking request sent</h2>
         <div className="book-code mono">{done.code}</div>
-        <p>{done.kind === 'PS' ? 'PS5' : 'PC'} · {new Date(done.start).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {timeLabel(done.start)} – {timeLabel(new Date(done.start).getTime() + done.minutes * 60_000)}{done.players > 1 ? ` · ${done.players} players` : ''} · {rs(done.amount)}</p>
+        <p>{done.kind === 'PS' ? 'PS5' : done.system || 'PC'} · {new Date(done.start).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {timeLabel(done.start)} – {timeLabel(new Date(done.start).getTime() + done.minutes * 60_000)}{done.players > 1 ? ` · ${done.players} players` : ''} · {rs(done.amount)}</p>
         <p className="muted small">The shop confirms it once your payment shows up. Show this code at the counter. Your booking and, once you start playing, your time left show on the home page.</p>
         <div className="gx-btns"><a className="btn primary" style={{ flex: 1 }} href="#">Home</a>
         <button className="btn" style={{ flex: 1 }} onClick={() => { setStep('form'); setStart(null); setRef(''); setDone(null) }}>Book another</button></div>
@@ -136,6 +139,7 @@ export default function Book() {
             })}
           </div>
         )}
+        <PcPicker kind={kind} start={start} minutes={minutes} value={system} onChange={setSystem} />
         <ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} />
         <div className="book-total">
           <span className="muted">{durLabel(minutes)}{players > 1 ? ` × ${players}` : ''}{happy ? ' · happy hours' : ''}</span>

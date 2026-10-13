@@ -878,3 +878,42 @@ create policy "staff removes today" on public.shop_deposits for delete to authen
   using (household_id in (select private.my_household_ids()) and created_at >= date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata');
 create policy "staff removes today" on public.shop_dues_paid for delete to authenticated
   using (household_id in (select private.my_household_ids()) and created_at >= date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata');
+
+-- Book a specific PC (owner, 13 Oct: "PC1 … PC5, jo book karna ho specific kar sake"). A booking may name a
+-- system; that PC is then taken for the booked time (running session overlapping, or another booking naming it).
+alter table public.shop_bookings add column if not exists system_id uuid references public.shop_systems(id) on delete set null;
+
+create or replace function private.system_free(p_system uuid, p_start timestamptz, p_minutes int, p_skip uuid default null)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select not exists (
+      select 1 from public.shop_sessions s where s.system_id = p_system and s.status = 'running'
+        and private.session_end(s) > p_start and s.started_at < p_start + make_interval(mins => p_minutes))
+    and not exists (
+      select 1 from public.shop_bookings b where b.system_id = p_system and b.status in ('requested', 'confirmed')
+        and (p_skip is null or b.id <> p_skip)
+        and b.starts_at < p_start + make_interval(mins => p_minutes) and b.starts_at + make_interval(mins => b.minutes) > p_start)
+$$;
+
+-- Public: single-seat systems of a kind with free / taken for that time (names only).
+create or replace function public.public_free_systems(p_kind text, p_start timestamptz, p_minutes int)
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', y.id, 'name', y.name, 'free', private.system_free(y.id, p_start, p_minutes)) order by y.sort, y.name), '[]')
+  from public.shop_systems y where y.household_id = private.public_shop() and y.kind = p_kind and y.active and coalesce(y.seats, 1) = 1
+$$;
+grant execute on function public.public_free_systems(text, timestamptz, int) to anon, authenticated;
+
+-- Public booking for a named PC: same checks as public_book, plus that PC must be free (locked per PC).
+create or replace function public.public_book_system(p_system uuid, p_kind text, p_start timestamptz, p_minutes int, p_players int,
+  p_name text, p_phone text, p_upi_ref text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare r jsonb;
+begin
+  if not exists (select 1 from public.shop_systems y where y.id = p_system and y.household_id = private.public_shop() and y.kind = p_kind and y.active) then
+    raise exception 'Pick a PC from the list.'; end if;
+  perform pg_advisory_xact_lock(hashtext(p_system::text));
+  if not private.system_free(p_system, p_start, p_minutes) then raise exception 'That PC just got booked for this time. Pick another.'; end if;
+  r := public.public_book(p_kind, p_start, p_minutes, p_players, p_name, p_phone, p_upi_ref);
+  update public.shop_bookings set system_id = p_system where id = (r->>'id')::uuid;
+  return r || jsonb_build_object('system', (select name from public.shop_systems where id = p_system));
+end $$;
+grant execute on function public.public_book_system(uuid, text, timestamptz, int, int, text, text, text) to anon, authenticated;

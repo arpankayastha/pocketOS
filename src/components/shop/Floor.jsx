@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
 import { qrSvg } from '../../lib/upi'
+import PcPicker from '../PcPicker'
 import { DURATIONS, balanceFor, byLine, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, shortCode, timeLabel, useNow, rs } from '../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from './ui'
 import { UpiQrButton } from './UpiQr'
@@ -51,7 +52,8 @@ export default function Floor({ shop, householdId, toast }) {
 
   const startBooking = (b) => {
     const need = b.players || 1
-    const sys = shop.systems.find((x) => x.kind === b.kind && freeSeats(x).length >= need)
+    const named = b.system_id && shop.systems.find((x) => x.id === b.system_id && freeSeats(x).length >= need)
+    const sys = named || shop.systems.find((x) => x.kind === b.kind && freeSeats(x).length >= need)
     if (!sys) { toast(`No free ${b.kind === 'PS' ? 'PS5 controllers' : 'PC'} right now`); return }
     setSheet({ kind: 'start', system: sys, seats: freeSeats(sys).slice(0, need), booking: b })
   }
@@ -101,7 +103,7 @@ export default function Floor({ shop, householdId, toast }) {
         <button className="btn small primary gx-book-btn" onClick={() => setSheet({ kind: 'book' })}>+ Book</button>
         {waitingAll.length > 1 && <button className="btn primary block gx-startall" onClick={startAll}>▶ Start all {waitingAll.length} waiting</button>}
       </div>
-      <Bookings bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onBook={() => setSheet({ kind: 'book' })} onChanged={(m) => { toast(m); shop.reload() }} />
+      <Bookings systems={shop.systems} bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onBook={() => setSheet({ kind: 'book' })} onChanged={(m) => { toast(m); shop.reload() }} />
       {shop.systems.map((sys) => {
         const n = seatsOf(sys)
         if (n === 1) {
@@ -487,7 +489,7 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
 // Online money to check, on every phone (admin and staff): slot bookings from /#book, event advances and
 // tournament entry fees from the home page. Staff open their UPI app, then tap Received — or Not received,
 // which cancels the request. "Arrived" on a confirmed slot booking starts its session, already paid.
-function Bookings({ bookings = [], eventChecks = [], entryChecks = [], onArrived, onBook, onChanged }) {
+function Bookings({ systems = [], bookings = [], eventChecks = [], entryChecks = [], onArrived, onBook, onChanged }) {
   const dialog = useDialog()
   async function update(table, row, patch, msg, ask) {
     if (ask && !await dialog.confirm(ask)) return
@@ -508,7 +510,7 @@ function Bookings({ bookings = [], eventChecks = [], entryChecks = [], onArrived
         <div key={b.id} className="gx-booking">
           {(i === 0 || day(bookings[i - 1].starts_at) !== day(b.starts_at)) && <div className="caps muted gx-book-day">{day(b.starts_at)}</div>}
           <div className="gx-sys-top">
-            <span className={`gx-badge sm ${b.kind === 'PS' ? 'ps' : ''}`}>{b.kind === 'PS' ? 'PS5' : 'PC'}</span>
+            <span className={`gx-badge sm ${b.kind === 'PS' ? 'ps' : ''}`}>{b.kind === 'PS' ? 'PS5' : systems.find((x) => x.id === b.system_id)?.name || 'PC'}</span>
             <div className="grow">
               <div className="gx-name">{b.customer_name}{b.players > 1 ? ` · ${b.players} players` : ''}</div>
               <div className="muted small">{day(b.starts_at)} {timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {rs(b.amount)}{b.source === 'counter' ? ` · ${Number(b.paid) > 0 ? `${rs(b.paid)} advance ${b.paid_mode}` : 'pay at counter'} · booked by ${b.entered_by || 'staff'}` : ''}{b.upi_ref ? ` · ref ${b.upi_ref}` : ''} · {b.customer_phone}{by(b)}{b.note ? ` · ${b.note}` : ''} · code <b className="mono">{shortCode(b.id)}</b></div>
@@ -578,6 +580,7 @@ function BookSheet({ shop, householdId, initial, onClose, onDone }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [note, setNote] = useState('')
+  const [system, setSystem] = useState(null) // owner: a specific PC (PC1…PC5), or any
   const [pay, setPay] = useState('counter')
   const [adv, setAdv] = useState('')
   const [avail, setAvail] = useState(null)
@@ -613,7 +616,7 @@ function BookSheet({ shop, householdId, initial, onClose, onDone }) {
     const paid = pay === 'counter' ? 0 : Number(adv) || 0
     setBusy(true); setError(null)
     const { error } = await supabase.from('shop_bookings').insert({
-      household_id: householdId, kind, starts_at: time, minutes: mins, players, customer_name: name.trim(), customer_phone: digits,
+      household_id: householdId, kind, starts_at: time, minutes: mins, players, customer_name: name.trim(), customer_phone: digits, system_id: kind === 'PC' ? system : null,
       amount, status: 'confirmed', source: 'counter', paid, paid_mode: paid ? pay : null, note: note.trim() || null,
     })
     if (!error && paid) {
@@ -622,7 +625,7 @@ function BookSheet({ shop, householdId, initial, onClose, onDone }) {
     }
     setBusy(false)
     if (error) { setError(error.message); return }
-    onDone(`${name.trim()} booked · ${new Date(time).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })} ${timeLabel(time)}`)
+    onDone(`${name.trim()} booked${system && kind === 'PC' ? ` · ${shop.systems.find((x) => x.id === system)?.name}` : ''} · ${new Date(time).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })} ${timeLabel(time)}`)
   }
   const slots = (avail || []).filter((a) => new Date(a.t).getTime() > Date.now() - 10 * 60_000)
   return (
@@ -643,6 +646,7 @@ function BookSheet({ shop, householdId, initial, onClose, onDone }) {
       )}
       <label>Or type a time<input type="time" step="300" value={custom} onChange={(e) => pickCustom(e.target.value)} /></label>
       {custom && time && !fits(time) && <div className="alert error" style={{ margin: 0 }}>Not free for the whole {durLabel(mins)} from {timeLabel(time)}{players > 1 ? ` for ${players} players` : ''} — you can still book it.</div>}
+      <PcPicker kind={kind} start={time} minutes={mins} value={system} onChange={setSystem} />
       <div className="caps muted">Payment</div>
       <Chips options={[['counter', 'Pay at the counter'], ['cash', 'Advance · cash'], ['online', 'Advance · online']]} value={pay} onChange={(v) => { setPay(v); if (v !== 'counter' && !adv) setAdv(String(amount)) }} />
       {pay !== 'counter' && (<>
@@ -777,7 +781,7 @@ function SlotCalendar({ shop, onBook, onArrived, toast }) {
                 <div key={b.id} className="line">
                   <div className="grow">
                     <div>{b.customer_name}{b.players > 1 ? ` · ${b.players} players` : ''} {b.status === 'arrived' ? <span className="pill gx-pill free">Arrived</span> : b.status === 'requested' ? <span className="pill gx-pill ending">Check payment</span> : null}</div>
-                    <div className="muted small">{timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {b.customer_phone} · {b.source === 'online' ? 'online' : `by ${b.entered_by || 'staff'}`}{b.note ? ` · ${b.note}` : ''}</div>
+                    <div className="muted small">{timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)}{b.system_id ? ` · ${shop.systems.find((x) => x.id === b.system_id)?.name || ''}` : ''} · {b.customer_phone} · {b.source === 'online' ? 'online' : `by ${b.entered_by || 'staff'}`}{b.note ? ` · ${b.note}` : ''}</div>
                   </div>
                   {b.status === 'confirmed' && new Date(b.starts_at).toDateString() === new Date().toDateString() && <button className="btn small" onClick={() => onArrived(b)}>Arrived</button>}
                   {b.status !== 'arrived' && <button className="btn small ghost" aria-label="Cancel booking" title="Cancel booking" onClick={() => cancel(b)}>✕</button>}
