@@ -195,7 +195,7 @@ export function useTimeUpAlarm(running, now, onAlert) {
     }
   }, [running, now]) // eslint-disable-line react-hooks/exhaustive-deps
 }
-const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
+const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.waiting ? 'waiting' : s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
 
 // One running session (a PC, or one PS5 controller): customer, times, code for the timer screen, actions.
 function SessionRow({ sys, s, now, badge, onSheet, onPause, onStart }) {
@@ -212,7 +212,7 @@ function SessionRow({ sys, s, now, badge, onSheet, onPause, onStart }) {
     {/* Full width under the name, so it never squeezes beside the time pill. */}
     <div className="muted small gx-meta">{s.waiting ? `Not started · entered ${timeLabel(s.started_at)}` : <>{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s, now))}</>}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''} · <button type="button" className="btn link gx-code" onClick={() => onSheet('timer')}>code <b className="mono">{shortCode(s.id)}</b></button></div>
     <PaidLine s={s} />
-    <div className="gx-bar"><i style={{ width: `${pct}%` }} /></div>
+    {!s.waiting && <div className="gx-bar"><i style={{ width: `${pct}%` }} /></div>}
     {s.waiting && <button className="btn primary block gx-startnow" onClick={onStart}>▶ Start timer</button>}
     <div className="gx-btns">
       <button className="btn small" onClick={() => onSheet('fnb')}>+ F&amp;B</button>

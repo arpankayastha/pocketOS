@@ -908,9 +908,12 @@ details.section[open] .chev { transform: rotate(90deg); }
   /* Floor: the shop floor as a grid of systems */
   .gx-floor { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: stretch; gap: 16px; }
   .gx-floor > .chips, .gx-floor > .gx-floor-head { grid-column: 1 / -1; }
-  .gx-floor .gx-sys { align-content: space-between; min-height: 150px; padding: 18px; }
-  .gx-floor .gx-sys.free .gx-sys-top { flex-wrap: wrap; height: 100%; align-content: space-between; }
-  .gx-floor .gx-sys.free .gx-sys-top > .btn { flex-basis: 100%; min-height: 42px; font-size: 14px; margin-top: 18px; }
+  /* Tiles in a row share a height: content sits at the top (a tall PS5 tile next door no longer spreads a
+     busy / waiting PC tile into big gaps). Only a free single-PC tile gets the full-width Start at its foot. */
+  .gx-floor .gx-sys { align-content: start; min-height: 150px; padding: 18px; }
+  .gx-floor .gx-sys.free:not(.gx-multi) { align-content: space-between; }
+  .gx-floor .gx-sys.free:not(.gx-multi) > .gx-sys-top { flex-wrap: wrap; height: 100%; align-content: space-between; }
+  .gx-floor .gx-sys.free:not(.gx-multi) > .gx-sys-top > .btn { flex-basis: 100%; min-height: 42px; font-size: 14px; margin-top: 18px; }
   .gx-badge { width: 52px; height: 52px; font-size: 15px; }
   /* Events: slots in two columns beside the event */
   .gx-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1327,3 +1330,7 @@ html:fullscreen .pill-nav { display: none; }
   .topbar-right .money-eye.on::after { content: 'Hide amounts'; }
 }
 .btn.icon.money-eye.on { color: var(--accent); }
+
+/* A saved customer waiting for ▶ Start timer: amber dashed edge, no progress bar (owner, 13 Oct). */
+.gx-sys.waiting { border: 1px dashed color-mix(in srgb, var(--warn) 70%, var(--line)); }
+.gx-seat.waiting { border-left: 3px solid color-mix(in srgb, var(--warn) 70%, transparent); padding-left: 10px; }
