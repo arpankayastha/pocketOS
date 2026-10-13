@@ -14,6 +14,7 @@ import CustomerFields from './CustomerFields'
 // Replaces the sheet's rows (Name, System, Time in/out, F&B, Extend, Total, Payment mode).
 export default function Floor({ shop, householdId, toast }) {
   const now = useNow(10_000)
+  const dialog = useDialog()
   const [sheet, setSheet] = useState(null) // { kind: 'start'|'fnb'|'extend'|'end', system, session, seats }
   const running = shop.sessions.filter((s) => s.status === 'running')
   const seatsOf = (sys) => sys.seats || 1
@@ -64,6 +65,14 @@ export default function Floor({ shop, householdId, toast }) {
     done(err ? err.message : on ? 'Paused · the time left is kept' : 'Resumed')
   }
   // Owner (13 Oct): details first, clock later — a waiting entry's time starts now, from its full length.
+  // A waiting entry the customer won't use (left / saved by mistake): cancelled, no bill (staff and admin).
+  async function cancelWaiting(s) {
+    const paid = Number(s.paid_cash) + Number(s.paid_online)
+    if (!await dialog.confirm({ title: `Cancel ${s.customer_name}'s entry on ${s.system_name}?`, danger: true, confirmLabel: 'Cancel entry', cancelLabel: 'Keep',
+      message: paid ? `It hasn't started, so there's no bill. They paid ${rs(paid)} — give it back; it comes off today's takings.` : 'It hasn’t started, so there’s no bill. The PC is free again.' })) return
+    const { error } = await supabase.from('shop_sessions').update({ status: 'cancelled', waiting: false, ended_at: new Date().toISOString() }).eq('id', s.id)
+    done(error ? error.message : `${s.system_name} entry for ${s.customer_name} cancelled`)
+  }
   async function startWaiting(s) {
     const { error } = await supabase.from('shop_sessions').update({ waiting: false, started_at: new Date().toISOString(), paused_at: null, paused_minutes: 0 }).eq('id', s.id)
     done(error ? error.message : `${s.system_name} started for ${s.customer_name} · ends ${timeLabel(new Date(Date.now() + s.minutes * 60_000))}`)
@@ -108,7 +117,7 @@ export default function Floor({ shop, householdId, toast }) {
           )
           return (
             <div key={sys.id} className={`card gx-sys ${stateOf(s, now)}`}>
-              <SessionRow sys={sys} s={s} now={now} badge={sys.name} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} onStart={() => startWaiting(s)} />
+              <SessionRow sys={sys} s={s} now={now} badge={sys.name} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} onStart={() => startWaiting(s)} onCancel={() => cancelWaiting(s)} />
             </div>
           )
         }
@@ -143,7 +152,7 @@ export default function Floor({ shop, householdId, toast }) {
               </div>
             ) : s ? (
               <div key={seat} className={`gx-seat ${stateOf(s, now)}`}>
-                <SessionRow sys={sys} s={s} now={now} badge={`🎮${seat}`} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} onStart={() => startWaiting(s)} />
+                <SessionRow sys={sys} s={s} now={now} badge={`🎮${seat}`} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} onStart={() => startWaiting(s)} onCancel={() => cancelWaiting(s)} />
               </div>
             ) : (
               <div key={seat} className="gx-seat free">
@@ -198,7 +207,7 @@ export function useTimeUpAlarm(running, now, onAlert) {
 const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.waiting ? 'waiting' : s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
 
 // One running session (a PC, or one PS5 controller): customer, times, code for the timer screen, actions.
-function SessionRow({ sys, s, now, badge, onSheet, onPause, onStart }) {
+function SessionRow({ sys, s, now, badge, onSheet, onPause, onStart, onCancel }) {
   const left = minutesLeft(s, now)
   const state = stateOf(s, now)
   const pct = Math.min(100, Math.max(0, 100 - (left / s.minutes) * 100))
@@ -219,7 +228,8 @@ function SessionRow({ sys, s, now, badge, onSheet, onPause, onStart }) {
       <button className="btn small" onClick={() => onSheet('extend')}>Extend</button>
       <button className="btn small" onClick={() => onSheet('move')}>Move</button>
       {!s.waiting && <button className="btn small" onClick={() => onPause(!s.paused_at)}>{s.paused_at ? '▶ Resume' : '⏸ Pause'}</button>}
-      <button className={`btn small ${s.waiting ? '' : 'primary'}`} style={{ marginLeft: 'auto' }} onClick={() => onSheet('end')}>End &amp; collect</button>
+      {s.waiting ? <button className="btn small danger-ghost" style={{ marginLeft: 'auto' }} onClick={onCancel}>Cancel entry</button>
+        : <button className="btn small primary" style={{ marginLeft: 'auto' }} onClick={() => onSheet('end')}>End &amp; collect</button>}
     </div>
   </>)
 }
