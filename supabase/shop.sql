@@ -744,3 +744,7 @@ create or replace function private.who_name(p_uid uuid) returns text language sq
        from auth.users u where u.id = p_uid),
     'Online')
 $$;
+
+-- Owner (13 Oct): details first, clock later. A waiting session holds its PC / controller (status running) but is
+-- paused from the moment it is saved; Slots → ▶ Start timer sets started_at = now, paused_at = null, waiting = false.
+alter table public.shop_sessions add column if not exists waiting boolean not null default false;

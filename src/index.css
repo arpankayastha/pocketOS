@@ -1306,3 +1306,7 @@ html:fullscreen .pill-nav { display: none; }
 }
 .pub-back { justify-self: start; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; font-size: 14px; color: var(--muted); text-decoration: none; padding: 6px 10px 6px 4px; margin: -6px 0 -4px -4px; border-radius: 10px; }
 .pub-back:hover { color: var(--text); background: var(--card-2); }
+/* Start sheet: Cancel · Save · start later · Start now (owner, 13 Oct) */
+.gx-start-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 799px) { .gx-start-actions .btn { flex: 1 1 auto; } .gx-start-actions .btn.ghost { flex: 0 0 auto; } }
+.gx-startnow { margin: 8px 0 2px; min-height: 46px; font-size: 16px; }

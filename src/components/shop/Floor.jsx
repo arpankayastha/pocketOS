@@ -56,11 +56,17 @@ export default function Floor({ shop, householdId, toast, admin }) {
   }
   async function pause(list, on) {
     const t = new Date()
+    list = on ? list : list.filter((x) => !x.waiting) // waiting entries start with ▶ Start timer, not Resume
     const results = await Promise.all(list.map((s) => supabase.from('shop_sessions').update(on
       ? { paused_at: t.toISOString() }
       : { paused_at: null, paused_minutes: Number(s.paused_minutes || 0) + (t - new Date(s.paused_at)) / 60_000 }).eq('id', s.id)))
     const err = results.find((r) => r.error)?.error
     done(err ? err.message : on ? 'Paused · the time left is kept' : 'Resumed')
+  }
+  // Owner (13 Oct): details first, clock later — a waiting entry's time starts now, from its full length.
+  async function startWaiting(s) {
+    const { error } = await supabase.from('shop_sessions').update({ waiting: false, started_at: new Date().toISOString(), paused_at: null, paused_minutes: 0 }).eq('id', s.id)
+    done(error ? error.message : `${s.system_name} started for ${s.customer_name} · ends ${timeLabel(new Date(Date.now() + s.minutes * 60_000))}`)
   }
   if (!shop.systems.length) return <div className="card muted">No systems yet. The admin adds them in ⚙ → Systems & rates.</div>
 
@@ -94,7 +100,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
           )
           return (
             <div key={sys.id} className={`card gx-sys ${stateOf(s, now)}`}>
-              <SessionRow sys={sys} s={s} now={now} badge={sys.name} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} />
+              <SessionRow sys={sys} s={s} now={now} badge={sys.name} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} onStart={() => startWaiting(s)} />
             </div>
           )
         }
@@ -115,7 +121,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
             {playing.length > 1 && (
               <div className="gx-btns">
                 {anyRunning && <button className="btn small" onClick={() => pause(playing.filter((s) => !s.paused_at), true)}>⏸ Pause all</button>}
-                {anyPaused && <button className="btn small" onClick={() => pause(playing.filter((s) => s.paused_at), false)}>▶ Resume all</button>}
+                {anyPaused && playing.some((s) => s.paused_at && !s.waiting) && <button className="btn small" onClick={() => pause(playing.filter((s) => s.paused_at), false)}>▶ Resume all</button>}
               </div>
             )}
             {list.map(({ seat, s }) => s?.shared ? (
@@ -129,7 +135,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
               </div>
             ) : s ? (
               <div key={seat} className={`gx-seat ${stateOf(s, now)}`}>
-                <SessionRow sys={sys} s={s} now={now} badge={`🎮${seat}`} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} />
+                <SessionRow sys={sys} s={s} now={now} badge={`🎮${seat}`} onSheet={(kind) => setSheet({ kind, system: sys, session: s })} onPause={(on) => pause([s], on)} onStart={() => startWaiting(s)} />
               </div>
             ) : (
               <div key={seat} className="gx-seat free">
@@ -184,7 +190,7 @@ export function useTimeUpAlarm(running, now, onAlert) {
 const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
 
 // One running session (a PC, or one PS5 controller): customer, times, code for the timer screen, actions.
-function SessionRow({ sys, s, now, badge, onSheet, onPause }) {
+function SessionRow({ sys, s, now, badge, onSheet, onPause, onStart }) {
   const left = minutesLeft(s, now)
   const state = stateOf(s, now)
   const pct = Math.min(100, Math.max(0, 100 - (left / s.minutes) * 100))
@@ -193,18 +199,19 @@ function SessionRow({ sys, s, now, badge, onSheet, onPause }) {
     <div className="gx-sys-top">
       <span className={`gx-badge ${badge.length > 3 ? 'sm' : ''} ${sys.kind === 'PS' ? 'ps' : ''}`}>{badge}</span>
       <div className="gx-name grow">{s.customer_name}{s.players > 1 ? ` · ${s.players} players` : ''}</div>
-      <span className={`pill gx-pill ${state}`}>{s.paused_at ? `Paused · ${durLabel(left)} left` : left <= 0 ? `Time up ${durLabel(-left)} ago` : `${durLabel(left)} left`}</span>
+      <span className={`pill gx-pill ${s.waiting ? 'ending' : state}`}>{s.waiting ? `Waiting · ${durLabel(s.minutes)}` : s.paused_at ? `Paused · ${durLabel(left)} left` : left <= 0 ? `Time up ${durLabel(-left)} ago` : `${durLabel(left)} left`}</span>
     </div>
     {/* Full width under the name, so it never squeezes beside the time pill. */}
-    <div className="muted small gx-meta">{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s, now))}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''} · <button type="button" className="btn link gx-code" onClick={() => onSheet('timer')}>code <b className="mono">{shortCode(s.id)}</b></button></div>
+    <div className="muted small gx-meta">{s.waiting ? `Not started · entered ${timeLabel(s.started_at)}` : <>{timeLabel(s.started_at)} – {timeLabel(sessionEnd(s, now))}</>}{fnb ? ` · F&B ${rs(fnb)}` : ''}{s.entered_by ? ` · ${byLine(s)}` : ''} · <button type="button" className="btn link gx-code" onClick={() => onSheet('timer')}>code <b className="mono">{shortCode(s.id)}</b></button></div>
     <PaidLine s={s} />
     <div className="gx-bar"><i style={{ width: `${pct}%` }} /></div>
+    {s.waiting && <button className="btn primary block gx-startnow" onClick={onStart}>▶ Start timer</button>}
     <div className="gx-btns">
       <button className="btn small" onClick={() => onSheet('fnb')}>+ F&amp;B</button>
       <button className="btn small" onClick={() => onSheet('extend')}>Extend</button>
       <button className="btn small" onClick={() => onSheet('move')}>Move</button>
-      <button className="btn small" onClick={() => onPause(!s.paused_at)}>{s.paused_at ? '▶ Resume' : '⏸ Pause'}</button>
-      <button className="btn small primary" style={{ marginLeft: 'auto' }} onClick={() => onSheet('end')}>End &amp; collect</button>
+      {!s.waiting && <button className="btn small" onClick={() => onPause(!s.paused_at)}>{s.paused_at ? '▶ Resume' : '⏸ Pause'}</button>}
+      <button className={`btn small ${s.waiting ? '' : 'primary'}`} style={{ marginLeft: 'auto' }} onClick={() => onSheet('end')}>End &amp; collect</button>
     </div>
   </>)
 }
@@ -254,8 +261,10 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
   const owes = key.length > 2 ? duesByCustomer(dues).find((d) => d.key === key) : null
   const toggle = (n) => setPicked((p) => (p.includes(n) ? (p.length > 1 ? p.filter((x) => x !== n) : p) : [...p, n].sort()))
 
-  async function save() {
+  // later = the owner's "details first": the entry holds the PC, its clock starts from the row's ▶ Start timer.
+  async function save(later = false) {
     setBusy(true); setError(null)
+    const t0 = new Date().toISOString()
     const split = (v) => Math.round((v / count) * 100) / 100
     // Cash + online (owner: "₹80 bill, 50 cash and 30 online"): the cash part is shared across the timers.
     const cashShare = pay === 'split' && total > 0 ? Math.min(Number(cashPart) || 0, total) / total : 0
@@ -269,17 +278,20 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
         paid_cash: pay === 'cash' ? g + f : pay === 'split' ? c : 0,
         paid_online: pay === 'online' ? g + f : pay === 'split' ? g + f - c : pay === 'booked' ? split(Number(booking.amount)) : 0,
+        ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
     })
     const { data: created, error } = await supabase.from('shop_sessions').insert(rows).select('id')
     setBusy(false)
     if (error) { setError(error.code === '23505' ? (multi ? `Another controller on ${system.name} can’t start until the database update for controllers is approved. Start one at a time for now.` : `${system.name} is already running.`) : error.message); return }
     if (booking) await supabase.from('shop_bookings').update({ status: 'arrived', session_id: created[0].id }).eq('id', booking.id)
-    onDone(`${system.name}${multi ? ` · controller${count > 1 ? 's' : ''} ${picked.join(', ')}` : ''} started for ${name.trim() || 'walk-in'} · ends ${timeLabel(new Date(Date.now() + mins * 60_000))}`)
+    const where = `${system.name}${multi ? ` · controller${count > 1 ? 's' : ''} ${picked.join(', ')}` : ''}`
+    onDone(later ? `${where} saved for ${name.trim() || 'walk-in'} · press ▶ Start timer when they sit down`
+      : `${where} started for ${name.trim() || 'walk-in'} · ends ${timeLabel(new Date(Date.now() + mins * 60_000))}`)
   }
 
   return (
-    <Sheet title={`Start ${system.name}`} sub={`${timeLabel(now)} – ${timeLabel(now + mins * 60_000)}${happy ? ' · happy hours' : ''}`} onClose={onClose} onSubmit={save}>
+    <Sheet title={`${system.name} · new customer`} sub={`${durLabel(mins)}${happy ? ' · happy hours' : ''} · save now, start the clock when they sit down`} onClose={onClose} onSubmit={() => save(true)}>
       {error && <div className="alert error">{error}</div>}
       {others.length > 1 && (<>
         <div className="caps muted">{first.kind === 'PS' ? 'Console' : 'PC'} · where they sit</div>
@@ -308,7 +320,12 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
         <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : total)} />
         {pay === 'split' && <SumRow label={`Cash ${rs(Math.min(Number(cashPart) || 0, total))} · online`} value={rs(Math.max(0, total - (Number(cashPart) || 0)))} />}
       </div>
-      <SheetActions onClose={onClose} busy={busy} label={count > 1 ? `Start ${count} timers` : 'Start timer'} />
+      {/* Owner: several customers at once — save each entry first, start the clock when they sit down. */}
+      <div className="actions gx-start-actions">
+        <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+        <button type="submit" className="btn primary" disabled={busy}>{busy ? 'Saving…' : 'Save · start later'}</button>
+        <button type="button" className="btn gx-ok" disabled={busy} onClick={() => save(false)}>{count > 1 ? `Start ${count} now` : 'Start now'}</button>
+      </div>
     </Sheet>
   )
 }
