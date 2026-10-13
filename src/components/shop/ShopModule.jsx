@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import Topbar from '../Topbar'
+import Topbar, { MoneyEye } from '../Topbar'
+import { setMoneyMasked, useHideMoney } from '../../lib/privacy'
 import PillNav from '../PillNav'
 import { ListSkeleton } from '../Skeleton'
 import { useBackAction } from '../../lib/backNav'
@@ -16,11 +17,12 @@ import Staff from './Staff'
 import Events from './Events'
 import ShopSettings from './ShopSettings'
 
-// The café itself. Admin: Today · Floor · Events · Cash · Staff. Staff: Shift · Floor · Events · Cash.
+// The café itself. Admin: Slots · Today · Events · Cash · Staff. Staff: Shift · Floor · Events · Cash.
 // ⚙ (top right) holds systems & rates (admin) and each login's own settings.
+// Owner (13 Oct): Slots first — the counter PC opens there, not on the day's takings.
 const ADMIN_TABS = [
-  { id: 'today', label: 'Today', icon: HomeIcon },
   { id: 'floor', label: 'Slots', icon: MonitorIcon },
+  { id: 'today', label: 'Today', icon: HomeIcon },
   { id: 'events', label: 'Events', icon: CalendarIcon },
   { id: 'cash', label: 'Cash', icon: CashIcon },
   { id: 'staff', label: 'Staff', icon: UsersIcon },
@@ -39,6 +41,8 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   const home = tabs[0].id
   const [tab, setTab] = useRouteState(1, home, (v) => v === 'settings' || tabs.some((t) => t.id === v))
   useBackAction(tab !== home, () => setTab(home), 2)
+  const [hideMoney, toggleHideMoney] = useHideMoney()
+  setMoneyMasked(hideMoney && tab === 'today') // amounts on Today stay hidden until the 👁 is tapped
   const [msg, setMsg] = useState(null)
   const timer = useRef(null)
   const toast = useCallback((m) => { setMsg(m); clearTimeout(timer.current); timer.current = setTimeout(() => setMsg(null), 2800) }, [])
@@ -69,17 +73,18 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
 
   return (
     <div className="app">
-      <Topbar {...topbar} title={tab === 'settings' ? 'Settings' : tabs.find((t) => t.id === tab)?.label} onBack={tab === 'settings' ? () => setTab(home) : null} right={
+      <Topbar {...topbar} title={tab === 'settings' ? 'Settings' : tabs.find((t) => t.id === tab)?.label} onBack={tab === 'settings' ? () => setTab(home) : null} right={<>
+        {tab === 'today' && <MoneyEye hidden={hideMoney} onToggle={toggleHideMoney} />}
         <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Shop settings" title="Shop settings"
           onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon /></button>
-      }>
+      </>}>
         <nav className="tabs">
           {tabs.map((t) => (
             <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}><t.icon /> {t.label}</button>
           ))}
         </nav>
       </Topbar>
-      <main className="content fade-in gx" {...swipe}>{body}</main>
+      <main className="content fade-in gx" key={tab === 'today' ? `today-${hideMoney}` : tab} {...swipe}>{body}</main>
       <PillNav tabs={tabs} tab={tab} setTab={setTab} />
       {msg && <div className="toast" role="status">{msg}</div>}
     </div>

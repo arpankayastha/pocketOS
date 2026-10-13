@@ -13,7 +13,8 @@ import { isMember, memberName } from './lib/members'
 import { isCustomer } from './lib/mine'
 import { usePinLock } from './lib/usePinLock'
 import PinLock from './components/PinLock'
-import Topbar, { HouseholdMenu } from './components/Topbar'
+import Topbar, { HouseholdMenu, MoneyEye } from './components/Topbar'
+import { setMoneyMasked, useHideMoney } from './lib/privacy'
 import PillNav from './components/PillNav'
 import { MODULES, SHOP, VAULT } from './lib/modules'
 import { useDialog } from './lib/dialog'
@@ -234,6 +235,8 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   // The "home" tab: where the app opens and where Android back returns to. A member's comes from
   // their login (`startTab`); the owner picks one per household ("Opens on" in the HouseholdSheet).
   const [tab, setTab] = useRouteState(1, startTab, (v) => v === 'settings' || BUDGET_TABS.some((t) => t.id === v))
+  const [hideMoney, toggleHideMoney] = useHideMoney()
+  setMoneyMasked(hideMoney && tab !== 'settings') // Money pages: amounts hidden until the 👁 is tapped
   const [fromAddress] = useState(() => routeHas(1))
   const [fabOpen, setFabOpen] = useState(false)
   const [quickAddKind, setQuickAddKind] = useState(null) // null | 'expense' | 'income' | 'transfer'
@@ -265,6 +268,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
             if (name) data.createHousehold(name)
           }}
           onManage={() => setTab('settings')} />}
+        {tab !== 'settings' && <MoneyEye hidden={hideMoney} onToggle={toggleHideMoney} />}
         <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Accounts & Categories" title="Accounts & Categories"
           onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon /></button>
       </>)}>
@@ -276,7 +280,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
           ))}
         </nav>
       </Topbar>
-      <main className="content fade-in">
+      <main className="content fade-in" key={`money-${hideMoney}`}>
         {data.error && <div className="alert error">Database error: {data.error}. Did you run <code>supabase/schema.sql</code>?</div>}
         {data.loading ? (tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />) : (
           <Suspense fallback={tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />}>

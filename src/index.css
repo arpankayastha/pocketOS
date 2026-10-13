@@ -1321,3 +1321,9 @@ html:fullscreen .pill-nav { display: none; }
 .home-social a { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgb(0 0 0 / .45); border: 1px solid rgb(255 255 255 / .25); backdrop-filter: blur(6px); }
 .home-social a:hover { background: var(--accent-bg); border-color: var(--accent-bg); }
 @media (min-width: 760px) { .home-social { top: 20px; right: 32px; } }
+/* 👁 hide / show amounts (Today, Money): labelled in the laptop sidebar */
+@media (min-width: 960px) {
+  .topbar-right .money-eye::after { content: 'Show amounts'; font-size: 15px; }
+  .topbar-right .money-eye.on::after { content: 'Hide amounts'; }
+}
+.btn.icon.money-eye.on { color: var(--accent); }

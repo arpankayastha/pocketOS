@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { BrandMark, ChevronDownIcon, CheckIcon, PlusIcon, SettingsIcon } from '../lib/icons'
+import { BrandMark, ChevronDownIcon, CheckIcon, EyeIcon, PlusIcon, SettingsIcon } from '../lib/icons'
 import { MODULES } from '../lib/modules'
 import { householdColor } from '../lib/colors'
 
@@ -114,4 +114,13 @@ export function HouseholdMenu({ households, activeId, onSelect, onCreate, onMana
 
 function ChevronLeft() {
   return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+}
+
+// 👁 on Today and the Money pages (owner, 13 Oct): amounts show as "₹ •••" until tapped (lib/privacy.js).
+export function MoneyEye({ hidden, onToggle }) {
+  return (
+    <button className={`btn icon settings-btn money-eye ${hidden ? '' : 'on'}`} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} title={hidden ? 'Show amounts' : 'Hide amounts'} onClick={onToggle}>
+      <EyeIcon off={hidden} />
+    </button>
+  )
 }

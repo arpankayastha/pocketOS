@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { MASK, moneyMasked } from './privacy'
 
 // Shop module data: systems, rate card, today's sessions, counter cash, open shifts — with a
 // realtime subscription so every phone's Floor stays in step. See supabase/shop.sql.
@@ -14,7 +15,7 @@ export const durLabel = (m) => {
   return h ? `${h}h${r ? ` ${r}m` : ''}` : `${r} min`
 }
 // Whole rupees: the counter never deals in paise.
-export const rs = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`
+export const rs = (n) => (moneyMasked() ? MASK : `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`)
 export const hoursLabel = (m) => `${(m / 60).toFixed(1)} h`
 export const timeLabel = (d) => new Date(d).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).replace(' ', ' ')
 export const dayLabel = (d) => new Date(d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })

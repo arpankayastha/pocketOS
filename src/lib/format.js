@@ -1,3 +1,4 @@
+import { MASK, moneyMasked } from './privacy'
 const currency = import.meta.env.VITE_CURRENCY || 'INR'
 const locale = import.meta.env.VITE_LOCALE || 'en-IN'
 
@@ -5,11 +6,12 @@ const locale = import.meta.env.VITE_LOCALE || 'en-IN'
 const fmt = new Intl.NumberFormat(locale, { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtShort = new Intl.NumberFormat(locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 })
 
-export const money = (n) => fmt.format(Number(n) || 0)
+export const money = (n) => (moneyMasked() ? MASK : fmt.format(Number(n) || 0))
 // ICU's en-IN compact form writes thousands as "T" (₹40T); use the familiar K / L / Cr instead.
 const fmtPlain = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 })
 const symbol = fmt.formatToParts(0).find((p) => p.type === 'currency')?.value || ''
 export const moneyShort = (n) => {
+  if (moneyMasked()) return MASK
   const v = Number(n) || 0
   if (locale !== 'en-IN') return fmtShort.format(v)
   const a = Math.abs(v), sign = v < 0 ? '-' : ''
