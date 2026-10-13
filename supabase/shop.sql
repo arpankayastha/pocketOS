@@ -847,3 +847,7 @@ create or replace function public.push_drop(p_endpoints text[]) returns void lan
 $$;
 revoke execute on function public.push_drop(text[]) from public, anon, authenticated;
 select cron.schedule('push-alerts', '30 seconds', $$select net.http_post(url := 'https://mziclowcokswuulqifbj.supabase.co/functions/v1/push-alerts', body := '{}'::jsonb, timeout_milliseconds := 20000)$$);
+
+-- Owner (13 Oct): staff also get the ✕ in the customer drop-down (migration staff_hide_customer).
+create policy "staff writes" on public.shop_customer_hidden for insert to authenticated
+  with check (household_id in (select private.my_household_ids()));

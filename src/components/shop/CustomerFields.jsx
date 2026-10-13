@@ -7,8 +7,6 @@ import { useDialog } from '../../lib/dialog'
 // a mobile; tap a row to fill both. From rpc shop_customer_search (sessions, bookings, deposits, sign-ups).
 export default function CustomerFields({ householdId, name, setName, phone, setPhone, autoFocus, phonePlaceholder = 'Optional', required }) {
   const dialog = useDialog()
-  const [admin, setAdmin] = useState(false)
-  useEffect(() => { supabase.auth.getSession().then(({ data }) => setAdmin(data.session?.user?.app_metadata?.role === 'admin')) }, [])
   const [rows, setRows] = useState([])
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -22,11 +20,11 @@ export default function CustomerFields({ householdId, name, setName, phone, setP
     }, 200)
     return () => clearTimeout(t)
   }, [q, open, householdId])
-  // Admin: take a wrong / duplicate number out of the list (old visits stay in the records).
+  // Admin and staff (owner, 13 Oct): take a wrong / duplicate number out of the list (old visits stay in the records).
   async function hide(r) {
     if (!await dialog.confirm({ title: `Remove ${r.name} ${r.phone} from the list?`, message: 'It stops showing in the customer list. Their past visits stay in the records.', confirmLabel: 'Remove', danger: true })) return
     const { error } = await supabase.from('shop_customer_hidden').insert({ household_id: householdId, phone: r.phone })
-    if (!error) setRows((x) => x.filter((y) => y.phone !== r.phone))
+    if (error) dialog.alert({ title: 'Couldn’t remove', message: error.message }); else setRows((x) => x.filter((y) => y.phone !== r.phone))
   }
   const pick = (r) => { picked.current = true; setName(r.name); setPhone(r.phone); setOpen(false); setRows([]) }
   const ago = (d) => {
@@ -39,8 +37,8 @@ export default function CustomerFields({ householdId, name, setName, phone, setP
         <button type="button" key={r.phone} className="gx-cust-row" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(r)}>
           <span className="grow"><b>{r.name}</b> <span className="mono">{r.phone}</span></span>
           <span className="muted small">{r.visits} visit{r.visits === 1 ? '' : 's'} · {ago(r.last)}</span>
-          {admin && <span role="button" tabIndex={0} className="gx-cust-x" aria-label={`Remove ${r.name} from the list`} title="Remove from list"
-            onClick={(e) => { e.stopPropagation(); hide(r) }}>✕</span>}
+          <span role="button" tabIndex={0} className="gx-cust-x" aria-label={`Remove ${r.name} from the list`} title="Remove from list"
+            onClick={(e) => { e.stopPropagation(); hide(r) }}>✕</span>
         </button>
       ))}
     </div>
