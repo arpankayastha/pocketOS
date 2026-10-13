@@ -182,16 +182,16 @@ function HomePage({ shop, householdId, toast }) {
   )
 }
 
-// Owner (13 Oct): Instagram / Facebook / YouTube icons in the home page's top corner; empty = hidden.
+// Owner (13 Oct): Instagram / Facebook / YouTube / WhatsApp community icons in the home page's top corner; empty = hidden.
 function SocialLinks({ shop, householdId, toast }) {
   const st = shop.settings || {}
-  const [v, setV] = useState({ instagram_url: st.instagram_url || '', facebook_url: st.facebook_url || '', youtube_url: st.youtube_url || '' })
+  const [v, setV] = useState({ instagram_url: st.instagram_url || '', facebook_url: st.facebook_url || '', youtube_url: st.youtube_url || '', whatsapp_url: st.whatsapp_url || '' })
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setV({ ...v, [k]: e.target.value })
   const fix = (u) => { u = u.trim(); return !u ? null : /^https?:\/\//i.test(u) ? u : `https://${u}` }
   async function save(e) {
     e.preventDefault(); setBusy(true)
-    const { error } = await supabase.from('shop_settings').upsert({ household_id: householdId, instagram_url: fix(v.instagram_url), facebook_url: fix(v.facebook_url), youtube_url: fix(v.youtube_url), updated_at: new Date().toISOString() })
+    const { error } = await supabase.from('shop_settings').upsert({ household_id: householdId, instagram_url: fix(v.instagram_url), facebook_url: fix(v.facebook_url), youtube_url: fix(v.youtube_url), whatsapp_url: fix(v.whatsapp_url), updated_at: new Date().toISOString() })
     setBusy(false)
     if (error) toast(error.message); else { toast('Social links saved'); shop.reload() }
   }
@@ -201,6 +201,7 @@ function SocialLinks({ shop, householdId, toast }) {
       <label>Instagram<input value={v.instagram_url} onChange={set('instagram_url')} placeholder="instagram.com/grandxgamer" inputMode="url" /></label>
       <label>Facebook<input value={v.facebook_url} onChange={set('facebook_url')} placeholder="facebook.com/…" inputMode="url" /></label>
       <label>YouTube<input value={v.youtube_url} onChange={set('youtube_url')} placeholder="youtube.com/@…" inputMode="url" /></label>
+      <label>WhatsApp community<input value={v.whatsapp_url} onChange={set('whatsapp_url')} placeholder="chat.whatsapp.com/… (invite link)" inputMode="url" /></label>
       <button className="btn small primary" style={{ justifySelf: 'start' }} disabled={busy}>{busy ? 'Saving…' : 'Save links'}</button>
     </form>
   )

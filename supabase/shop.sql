@@ -752,3 +752,4 @@ alter table public.shop_sessions add column if not exists waiting boolean not nu
 -- Owner (13 Oct): Instagram / Facebook / YouTube icons on the home page; links in ⚙ → Home page. public_home
 -- returns them as 'social' (migration home_social_links re-created public_home with that one extra key).
 alter table public.shop_settings add column if not exists instagram_url text, add column if not exists facebook_url text, add column if not exists youtube_url text;
+alter table public.shop_settings add column if not exists whatsapp_url text; -- WhatsApp community link (13 Oct; public_home 'social'.whatsapp)
