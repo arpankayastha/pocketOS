@@ -6,7 +6,7 @@ import { rememberMine } from '../lib/mine'
 import PublicNav from './PublicNav'
 import ContactFields from './ContactFields'
 
-// Public booking page (/#book) — what the "Scan to book" banner at the shop opens. No login: the page only
+// Public booking page (/#book) — from the home page's Book your slots (the counter banner's QR opens the home page). No login: the page only
 // talks to public_shop_info / public_availability / public_book (security definer, checked on the server).
 // Customers book a PC or the PS5 for today or tomorrow, pay the full amount by UPI (advance, non-refundable),
 // and staff confirm the request on the Floor once the payment shows up.

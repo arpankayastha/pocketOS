@@ -144,7 +144,7 @@ function RateSheet({ householdId, happy, onClose, onDone }) {
   )
 }
 
-// Online booking: the public page /#book (what the shop's "Scan to book" banner opens), its on/off switch
+// Online booking: the public page /#book (linked from the home page), its on/off switch
 // and shop hours (booking times run from opening to closing), plus the printable banner /#poster.
 // The public home page (the café's own link): owner's photo behind "Welcome to GRANDXGAMER", booking,
 // events (pictures are set per event in Events) and jobs.
@@ -264,7 +264,7 @@ function OnlineBooking({ shop, householdId, toast }) {
         <button className="btn small ghost" onClick={() => navigator.clipboard?.writeText(link).then(() => toast('Booking link copied'), () => toast(link))}>Copy</button>
         <a className="btn small ghost" href={link} target="_blank" rel="noreferrer">Open</a>
       </div>
-      <a className="btn block" href={`${location.origin}/#poster`} target="_blank" rel="noreferrer">“Scan to book” banner · print / PDF</a>
+      <a className="btn block" href={`${location.origin}/#poster`} target="_blank" rel="noreferrer">Counter banner (QR to the home page) · print / PDF</a>
     </Collapsible>
   )
 }
