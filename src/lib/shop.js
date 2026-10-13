@@ -103,7 +103,8 @@ export function useShop(householdId) {
       supabase.from('shop_cash').select('*').eq('household_id', householdId).gte('at', from).order('at', { ascending: false }),
       supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status, payment_ok, entered_by').eq('household_id', householdId).gte('created_at', from).gt('advance_paid', 0),
       supabase.from('shop_shifts').select('*').eq('household_id', householdId).is('clock_out', null),
-      supabase.from('shop_deposits').select('*').eq('household_id', householdId).eq('month', monthStart()).order('created_at', { ascending: false }),
+      // Deposits carry over from month to month until used (owner, 13 Oct: "many customers can't use it in time").
+      supabase.from('shop_deposits').select('*').eq('household_id', householdId).order('created_at', { ascending: false }).limit(2000),
       supabase.from('shop_settings').select('*').eq('household_id', householdId).maybeSingle(),
       supabase.from('shop_bookings').select('*').eq('household_id', householdId).in('status', ['requested', 'confirmed'])
         .gte('starts_at', new Date(Date.now() - 3 * 3600_000).toISOString()).order('starts_at'),

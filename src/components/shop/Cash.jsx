@@ -60,7 +60,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
     if (err) toast(err.message); else { toast(`${r.name}’s dues cleared`); shop.reload() }
   }
   async function clearDeposit(r) {
-    if (!await dialog.confirm({ title: `Clear ${r.name}’s deposit?`, message: `All of this month's deposit entries for them are deleted (${rs(r.balance)} left now).`, confirmLabel: 'Clear deposit', danger: true })) return
+    if (!await dialog.confirm({ title: `Clear ${r.name}’s deposit?`, message: `All of their deposit entries are deleted (${rs(r.balance)} left now).`, confirmLabel: 'Clear deposit', danger: true })) return
     const ids = (shop.deposits || []).filter((d) => customerKey(d.customer_name, d.customer_phone) === r.key).map((d) => d.id)
     const { error } = await supabase.from('shop_deposits').delete().in('id', ids)
     if (error) toast(error.message); else { toast('Deposit cleared'); shop.reload() }
@@ -154,15 +154,15 @@ function CashSheet({ kind, categories, plan, householdId, onClose, onDone }) {
   )
 }
 
-// Customer deposits (owner's rule): paid ahead, used on later visits within the same month, then they lapse.
+// Customer deposits: paid ahead, used on later visits — kept from month to month until used (owner, 13 Oct;
+// they used to lapse at month end).
 // Not refundable. Used from the End sheet on the Floor.
 function Deposits({ shop, onAdd, onClear }) {
   const rows = depositBalances(shop.deposits || [])
-  const month = new Date().toLocaleDateString('en-IN', { month: 'long' })
   return (
     <div className="card">
-      <div className="card-head"><h3>Deposits · {month}</h3><button className="btn small" onClick={onAdd}>+ Deposit</button></div>
-      {rows.length === 0 ? <div className="muted small">No deposits left this month. A deposit can be used on any visit until the month ends.</div> : rows.map((r) => (
+      <div className="card-head"><h3>Deposits</h3><button className="btn small" onClick={onAdd}>+ Deposit</button></div>
+      {rows.length === 0 ? <div className="muted small">No deposits with money left. A deposit stays until it's used, even into next month.</div> : rows.map((r) => (
         <div key={r.key} className="line">
           <div className="grow"><div className="gx-ellipsis">{r.name}</div>{r.phone && <div className="muted small">{r.phone}</div>}</div>
           <b className="pos">{rs(r.balance)}</b>
@@ -188,7 +188,7 @@ function DepositSheet({ settings, householdId, onClose, onDone }) {
     onDone(`${rs(amount)} deposit saved for ${name.trim()}`)
   }
   return (
-    <Sheet title="Customer deposit" sub="Paid in advance, not refundable. Used on their next visits this month; whatever is left lapses at month end." onClose={onClose} onSubmit={save}>
+    <Sheet title="Customer deposit" sub="Paid in advance, not refundable. Used on their next visits; whatever is left carries over to next month." onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
       <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} autoFocus required phonePlaceholder="To match them later" />
       <label>Amount (₹)<input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
