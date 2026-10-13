@@ -7,6 +7,7 @@ import { Chips, Sheet, SheetActions } from './ui'
 import { uploadShopImage } from '../../lib/media'
 import Passkeys from '../Passkeys'
 import { PinSettings } from '../PinLock'
+import { disablePush, enablePush, isIos, isStandalone, pushState, testPush } from '../../lib/push'
 
 // Shop ⚙: systems and the rate card (admin), then the per-login cards everyone has.
 export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, pinLock, toast }) {
@@ -207,19 +208,33 @@ function SocialLinks({ shop, householdId, toast }) {
   )
 }
 
-// Alerts for new online bookings / payments: on every phone with the app open (owner's request).
+// Phone alerts (owner, 13 Oct): lock-screen notifications even when the app is closed — 5 min left, time up,
+// new online bookings / payments to check (web push, lib/push.js → push-alerts function every 30 s).
+// The in-app beep + toast still work while the app is open.
 function PaymentAlerts({ toast }) {
-  const supported = typeof Notification !== 'undefined'
-  const [perm, setPerm] = useState(supported ? Notification.permission : 'unsupported')
-  async function enable() {
-    try { const p = await Notification.requestPermission(); setPerm(p); toast(p === 'granted' ? 'Payment alerts are on for this phone' : 'Notifications are blocked in the browser settings') } catch (e) { toast(e.message) }
+  const [state, setState] = useState(null) // on | off | blocked | unsupported
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { pushState().then(setState).catch(() => setState('unsupported')) }, [])
+  const needsInstall = isIos() && !isStandalone()
+  async function turn(on) {
+    setBusy(true)
+    try { if (on) await enablePush(); else await disablePush(); toast(on ? 'Lock-screen alerts are on for this phone' : 'Lock-screen alerts are off for this phone') }
+    catch (e) { toast(e.message) }
+    setState(await pushState().catch(() => 'unsupported')); setBusy(false)
   }
   return (
-    <Collapsible id="gx-alerts" title="Payment alerts" summary={perm === 'granted' ? 'On for this phone' : 'Off for this phone'}>
-      <p className="muted small" style={{ marginTop: 0 }}>When a customer books or enters online, every phone with GRANDXGAMER open beeps and shows it. Check the UPI app, then tap Received or Not received in Slots.</p>
-      {perm === 'granted' ? <div className="small pos">Phone notifications are on.</div>
-        : perm === 'unsupported' ? <div className="small muted">This browser can’t show notifications; the in-app alert still shows.</div>
-        : <button className="btn small primary" onClick={enable}>Turn on phone notifications</button>}
+    <Collapsible id="gx-alerts" title="Phone alerts" summary={state === 'on' ? 'Lock-screen alerts on for this phone' : 'Off for this phone'}>
+      <p className="muted small" style={{ marginTop: 0 }}>On the lock screen, even with the app closed: <b>5 minutes left</b> and <b>time up</b> for every PC and PS5 controller, and <b>new online bookings / payments to check</b>. Turn it on on each staff phone.</p>
+      {state === 'on' ? (<>
+        <div className="small pos">On for this phone.</div>
+        <div className="gx-btns">
+          <button className="btn small" disabled={busy} onClick={() => testPush().then(() => toast('Test sent — lock the phone to see it')).catch((e) => toast(e.message))}>Send a test alert</button>
+          <button className="btn small ghost" disabled={busy} onClick={() => turn(false)}>Turn off on this phone</button>
+        </div>
+      </>) : needsInstall ? <div className="small muted">On iPhone: open the site in Safari → Share → <b>Add to Home Screen</b>, open GRANDXGAMER from the home screen, then turn this on.</div>
+        : state === 'unsupported' ? <div className="small muted">This browser can’t show lock-screen alerts. Use Chrome on Android.</div>
+        : state === 'blocked' ? <div className="small neg">Notifications are blocked for this site. Allow them in the browser's site settings, then come back.</div>
+        : <button className="btn small primary" disabled={busy || state === null} onClick={() => turn(true)}>{busy ? 'Turning on…' : 'Turn on lock-screen alerts'}</button>}
     </Collapsible>
   )
 }

@@ -753,3 +753,97 @@ alter table public.shop_sessions add column if not exists waiting boolean not nu
 -- returns them as 'social' (migration home_social_links re-created public_home with that one extra key).
 alter table public.shop_settings add column if not exists instagram_url text, add column if not exists facebook_url text, add column if not exists youtube_url text;
 alter table public.shop_settings add column if not exists whatsapp_url text; -- WhatsApp community link (13 Oct; public_home 'social'.whatsapp)
+
+-- ===== Lock-screen alerts (13 Oct; migrations lock_screen_push, push_alerts_cron) =====
+-- The VAPID private key was stored with vault.create_secret(<key>, 'vapid_private') outside migrations; never commit it.
+-- Lock-screen alerts (owner, 13 Oct): web push to staff / admin phones even with the app closed.
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+create table if not exists public.push_subscriptions (
+  endpoint text primary key,
+  household_id uuid not null references public.households(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  p256dh text not null, auth text not null, device text,
+  created_at timestamptz not null default now(), disabled_at timestamptz
+);
+alter table public.push_subscriptions enable row level security;
+create policy "own subscriptions" on public.push_subscriptions for select to authenticated using (user_id = (select auth.uid()));
+create index if not exists push_subscriptions_household_idx on public.push_subscriptions (household_id) where disabled_at is null;
+
+alter table public.shop_sessions add column if not exists push_5_at timestamptz, add column if not exists push_0_at timestamptz;
+alter table public.shop_bookings add column if not exists push_at timestamptz;
+alter table public.shop_event_bookings add column if not exists push_at timestamptz;
+alter table public.shop_entries add column if not exists push_at timestamptz;
+
+-- This phone: save / switch off its push subscription (staff and admins of the shop only).
+create or replace function public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_device text, p_on boolean default true)
+returns void language plpgsql security definer set search_path = '' as $$
+declare h uuid := (select x from private.my_household_ids() x limit 1);
+begin
+  if h is null then raise exception 'Staff and admins only.'; end if;
+  insert into public.push_subscriptions (endpoint, household_id, user_id, p256dh, auth, device, disabled_at)
+  values (p_endpoint, h, auth.uid(), p_p256dh, p_auth, left(p_device, 80), case when p_on then null else now() end)
+  on conflict (endpoint) do update set household_id = excluded.household_id, user_id = excluded.user_id, p256dh = excluded.p256dh,
+    auth = excluded.auth, device = excluded.device, disabled_at = excluded.disabled_at;
+end $$;
+revoke execute on function public.save_push_subscription(text, text, text, text, boolean) from public, anon;
+grant execute on function public.save_push_subscription(text, text, text, text, boolean) to authenticated;
+
+-- VAPID keys: the private one lives only in the vault; push_config is for the push-alerts function (service role).
+create or replace function public.push_config() returns jsonb language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object('public', 'BDB7ggd8ragGp4KthqSfV4nX8NzVvli0FkK4XIkGhceVEo4WXZU_foxi3AajxPG9kZeaXyPfI2YBryzEfwMSEJw',
+    'private', (select decrypted_secret from vault.decrypted_secrets where name = 'vapid_private' limit 1))
+$$;
+revoke execute on function public.push_config() from public, anon, authenticated;
+
+-- What is due now, marked as sent in the same step (so a push never repeats): 5 min left, time up,
+-- new online bookings / event advances / tournament entries to check. One row per alert × phone.
+create or replace function public.push_due() returns jsonb language plpgsql security definer set search_path = '' as $$
+declare alerts jsonb := '[]';
+begin
+  with five as (
+    update public.shop_sessions s set push_5_at = now()
+    where s.status = 'running' and not s.waiting and s.paused_at is null and s.push_5_at is null and s.minutes > 5
+      and private.session_end(s) - interval '5 minutes' <= now() and private.session_end(s) > now()
+    returning s.household_id, s.id, s.system_name, s.seat, s.customer_name),
+  up as (
+    update public.shop_sessions s set push_0_at = now()
+    where s.status = 'running' and not s.waiting and s.paused_at is null and s.push_0_at is null
+      and private.session_end(s) <= now() and private.session_end(s) > now() - interval '10 minutes'
+    returning s.household_id, s.id, s.system_name, s.seat, s.customer_name),
+  bk as (
+    update public.shop_bookings b set push_at = now()
+    where b.status = 'requested' and b.push_at is null and b.created_at > now() - interval '2 hours'
+    returning b.household_id, b.id, b.kind, b.starts_at, b.customer_name, b.amount),
+  ev as (
+    update public.shop_event_bookings b set push_at = now()
+    where b.source = 'online' and b.payment_ok = false and b.push_at is null and b.created_at > now() - interval '2 hours'
+    returning b.household_id, b.id, b.customer_name, b.advance_paid),
+  en as (
+    update public.shop_entries x set push_at = now()
+    where x.status = 'requested' and x.push_at is null and x.created_at > now() - interval '2 hours'
+    returning x.household_id, x.id, x.name),
+  a as (
+    select household_id, '5 minutes left · ' || system_name || case when system_name like 'PS%' then ' controller ' || coalesce(seat, 1) else '' end as title,
+      customer_name || ' has 5 minutes left' as body, 'end-' || id as tag, false as urgent from five
+    union all select household_id, 'Time up · ' || system_name || case when system_name like 'PS%' then ' controller ' || coalesce(seat, 1) else '' end,
+      customer_name || '''s time is over — extend or end', 'end-' || id, true from up
+    union all select household_id, 'New online booking · ' || case when kind = 'PS' then 'PS5' else 'PC' end,
+      customer_name || ' · ' || to_char(starts_at at time zone 'Asia/Kolkata', 'DD Mon HH12:MI am') || ' · ₹' || round(amount) || ' — check the UPI payment', 'bk-' || id, true from bk
+    union all select household_id, 'New event booking', customer_name || ' · advance ₹' || round(advance_paid) || ' — check the UPI payment', 'ev-' || id, true from ev
+    union all select household_id, 'New tournament entry', name || ' — confirm in Slots', 'en-' || id, true from en)
+  select coalesce(jsonb_agg(jsonb_build_object('endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth,
+      'title', a.title, 'body', a.body, 'tag', a.tag, 'urgent', a.urgent)), '[]')
+    into alerts
+  from a join public.push_subscriptions p on p.household_id = a.household_id and p.disabled_at is null;
+  return alerts;
+end $$;
+revoke execute on function public.push_due() from public, anon, authenticated;
+
+-- Phones that the push service says are gone (uninstalled / permission revoked).
+create or replace function public.push_drop(p_endpoints text[]) returns void language sql security definer set search_path = '' as $$
+  update public.push_subscriptions set disabled_at = now() where endpoint = any(p_endpoints)
+$$;
+revoke execute on function public.push_drop(text[]) from public, anon, authenticated;
+select cron.schedule('push-alerts', '30 seconds', $$select net.http_post(url := 'https://mziclowcokswuulqifbj.supabase.co/functions/v1/push-alerts', body := '{}'::jsonb, timeout_milliseconds := 20000)$$);
