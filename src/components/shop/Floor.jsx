@@ -12,7 +12,7 @@ import CustomerFields from './CustomerFields'
 // A PS5 has one row per controller (owner: each controller is a separate customer with its own timer; start
 // them together or one later). Pause / Resume (technical failure) stops the clock, so no one loses time.
 // Replaces the sheet's rows (Name, System, Time in/out, F&B, Extend, Total, Payment mode).
-export default function Floor({ shop, householdId, toast, admin }) {
+export default function Floor({ shop, householdId, toast }) {
   const now = useNow(10_000)
   const [sheet, setSheet] = useState(null) // { kind: 'start'|'fnb'|'extend'|'end', system, session, seats }
   const running = shop.sessions.filter((s) => s.status === 'running')
@@ -38,8 +38,8 @@ export default function Floor({ shop, householdId, toast, admin }) {
   const totalSeats = shop.systems.reduce((a, x) => a + working(x), 0)
   const busySeats = shop.systems.reduce((a, x) => a + (working(x) - freeSeats(x).length), 0)
   async function setOff(sys, n, isOff) {
-    const next = isOff ? [...new Set([...(sys.off_seats || []), n])] : (sys.off_seats || []).filter((k) => k !== n)
-    const { error } = await supabase.from('shop_systems').update({ off_seats: next }).eq('id', sys.id)
+    // Staff and admin (owner, 13 Oct): rpc set_seat_off changes only this controller's out-of-order flag.
+    const { error } = await supabase.rpc('set_seat_off', { p_system: sys.id, p_seat: n, p_off: isOff })
     done(error ? error.message : isOff ? `Controller ${n} marked out of order` : `Controller ${n} is back in use`)
   }
   const close = () => setSheet(null)
@@ -139,7 +139,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
             ) : off(sys, seat) ? (
               <div key={seat} className="gx-seat">
                 <div className="gx-sys-top"><span className="gx-badge sm">🎮{seat}</span><div className="grow muted small">Controller {seat} · out of order</div>
-                  {admin && <button className="btn small ghost" onClick={() => setOff(sys, seat, false)}>Back in use</button>}</div>
+                  <button className="btn small ghost" onClick={() => setOff(sys, seat, false)}>Back in use</button></div>
               </div>
             ) : s ? (
               <div key={seat} className={`gx-seat ${stateOf(s, now)}`}>
@@ -150,7 +150,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
                 <div className="gx-sys-top">
                   <span className="gx-badge sm">🎮{seat}</span>
                   <div className="grow"><span className="gx-free">Controller {seat} free</span></div>
-                  {admin && <button className="btn small ghost" onClick={() => setOff(sys, seat, true)} title="Mark out of order">Out of order</button>}
+                  <button className="btn small ghost" onClick={() => setOff(sys, seat, true)} title="Mark out of order">Out of order</button>
                   <button className="btn small gx-ok" onClick={() => setSheet({ kind: 'start', system: sys, seats: [seat] })}>Start</button>
                 </div>
               </div>

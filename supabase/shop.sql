@@ -851,3 +851,20 @@ select cron.schedule('push-alerts', '30 seconds', $$select net.http_post(url := 
 -- Owner (13 Oct): staff also get the ✕ in the customer drop-down (migration staff_hide_customer).
 create policy "staff writes" on public.shop_customer_hidden for insert to authenticated
   with check (household_id in (select private.my_household_ids()));
+
+-- Owner (13 Oct): staff can mark a PS5 controller out of order / back in use (migration staff_controller_out_of_order).
+-- Only off_seats changes; systems and rates stay admin-only.
+create or replace function public.set_seat_off(p_system uuid, p_seat int, p_off boolean) returns int[]
+language plpgsql security definer set search_path = '' as $$
+declare v int[];
+begin
+  update public.shop_systems y set off_seats = case when p_off
+      then (select array_agg(distinct x order by x) from unnest(coalesce(y.off_seats, '{}') || p_seat) x)
+      else array_remove(coalesce(y.off_seats, '{}'), p_seat) end
+  where y.id = p_system and y.household_id in (select private.my_household_ids()) and p_seat between 1 and coalesce(y.seats, 1)
+  returning y.off_seats into v;
+  if not found then raise exception 'Not your shop, or no such controller.'; end if;
+  return v;
+end $$;
+revoke execute on function public.set_seat_off(uuid, int, boolean) from public, anon;
+grant execute on function public.set_seat_off(uuid, int, boolean) to authenticated;
