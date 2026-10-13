@@ -169,10 +169,10 @@ export default function Floor({ shop, householdId, toast }) {
       })}
       {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
-      {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} onClose={close} onDone={done} />}
+      {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} settings={shop.settings} onClose={close} onDone={done} />}
       {sheet?.kind === 'timer' && <TimerCodeSheet session={sheet.session} onClose={close} />}
       {sheet?.kind === 'move' && <MoveSheet session={sheet.session} systems={shop.systems} freeOf={freeSeats} onClose={close} onDone={done} />}
-      {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} onClose={close} onDone={done} />}
+      {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} settings={shop.settings} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
       </>)}
     </section>
@@ -348,40 +348,52 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
   )
 }
 
-function FnbSheet({ session, onClose, onDone }) {
+// Pay for an add-on now or at the end (owner, 13 Oct: "customer paid online but it showed ₹50 to collect").
+const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online']]
+const paidPatch = (session, pay, value) => pay === 'cash' ? { paid_cash: Number(session.paid_cash) + value }
+  : pay === 'online' ? { paid_online: Number(session.paid_online) + value } : {}
+const payNote = (pay) => pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
+
+function FnbSheet({ session, settings, onClose, onDone }) {
   const [amt, setAmt] = useState(20)
   const [custom, setCustom] = useState('')
+  const [pay, setPay] = useState('end')
   const [busy, setBusy] = useState(false)
   const value = custom ? Number(custom) : amt
   async function save() {
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').update({ fnb_while: Number(session.fnb_while) + value }).eq('id', session.id)
+    const { error } = await supabase.from('shop_sessions').update({ fnb_while: Number(session.fnb_while) + value, ...paidPatch(session, pay, value) }).eq('id', session.id)
     setBusy(false)
     if (error) { onDone(error.message); return }
-    onDone(`${rs(value)} F&B added to ${session.system_name}`)
+    onDone(`${rs(value)} F&B added to ${session.system_name}${payNote(pay)}`)
   }
   return (
-    <Sheet title={`F&B · ${session.system_name}`} sub={`${session.customer_name} · added to the bill, paid at the end`} onClose={onClose} onSubmit={save}>
+    <Sheet title={`F&B · ${session.system_name}`} sub={`${session.customer_name} · added to the bill`} onClose={onClose} onSubmit={save}>
       <Chips scroll options={FNB.slice(1)} value={custom ? null : amt} onChange={(v) => { setAmt(v); setCustom('') }} />
       <label>Other amount<input inputMode="numeric" value={custom} onChange={(e) => setCustom(e.target.value.replace(/\D/g, ''))} placeholder="₹" /></label>
+      <div className="caps muted">Payment</div>
+      <Chips options={PAY_NOW} value={pay} onChange={setPay} />
+      {pay === 'online' && value > 0 && <UpiQrButton settings={settings} amount={value} note={`${session.system_name} F&B · ${session.customer_name}`} />}
       <SheetActions onClose={onClose} busy={busy} disabled={!(value > 0)} label={`Add ${rs(value || 0)}`} />
     </Sheet>
   )
 }
 
-function ExtendSheet({ system, session, rates, onClose, onDone }) {
+// Owner (13 Oct): each extension is charged on its own from the rate card — +30 min is ₹50 every time
+// (before, the 2nd +30 min came to ₹30 because it was "2 h price − 1 h 30 m price").
+function ExtendSheet({ system, session, rates, settings, onClose, onDone }) {
   const [add, setAdd] = useState(30)
+  const [pay, setPay] = useState('end')
   const [busy, setBusy] = useState(false)
   const minutes = session.minutes + add
-  const extend = Math.max(0, priceFor(rates, system.kind, minutes, session.happy) * (session.players || 1) - Number(session.gaming_amount))
-  const extra = extend - Number(session.extend_amount)
+  const extra = priceFor(rates, system.kind, add, session.happy) * (session.players || 1)
   const newEnd = sessionEnd({ ...session, minutes })
   async function save() {
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: extend }).eq('id', session.id)
+    const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: Number(session.extend_amount) + extra, ...paidPatch(session, pay, extra) }).eq('id', session.id)
     setBusy(false)
     if (error) { onDone(error.message); return }
-    onDone(`${session.system_name} now ends ${timeLabel(newEnd)}`)
+    onDone(`${session.system_name} now ends ${timeLabel(newEnd)} · +${rs(extra)}${payNote(pay)}`)
   }
   return (
     <Sheet title={`Extend ${session.system_name}`} sub={`${session.customer_name} · now ends ${timeLabel(sessionEnd(session))}`} onClose={onClose} onSubmit={save}>
@@ -390,6 +402,9 @@ function ExtendSheet({ system, session, rates, onClose, onDone }) {
         <SumRow label="New end" value={timeLabel(newEnd)} />
         <SumRow strong label="Extend amount" value={`+${rs(extra)}`} />
       </div>
+      <div className="caps muted">Payment</div>
+      <Chips options={PAY_NOW} value={pay} onChange={setPay} />
+      {pay === 'online' && <UpiQrButton settings={settings} amount={extra} note={`${session.system_name} extend · ${session.customer_name}`} />}
       <SheetActions onClose={onClose} busy={busy} label="Extend" />
     </Sheet>
   )

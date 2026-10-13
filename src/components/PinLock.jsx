@@ -50,7 +50,10 @@ export default function PinLock({ lock, session }) {
         <div className="brand big"><BrandMark size={28} />GRANDXGAMER</div>
         <h2 style={{ margin: 0 }}>{setup ? (again === null ? 'Set your app PIN' : 'Enter it again') : `Hi ${name}`}</h2>
         <p className="muted small" style={{ margin: 0 }}>{setup ? '4 digits, asked whenever the app is opened — so nobody else can open it on this PC or phone.' : 'Enter your 4-digit app PIN.'}</p>
-        <input ref={input} className="mono pin-input" type="password" inputMode="numeric" autoComplete="off" autoFocus value={pin} onChange={onChange} readOnly={busy} aria-label="PIN"
+        {/* A text box drawn as dots, not type="password": Chrome's password manager filled the password box with
+            the saved 6-digit staff login PIN, and its first 4 digits counted as a wrong app PIN (Mayank, 13 Oct). */}
+        <input ref={input} className="mono pin-input pin-masked" type="text" inputMode="numeric" pattern="[0-9]*" name="gx-app-pin" autoComplete="one-time-code"
+          data-lpignore="true" data-1p-ignore="true" autoCorrect="off" spellCheck={false} autoFocus value={pin} onChange={onChange} readOnly={busy} aria-label="PIN"
           onBlur={() => setTimeout(() => input.current?.focus(), 0)} />
         <div className="pin-dots" aria-hidden="true" onClick={() => input.current?.focus()}>{[0, 1, 2, 3].map((i) => <i key={i} className={i < pin.length ? 'on' : ''} />)}</div>
         {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
@@ -76,8 +79,8 @@ export function PinSettings({ lock, Wrap, toast }) {
     <Wrap id="gx-pin" title="App PIN" summary={lock.finger ? 'PIN or fingerprint' : 'Asked when the app opens'}>
       <p className="muted small" style={{ marginTop: 0 }}>Asked when the app is opened and after 15 minutes without use. A refresh doesn’t ask.</p>
       <form className="grid2" onSubmit={change}>
-        <label>Current PIN<input className="mono" type="password" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value.replace(/\D/g, '').slice(0, 4))} /></label>
-        <label>New PIN<input className="mono" type="password" inputMode="numeric" value={next} onChange={(e) => setNext(e.target.value.replace(/\D/g, '').slice(0, 4))} /></label>
+        <label>Current PIN<input className="mono pin-masked" type="text" autoComplete="one-time-code" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value.replace(/\D/g, '').slice(0, 4))} /></label>
+        <label>New PIN<input className="mono pin-masked" type="text" autoComplete="one-time-code" inputMode="numeric" value={next} onChange={(e) => setNext(e.target.value.replace(/\D/g, '').slice(0, 4))} /></label>
         <button className="btn small" disabled={busy || cur.length !== 4 || next.length !== 4}>Change PIN</button>
       </form>
       <div className="gx-btns" style={{ marginTop: 8 }}>
