@@ -81,7 +81,7 @@ export default function Floor({ shop, householdId, toast, admin }) {
     <section className="gx-floor">
       <Chips options={[['live', 'Now'], ['calendar', 'Calendar']]} value={view} onChange={setViewSaved} />
       {view === 'calendar' ? (<>
-        <SlotCalendar shop={shop} onBook={(initial) => setSheet({ kind: 'book', initial })} onArrived={startBooking} />
+        <SlotCalendar shop={shop} toast={toast} onBook={(initial) => setSheet({ kind: 'book', initial })} onArrived={startBooking} />
         {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
         {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       </>) : (<>
@@ -686,7 +686,17 @@ function MoveSheet({ session, systems, freeOf, onClose, onDone }) {
 // Slots → Calendar (owner: "a calendar like Events — see tomorrow's bookings, and book from here"). One row per
 // hour of the shop's day: how many PCs / PS5 controllers are free (public_availability, the same count online
 // booking uses) and every booking in that hour (online and counter), with Book on free hours.
-function SlotCalendar({ shop, onBook, onArrived }) {
+function SlotCalendar({ shop, onBook, onArrived, toast }) {
+  const dialog = useDialog()
+  // Owner (13 Oct): staff and admin cancel a booking from the Calendar too (✕), same rules as the Bookings card.
+  async function cancel(b) {
+    const msg = b.status === 'requested' ? 'This cancels the request and frees the time.'
+      : b.source === 'counter' ? (Number(b.paid) > 0 ? `The time opens up. The ${rs(b.paid)} advance stays as their deposit this month.` : 'The time opens up for others.')
+      : 'The time opens up for others. The online payment is non-refundable.'
+    if (!await dialog.confirm({ title: `Cancel ${b.customer_name}’s booking?`, message: msg, confirmLabel: 'Cancel booking', cancelLabel: 'Keep', danger: true })) return
+    const { error } = await supabase.from('shop_bookings').update({ status: 'cancelled' }).eq('id', b.id)
+    toast?.(error ? error.message : 'Booking cancelled'); if (!error) shop.reload()
+  }
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return d })
   const [day, setDay] = useState(() => ymdLocal(new Date()))
   const [kind, setKind] = useState('PC')
@@ -745,6 +755,7 @@ function SlotCalendar({ shop, onBook, onArrived }) {
                     <div className="muted small">{timeLabel(b.starts_at)} – {timeLabel(new Date(b.starts_at).getTime() + b.minutes * 60_000)} · {b.customer_phone} · {b.source === 'online' ? 'online' : `by ${b.entered_by || 'staff'}`}{b.note ? ` · ${b.note}` : ''}</div>
                   </div>
                   {b.status === 'confirmed' && new Date(b.starts_at).toDateString() === new Date().toDateString() && <button className="btn small" onClick={() => onArrived(b)}>Arrived</button>}
+                  {b.status !== 'arrived' && <button className="btn small ghost" aria-label="Cancel booking" title="Cancel booking" onClick={() => cancel(b)}>✕</button>}
                 </div>
               ))}
             </div>
