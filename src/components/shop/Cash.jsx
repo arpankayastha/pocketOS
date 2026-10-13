@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
-import { Chips, Sheet, SheetActions, SumRow } from './ui'
+import { Chips, SessionBreakdown, Sheet, SheetActions, SumRow, inOut } from './ui'
 import { UpiQrButton } from './UpiQr'
 import CustomerFields from './CustomerFields'
 import { useDialog } from '../../lib/dialog'
@@ -43,8 +43,10 @@ export default function Cash({ shop, householdId, toast, admin }) {
   const [spend] = useRpc('shop_spend', householdId, shop.cash.length)
   const [plan] = useRpc('shop_plan_items', householdId, shop.cash.length)
   const [sheet, setSheet] = useState(null) // 'open' | 'in' | 'out' | 'count'
+  const [openId, setOpenId] = useState(null) // the session line showing its breakdown
   const dialog = useDialog()
-  // Owner: "admin can do any actions" — delete any of today's lines, write off dues, clear a deposit.
+  // Owner: "admin can do any actions" — delete any of today's lines (staff too since 13 Oct; the database only
+  // lets staff remove today's), write off dues, clear a deposit.
   async function remove(e) {
     const what = { shop_sessions: 'This removes the whole session (its bill and payments).', shop_cash: 'The drawer and the Cashbook update.', shop_deposits: 'Their deposit balance goes down by this amount.', shop_dues_paid: 'The amount goes back to their dues.' }[e.table]
     if (!await dialog.confirm({ title: `Delete “${e.title}”?`, message: `${rs(e.amount)} · ${what}`, confirmLabel: 'Delete', danger: true })) return
@@ -66,7 +68,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
   const entries = [
     ...shop.sessions.filter((s) => s.status === 'closed' || sessionHasPay(s)).map((s) => ({
       id: s.id, table: 'shop_sessions', at: s.ended_at || s.started_at, title: `${s.system_name} · ${s.customer_name} · ${durLabel(s.minutes)}`,
-      sub: payLabel(s), amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
+      sub: payLabel(s), time: inOut(s), session: s, amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
     })),
     ...shop.advances.map((b) => ({ id: b.id, at: b.created_at, title: `Event advance · ${b.customer_name}`, sub: b.advance_mode === 'online' ? 'Online' : 'Cash', amount: Number(b.advance_paid), sign: 1, by: b.entered_by })),
     ...shop.cash.map((c) => ({ id: c.id, table: 'shop_cash', at: c.at, title: [c.category, c.note].filter(Boolean).join(' · ') || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0, by: c.entered_by })),
@@ -91,10 +93,14 @@ export default function Cash({ shop, householdId, toast, admin }) {
       <div className="card">
         <h3>Today</h3>
         {entries.length === 0 ? <div className="muted small">Nothing yet today.</div> : entries.map((e) => (
-          <div key={e.id} className="line">
-            <div className="grow"><div className="gx-ellipsis">{e.title}</div><div className="muted small">{timeLabel(e.at)} · {e.sub}{e.by ? ` · by ${e.by}` : ''}</div></div>
-            <b className={e.sign > 0 ? 'pos' : e.sign < 0 ? 'neg' : 'muted'}>{e.sign > 0 ? '+' : e.sign < 0 ? '−' : ''}{rs(e.amount)}</b>
-            {admin && e.table && <button className="btn icon gx-del" aria-label={`Delete ${e.title}`} title="Delete" onClick={() => remove(e)}>✕</button>}
+          <div key={e.id} className="gx-entry">
+            <div className={`line ${e.session ? 'gx-tap' : ''}`} onClick={e.session ? () => setOpenId(openId === e.id ? null : e.id) : undefined}>
+              <div className="grow"><div className="gx-ellipsis">{e.title}{e.session && <span className="gx-chev">{openId === e.id ? '▴' : '▾'}</span>}</div>
+                <div className="muted small">{e.time || timeLabel(e.at)} · {e.sub}{e.by ? ` · by ${e.by}` : ''}</div></div>
+              <b className={e.sign > 0 ? 'pos' : e.sign < 0 ? 'neg' : 'muted'}>{e.sign > 0 ? '+' : e.sign < 0 ? '−' : ''}{rs(e.amount)}</b>
+              {e.table && <button className="btn icon gx-del" aria-label={`Delete ${e.title}`} title="Delete" onClick={(ev) => { ev.stopPropagation(); remove(e) }}>✕</button>}
+            </div>
+            {openId === e.id && <SessionBreakdown s={e.session} />}
           </div>
         ))}
       </div>

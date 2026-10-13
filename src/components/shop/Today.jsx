@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { SessionBreakdown, inOut } from './ui'
 import { addDays, dayLabel, dayStart, dayTotals, durLabel, hoursLabel, minutesLeft, sessionTotal, timeLabel, useDay, useNow, rs } from '../../lib/shop'
 import { DrawerCard } from './Cash'
 import { useSwipe } from '../../lib/useSwipe'
@@ -115,6 +116,7 @@ const whoLine = (s) => {
 
 function Sessions({ sessions, order, toast, onChanged }) {
   const [all, setAll] = useState(false)
+  const [openId, setOpenId] = useState(null)
   const dialog = useDialog()
   async function remove(s) {
     if (!await dialog.confirm({ title: `Delete ${s.system_name} · ${s.customer_name}?`, message: `${rs(sessionTotal(s))} · the whole session, its bill and payments, is removed from the records.`, confirmLabel: 'Delete', danger: true })) return
@@ -130,14 +132,17 @@ function Sessions({ sessions, order, toast, onChanged }) {
     <div className="card" style={{ order }}>
       <div className="card-head"><h3>Sessions</h3><span className="muted small">{rows.length}</span></div>
       {shown.map((s) => (
-        <div key={s.id} className="line">
+        <div key={s.id} className="gx-entry">
+        <div className="line gx-tap" onClick={() => setOpenId(openId === s.id ? null : s.id)}>
           <span className={`gx-badge sm ${s.system_name.startsWith('PS') ? 'ps' : ''}`}>{s.system_name}</span>
           <div className="grow">
-            <div className="gx-ellipsis">{s.customer_name}</div>
-            <div className="muted small">{timeLabel(s.started_at)} · {durLabel(s.minutes)}{Number(s.fnb_before) + Number(s.fnb_while) ? ` · F&B ${rs(Number(s.fnb_before) + Number(s.fnb_while))}` : ''} · {mode(s)}{whoLine(s)}</div>
+            <div className="gx-ellipsis">{s.customer_name}<span className="gx-chev">{openId === s.id ? '▴' : '▾'}</span></div>
+            <div className="muted small">{inOut(s)} · {durLabel(s.minutes)}{Number(s.fnb_before) + Number(s.fnb_while) ? ` · F&B ${rs(Number(s.fnb_before) + Number(s.fnb_while))}` : ''} · {mode(s)}{whoLine(s)}</div>
           </div>
           <b className={Number(s.owed) > 0 ? 'neg' : ''}>{rs(sessionTotal(s))}</b>
-          <button className="btn icon gx-del" aria-label="Delete session" title="Delete" onClick={() => remove(s)}>✕</button>
+          <button className="btn icon gx-del" aria-label="Delete session" title="Delete" onClick={(ev) => { ev.stopPropagation(); remove(s) }}>✕</button>
+        </div>
+        {openId === s.id && <SessionBreakdown s={s} />}
         </div>
       ))}
       {rows.length > 8 && <button className="btn link" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${rows.length}`}</button>}

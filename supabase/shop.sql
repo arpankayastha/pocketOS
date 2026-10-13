@@ -868,3 +868,13 @@ begin
 end $$;
 revoke execute on function public.set_seat_off(uuid, int, boolean) from public, anon;
 grant execute on function public.set_seat_off(uuid, int, boolean) to authenticated;
+
+-- Owner (13 Oct): staff also get the ✕ on Cash → Today lines; staff may remove only today's rows (migration staff_remove_today).
+create policy "staff removes today" on public.shop_sessions for delete to authenticated
+  using (household_id in (select private.my_household_ids()) and started_at >= date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata');
+create policy "staff removes today" on public.shop_cash for delete to authenticated
+  using (household_id in (select private.my_household_ids()) and at >= date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata');
+create policy "staff removes today" on public.shop_deposits for delete to authenticated
+  using (household_id in (select private.my_household_ids()) and created_at >= date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata');
+create policy "staff removes today" on public.shop_dues_paid for delete to authenticated
+  using (household_id in (select private.my_household_ids()) and created_at >= date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata');

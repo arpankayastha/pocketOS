@@ -1,3 +1,4 @@
+import { durLabel, rs, sessionEnd, sessionTotal, timeLabel } from '../../lib/shop'
 // Small building blocks shared by the Shop screens: a bottom sheet with a form, and a chip row.
 
 export function Sheet({ title, sub, onClose, onSubmit, children }) {
@@ -42,3 +43,26 @@ export function SheetActions({ onClose, label, busy, disabled, danger }) {
     </div>
   )
 }
+
+// Owner (13 Oct): tap a session line (Cash → Today, Today → Sessions) to see what the bill was made of.
+export function SessionBreakdown({ s }) {
+  const n = (v) => Number(v) || 0
+  const rows = [
+    [`Game · ${durLabel(n(s.base_minutes) || n(s.minutes))}${n(s.players) > 1 ? ` × ${s.players} players` : ''}${s.happy ? ' · happy hours' : ''}`, n(s.gaming_amount)],
+    [`Extend · ${durLabel(Math.max(0, n(s.minutes) - n(s.base_minutes)))}`, n(s.extend_amount)],
+    ['F&B before gaming', n(s.fnb_before)],
+    ['F&B while playing', n(s.fnb_while)],
+    ['Discount', -n(s.discount)],
+  ].filter(([, v]) => v)
+  const paid = [['Paid cash', n(s.paid_cash)], ['Paid online', n(s.paid_online)], ['From deposit', n(s.paid_deposit)], ['Owes', n(s.owed)]].filter(([, v]) => v)
+  return (
+    <div className="gx-breakdown">
+      {rows.map(([l, v]) => <SumRow key={l} label={l} value={`${v < 0 ? '−' : ''}${rs(Math.abs(v))}`} />)}
+      <SumRow strong label="Bill" value={rs(sessionTotal(s))} />
+      {paid.map(([l, v]) => <SumRow key={l} label={l} value={rs(v)} tone={l === 'Owes' ? 'neg' : undefined} />)}
+      <div className="muted small">{inOut(s)}{s.entered_by ? ` · started by ${s.entered_by}` : ''}{s.handled_by && s.handled_by !== s.entered_by ? ` · ended by ${s.handled_by}` : ''}{s.customer_phone ? ` · ${s.customer_phone}` : ''}</div>
+    </div>
+  )
+}
+// "3:25 pm – 5:25 pm": in and out (owner: both, not only one time).
+export const inOut = (s) => s.waiting ? `saved ${timeLabel(s.started_at)} · not started` : `${timeLabel(s.started_at)} – ${s.ended_at ? timeLabel(s.ended_at) : s.status === 'running' ? `ends ${timeLabel(sessionEnd(s))}` : '…'}`

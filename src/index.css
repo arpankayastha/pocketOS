@@ -1338,3 +1338,9 @@ html:fullscreen .pill-nav { display: none; }
 .gx-seat.waiting { border-left: 3px solid color-mix(in srgb, var(--warn) 70%, transparent); padding-left: 10px; }
 .timer-again { display: block; margin-top: 6px; color: var(--accent); }
 .pin-masked { -webkit-text-security: disc; text-security: disc; }
+/* Session lines open into a breakdown (Cash → Today, Today → Sessions) */
+.gx-entry + .gx-entry { border-top: 1px solid var(--line); }
+.gx-entry > .line { border-top: 0; }
+.line.gx-tap { cursor: pointer; }
+.gx-chev { color: var(--muted); font-size: 11px; margin-left: 6px; }
+.gx-breakdown { display: grid; gap: 2px; padding: 4px 10px 10px; margin: 0 0 8px; border-radius: 10px; background: var(--card-2); }
