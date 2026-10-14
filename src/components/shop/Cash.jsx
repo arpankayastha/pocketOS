@@ -131,7 +131,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
 const sessionHasPay = (s) => Number(s.paid_cash) + Number(s.paid_online) > 0
 function payLabel(s) {
   if (s.status === 'running') {
-    const due = Math.max(0, sessionTotal(s) - Number(s.paid_cash) - Number(s.paid_online) - Number(s.paid_deposit || 0))
+    const due = Math.max(0, sessionTotal(s) - Number(s.paid_cash) - Number(s.paid_online) - Number(s.paid_deposit || 0) - Number(s.owed || 0))
     return `${s.waiting ? 'Waiting' : 'Playing'}${sessionHasPay(s) ? ' · part paid' : ''}${due ? ` · ${rs(due)} to collect` : ' · paid'}`
   }
   if (Number(s.owed) > 0) return `Owes ${rs(s.owed)}`

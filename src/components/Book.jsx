@@ -11,7 +11,7 @@ import PcPicker from './PcPicker'
 // talks to public_shop_info / public_availability / public_book (security definer, checked on the server).
 // Customers book a PC or the PS5 for today or tomorrow, pay the full amount by UPI (advance, non-refundable),
 // and staff confirm the request on the Floor once the payment shows up.
-const DURS = [30, 60, 90, 120, 150, 180] // online: up to 3 h (public_book's limit)
+const DURS = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300] // online: up to 5 h (owner, 14 Oct; public_book's limit)
 
 export default function Book() {
   const [info, setInfo] = useState(null)
@@ -95,7 +95,7 @@ export default function Book() {
             <div className="small">or pay to <b className="mono">{info.upi_id}</b></div>
             <label className="book-ref">UPI reference / last 4 digits (optional)<input value={ref} onChange={(e) => setRef(e.target.value)} inputMode="numeric" /></label>
           </>) : <p className="muted small">Pay at the counter when you arrive.</p>}
-          <p className="muted small" style={{ margin: 0 }}>Advance payment, non-refundable.</p>
+          <p className="muted small" style={{ margin: 0 }}>Advance payment & non-refundable once paid.</p>
           {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
           <button className="btn primary block" disabled={busy} onClick={send}>{busy ? 'Sending…' : info.upi_id ? 'I’ve paid · send booking' : 'Send booking'}</button>
         </div>
@@ -148,7 +148,7 @@ export default function Book() {
         {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
         <button className="btn primary block" disabled={!ready} onClick={() => { setError(null); setStep('pay') }}>{!start ? 'Pick a start time' : name.trim().length < 2 ? 'Enter your name to book' : phone.replace(/\D/g, '').length < 10 ? 'Enter your 10-digit mobile to book' : `Book ${timeLabel(start)} · ${rs(amount)}`}</button>
       </div>
-      <p className="muted small" style={{ textAlign: 'center' }}>Book for today or tomorrow. Advance payment, non-refundable.</p>
+      <p className="muted small" style={{ textAlign: 'center' }}>Book for today or tomorrow. Advance payment & non-refundable once paid.</p>
     </Page>
   )
 }
@@ -158,7 +158,7 @@ function Page({ children }) {
     <div className="jobs-page pub-page">
       <PublicNav active="book" />
       <header className="jobs-head">
-        <h1>Book your game</h1>
+        <h1>Book your slot</h1>
         <p className="muted">PC & PS5 gaming café · Pune</p>
       </header>
       {children}

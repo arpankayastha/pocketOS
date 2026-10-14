@@ -193,7 +193,7 @@ const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.waiting
 const leftLabel = (m) => { m = Math.max(0, Math.round(m)); const h = Math.floor(m / 60); return h ? `${h}h ${String(m % 60).padStart(2, '0')}m` : `${m}m` }
 const whereOf = (sys, seat) => (seatsOf1(sys) > 1 ? `${sys.name} · controller ${seat}` : sys.name)
 const seatsOf1 = (sys) => sys.seats || 1
-const dueOf = (s) => Math.max(0, sessionTotal(s) - sessionPaid(s))
+const dueOf = (s) => Math.max(0, sessionTotal(s) - sessionPaid(s) - Number(s.owed || 0))
 
 // One customer on the floor: where, who, when it ends, what's still to collect, and the time left — tap for
 // everything else (F&B, Extend, Move, Pause, timer code, End & collect). A waiting entry has ▶ Start.
@@ -220,7 +220,7 @@ function RunRow({ sys, seat, s, now, onOpen, onStart }) {
 // Everything for one customer, in one sheet: the bill so far, how it was paid, and the actions.
 function SessionSheet({ system, seat, s, now, onClose, onAction, onPause, onStart, onCancel }) {
   const left = minutesLeft(s, now)
-  const bill = sessionTotal(s), paid = sessionPaid(s), due = Math.max(0, bill - paid)
+  const bill = sessionTotal(s), paid = sessionPaid(s), due = Math.max(0, bill - paid - Number(s.owed || 0))
   const how = [Number(s.paid_cash) && 'cash', Number(s.paid_online) && 'online', Number(s.paid_deposit || 0) && 'deposit'].filter(Boolean).join(' + ')
   return (
     <ActionSheet title={`${s.customer_name}${s.players > 1 ? ` · ${s.players} players` : ''}`}
@@ -241,7 +241,7 @@ function SessionSheet({ system, seat, s, now, onClose, onAction, onPause, onStar
         s.customer_phone && { label: 'Call', icon: <PhoneIcon />, href: `tel:${s.customer_phone}` },
         s.waiting && { label: 'Cancel entry', icon: <XIcon />, onClick: onCancel, danger: true },
       ]} />
-      <div className="muted small">{s.entered_by ? `Taken by ${s.entered_by}` : ''}{Number(s.fnb_before) + Number(s.fnb_while) ? ` · F&B ${rs(Number(s.fnb_before) + Number(s.fnb_while))}` : ''}</div>
+      <div className="muted small">{Number(s.owed) > 0 ? `${rs(s.owed)} already in their dues · ` : ''}{s.entered_by ? `Taken by ${s.entered_by}` : ''}{Number(s.fnb_before) + Number(s.fnb_while) ? ` · F&B ${rs(Number(s.fnb_before) + Number(s.fnb_while))}` : ''}</div>
     </ActionSheet>
   )
 }
@@ -374,10 +374,11 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
 }
 
 // Pay for an add-on now or at the end (owner, 13 Oct: "customer paid online but it showed ₹50 to collect").
-const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online']]
-const paidPatch = (session, pay, value) => pay === 'cash' ? { paid_cash: Number(session.paid_cash) + value }
+// Owner, 14 Oct: 'Due' puts it straight into the customer's dues (Cash → Customer dues), by their name.
+const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['due', 'Due · customer owes']]
+const paidPatch = (session, pay, value) => pay === 'due' ? { owed: Number(session.owed || 0) + value } : pay === 'cash' ? { paid_cash: Number(session.paid_cash) + value }
   : pay === 'online' ? { paid_online: Number(session.paid_online) + value } : {}
-const payNote = (pay) => pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
+const payNote = (pay) => pay === 'due' ? ' · added to their dues' : pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
 
 function FnbSheet({ session, settings, onClose, onDone }) {
   const [amt, setAmt] = useState(20)
@@ -386,6 +387,7 @@ function FnbSheet({ session, settings, onClose, onDone }) {
   const [busy, setBusy] = useState(false)
   const value = custom ? Number(custom) : amt
   async function save() {
+    if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
     const { error } = await supabase.from('shop_sessions').update({ fnb_while: Number(session.fnb_while) + value, ...paidPatch(session, pay, value) }).eq('id', session.id)
     setBusy(false)
@@ -414,6 +416,7 @@ function ExtendSheet({ system, session, rates, settings, onClose, onDone }) {
   const extra = priceFor(rates, system.kind, add, session.happy) * (session.players || 1)
   const newEnd = sessionEnd({ ...session, minutes })
   async function save() {
+    if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
     const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: Number(session.extend_amount) + extra, ...paidPatch(session, pay, extra) }).eq('id', session.id)
     setBusy(false)
@@ -447,7 +450,8 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
   const disc = Number(discount) || 0
   const total = sessionTotal(session) - disc
   const paid = sessionPaid(session)
-  const before = Math.max(0, total - paid)
+  const owedBefore = Number(session.owed || 0) // Extend / F&B put as "Due" while playing — already in their dues
+  const before = Math.max(0, total - paid - owedBefore)
   const fromDep = useDep && dep ? Math.min(dep.balance, before) : 0
   const due = before - fromDep
   const cash = mode === 'cash' ? due : mode === 'split' ? Math.min(due, Number(cashPart) || 0) : 0
@@ -461,7 +465,7 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
     const { error } = await supabase.from('shop_sessions').update({
       status: 'closed', ended_at: new Date().toISOString(), closed_by: user?.id,
       discount: Number(session.discount) + disc,
-      paid_cash: Number(session.paid_cash) + cash, paid_online: Number(session.paid_online) + online, owed,
+      paid_cash: Number(session.paid_cash) + cash, paid_online: Number(session.paid_online) + online, owed: owedBefore + owed,
       paid_deposit: Number(session.paid_deposit || 0) + fromDep,
     }).eq('id', session.id)
     if (!error && fromDep > 0) {
@@ -492,6 +496,7 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
         {disc > 0 && <SumRow label="Discount" value={`−${rs(disc)}`} />}
         {paid > 0 && <SumRow label="Already paid" value={`−${rs(paid)}`} />}
         {fromDep > 0 && <SumRow label="From deposit" value={`−${rs(fromDep)}`} />}
+        {owedBefore > 0 && <SumRow label="Already in their dues" value={`−${rs(owedBefore)}`} />}
         <SumRow strong label="To collect" value={rs(due)} />
       </div>
       {dep && (

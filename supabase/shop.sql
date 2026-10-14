@@ -917,3 +917,12 @@ begin
   return r || jsonb_build_object('system', (select name from public.shop_systems where id = p_system));
 end $$;
 grant execute on function public.public_book_system(uuid, text, timestamptz, int, int, text, text, text) to anon, authenticated;
+
+-- Online booking up to 5 hours (owner, 14 Oct): public_book's length check is 30–300 minutes.
+do $mig$
+declare d text := pg_get_functiondef('public.public_book'::regproc);
+begin
+  d := replace(d, 'p_minutes > 180', 'p_minutes > 300');
+  d := replace(d, 'Pick 30 minutes to 3 hours.', 'Pick 30 minutes to 5 hours.');
+  execute d;
+end $mig$;
