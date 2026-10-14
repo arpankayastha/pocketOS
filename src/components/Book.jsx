@@ -95,7 +95,7 @@ export default function Book() {
             <div className="small">or pay to <b className="mono">{info.upi_id}</b></div>
             <label className="book-ref">UPI reference / last 4 digits (optional)<input value={ref} onChange={(e) => setRef(e.target.value)} inputMode="numeric" /></label>
           </>) : <p className="muted small">Pay at the counter when you arrive.</p>}
-          <p className="muted small" style={{ margin: 0 }}>Advance payment is non-refundable once paid.</p>
+          <p className="muted small" style={{ margin: 0 }}>Advance payment, non-refundable.</p>
           {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
           <button className="btn primary block" disabled={busy} onClick={send}>{busy ? 'Sending…' : info.upi_id ? 'I’ve paid · send booking' : 'Send booking'}</button>
         </div>
@@ -146,9 +146,9 @@ export default function Book() {
           <b>{rs(amount)}</b>
         </div>
         {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
-        <button className="btn primary block" disabled={!ready} onClick={() => { setError(null); setStep('pay') }}>{start ? `Book ${timeLabel(start)} · ${rs(amount)}` : 'Pick a start time'}</button>
+        <button className="btn primary block" disabled={!ready} onClick={() => { setError(null); setStep('pay') }}>{!start ? 'Pick a start time' : name.trim().length < 2 ? 'Enter your name to book' : phone.replace(/\D/g, '').length < 10 ? 'Enter your 10-digit mobile to book' : `Book ${timeLabel(start)} · ${rs(amount)}`}</button>
       </div>
-      <p className="muted small" style={{ textAlign: 'center' }}>Book for today or tomorrow. Advance payment is non-refundable once paid.</p>
+      <p className="muted small" style={{ textAlign: 'center' }}>Book for today or tomorrow. Advance payment, non-refundable.</p>
     </Page>
   )
 }

@@ -1427,3 +1427,4 @@ html:fullscreen .pill-nav { display: none; }
 .gx-freetile:disabled { cursor: default; opacity: .45; background: var(--card-2); border-color: transparent; }
 .gx-freetile:disabled:active { transform: none; }
 .gx-rowcode { color: var(--text); letter-spacing: .04em; }
+.req { color: var(--accent); font-weight: 700; }

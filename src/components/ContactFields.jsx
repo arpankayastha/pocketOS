@@ -26,8 +26,8 @@ export default function ContactFields({ name, setName, phone, setPhone }) {
   )
   return (
     <div className="grid2">
-      <label>Name<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></label>
-      <label>Mobile<input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" autoComplete="tel" placeholder="10 digits" /></label>
+      <label>Name <span className="req">*</span><input required value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></label>
+      <label>Mobile <span className="req">*</span><input required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" autoComplete="tel" placeholder="10 digits" /></label>
     </div>
   )
 }
