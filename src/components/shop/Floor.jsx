@@ -207,7 +207,7 @@ function RunRow({ sys, seat, s, now, onOpen, onStart }) {
       <span className={`gx-badge ${sys.kind === 'PS' ? 'ps' : ''}`}>{seatsOf1(sys) > 1 ? <span className="gx-badge-2">{sys.name}<small>C{seat}</small></span> : sys.name}</span>
       <div className="gx-run-main">
         <div className="gx-name">{s.customer_name}{s.players > 1 ? <span className="muted"> · {s.players} players</span> : ''}</div>
-        <div className="muted small">{s.waiting ? `Waiting · ${durLabel(s.minutes)} · not started` : s.paused_at ? `Paused · ${durLabel(left)} kept` : left <= 0 ? `Ended ${timeLabel(sessionEnd(s, now))}` : `Ends ${timeLabel(sessionEnd(s, now))}`}{due > 0 && <span className="gx-due"> · {rs(due)} due</span>}</div>
+        <div className="muted small">{s.waiting ? `Waiting · ${durLabel(s.minutes)} · not started` : `${timeLabel(s.started_at)} – ${timeLabel(sessionEnd(s, now))}${s.paused_at ? ' · paused' : ''}`}{due > 0 && <span className="gx-due"> · {rs(due)} due</span>}</div>
       </div>
       {s.waiting
         ? <button type="button" className="btn small primary" onClick={(e) => { e.stopPropagation(); onStart() }}>▶ Start</button>
