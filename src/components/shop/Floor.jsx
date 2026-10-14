@@ -292,6 +292,7 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, depo
   const [mins, setMins] = useState(booking?.minutes || 60)
   const [fnb, setFnb] = useState(0)
   const [fnbOther, setFnbOther] = useState('') // owner: type any F&B amount, not only the chips
+  const [names, setNames] = useState({}) // PS5: a name for each extra controller (owner, 14 Oct), keyed by controller
   const online = booking && booking.source !== 'counter' // online bookings are paid in full by UPI
   const [pay, setPay] = useState(online ? 'booked' : 'end')
   const [busy, setBusy] = useState(false)
@@ -325,7 +326,7 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, depo
       const d = Math.min(depLeft, g + f); depLeft -= d
       return {
         household_id: householdId, system_id: system.id, system_name: system.name, seat,
-        customer_name: (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
+        customer_name: i > 0 && (names[seat] || '').trim() ? names[seat].trim() : (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
         paid_cash: pay === 'cash' ? g + f : pay === 'split' ? c : 0,
         paid_online: pay === 'online' ? g + f : pay === 'split' ? g + f - c : pay === 'booked' ? split(Number(booking.amount)) : 0,
@@ -356,6 +357,9 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, depo
         <div className="chips">{free.map((n) => <button type="button" key={n} className={`chip chip-btn ${picked.includes(n) ? 'on' : ''}`} onClick={() => toggle(n)}>🎮 {n}</button>)}</div>
       </>)}
       <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} />
+      {count > 1 && picked.slice(1).map((seat) => (
+        <label key={seat}>Controller {seat} · player name<input value={names[seat] || ''} onChange={(e) => setNames({ ...names, [seat]: e.target.value })} placeholder={`Optional · else ${(name.trim() || 'Walk-in')} (${picked.indexOf(seat) + 1}/${count})`} /></label>
+      ))}
       {owes && <div className="alert error" style={{ margin: 0 }}>{owes.name} owes {rs(owes.total)} from before · collect it in Cash → Customer dues</div>}
       <div className="caps muted">Time</div>
       <Chips scroll options={DURATIONS.map((m) => [m, durLabel(m)])} value={mins} onChange={setMins} />
