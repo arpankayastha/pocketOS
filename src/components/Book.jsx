@@ -26,6 +26,7 @@ export default function Book() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [system, setSystem] = useState(null) // a named PC, or null = any
+  const [others, setOthers] = useState([]) // owner, 14 Oct: the rest of a group — name required, mobile optional
   const [ref, setRef] = useState('')
   const [step, setStep] = useState('form') // form | pay | done
   const [busy, setBusy] = useState(false)
@@ -44,10 +45,10 @@ export default function Book() {
   const happy = info && start ? (info.happy_days || []).includes(new Date(start).getDay()) : info ? (info.happy_days || []).includes(dayDate.getDay()) : false
   const each = info ? priceFor(info.rates || [], kind, minutes, happy) : 0
   const amount = each * players
-  const maxPlayers = kind === 'PS' ? 3 : 1
+  const maxPlayers = kind === 'PS' ? 3 : Math.min(5, info?.systems?.PC || 1)
   const fits = (t) => { // free for the whole duration from slot t
     const i = avail.findIndex((a) => a.t === t)
-    for (let k = 0; k < minutes / 30; k++) { const a = avail[i + k]; if (!a || a[kind] < 1) return false }
+    for (let k = 0; k < minutes / 30; k++) { const a = avail[i + k]; if (!a || a[kind] < players) return false }
     return true
   }
   const slots = useMemo(() => (avail || []).filter((a) => new Date(a.t).getTime() > Date.now() - 10 * 60_000), [avail])
@@ -56,7 +57,9 @@ export default function Book() {
   async function send() {
     setBusy(true); setError(null)
     const args = { p_kind: kind, p_start: start, p_minutes: minutes, p_players: players, p_name: name.trim(), p_phone: phone, p_upi_ref: ref.trim() || null }
-    const { data, error } = system && kind === 'PC' ? await supabase.rpc('public_book_system', { p_system: system, ...args }) : await supabase.rpc('public_book', args)
+    const people = [{ name: name.trim(), phone }, ...others.slice(0, players - 1).map((o) => ({ name: o.name.trim(), phone: o.phone }))]
+    const { data, error } = players > 1 ? await supabase.rpc('public_book_group', { p_kind: kind, p_start: start, p_minutes: minutes, p_people: people, p_upi_ref: ref.trim() || null })
+      : system && kind === 'PC' ? await supabase.rpc('public_book_system', { p_system: system, ...args }) : await supabase.rpc('public_book', args)
     setBusy(false)
     if (error) { setError(error.message); if (/booked|passed|hours/i.test(error.message)) setStep('form'); return }
     rememberMine('bookings', data.id)
@@ -73,7 +76,7 @@ export default function Book() {
         <div className="book-tick">✓</div>
         <h2>Booking request sent</h2>
         <div className="book-code mono">{done.code}</div>
-        <p>{done.kind === 'PS' ? 'PS5' : done.system || 'PC'} · {new Date(done.start).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {timeLabel(done.start)} – {timeLabel(new Date(done.start).getTime() + done.minutes * 60_000)}{done.players > 1 ? ` · ${done.players} players` : ''} · {rs(done.amount)}</p>
+        <p>{done.kind === 'PS' ? 'PS5' : done.system || 'PC'} · {new Date(done.start).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {timeLabel(done.start)} – {timeLabel(new Date(done.start).getTime() + done.minutes * 60_000)}{done.players > 1 ? ` · ${done.players} ${done.kind === 'PS' ? 'players' : 'people'}` : ''} · {rs(done.amount)}</p>
         <p className="muted small">The shop confirms it once your payment shows up. Show this code at the counter. Your booking and, once you start playing, your time left show on the home page.</p>
         <div className="gx-btns"><a className="btn primary" style={{ flex: 1 }} href="#">Home</a>
         <button className="btn" style={{ flex: 1 }} onClick={() => { setStep('form'); setStart(null); setRef(''); setDone(null) }}>Book another</button></div>
@@ -103,7 +106,8 @@ export default function Book() {
     )
   }
 
-  const ready = start && name.trim().length >= 2 && phone.replace(/\D/g, '').length >= 10
+  const missing = Array.from({ length: players - 1 }, (_, i) => i).find((i) => (others[i]?.name || '').trim().length < 2)
+  const ready = start && name.trim().length >= 2 && phone.replace(/\D/g, '').length >= 10 && missing === undefined
   return (
     <Page>
       {current && (
@@ -118,7 +122,7 @@ export default function Book() {
       <div className="card book-form">
         <div className="seg book-seg">
           <button className={kind === 'PC' ? 'on' : ''} onClick={() => { setKind('PC'); setPlayers(1); setStart(null) }}>PC</button>
-          <button className={kind === 'PS' ? 'on' : ''} onClick={() => { setKind('PS'); setStart(null) }}>PS5</button>
+          <button className={kind === 'PS' ? 'on' : ''} onClick={() => { setKind('PS'); setPlayers(1); setStart(null) }}>PS5</button>
         </div>
         <div className="seg book-seg">
           {[0, 1].map((d) => <button key={d} className={day === d ? 'on' : ''} onClick={() => setDay(d)}>{d === 0 ? 'Today' : 'Tomorrow'} · {addDays(dayStart(), d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })}</button>)}
@@ -127,8 +131,8 @@ export default function Book() {
         <div className="caps muted">How long</div>
         <div className="chips">{DURS.map((m) => <button key={m} type="button" className={`chip chip-btn ${minutes === m ? 'on' : ''}`} onClick={() => { setMinutes(m); setStart(null) }}>{durLabel(m)}</button>)}</div>
         {maxPlayers > 1 && (<>
-          <div className="caps muted">Players · price is per head</div>
-          <div className="chips">{[1, 2, 3].map((n) => <button key={n} type="button" className={`chip chip-btn ${players === n ? 'on' : ''}`} onClick={() => setPlayers(n)}>{n}</button>)}</div>
+          <div className="caps muted">{kind === 'PS' ? 'Players' : 'How many people'} · price is per head</div>
+          <div className="chips">{Array.from({ length: maxPlayers }, (_, i) => i + 1).map((n) => <button key={n} type="button" className={`chip chip-btn ${players === n ? 'on' : ''}`} onClick={() => { setPlayers(n); setStart(null); if (n > 1) setSystem(null) }}>{n}</button>)}</div>
         </>)}
         <div className="caps muted">Start time</div>
         {!avail ? <div className="muted small">Loading times…</div> : slots.length === 0 ? <div className="muted small">No more times today. Try tomorrow.</div> : (
@@ -139,14 +143,25 @@ export default function Book() {
             })}
           </div>
         )}
-        <PcPicker kind={kind} start={start} minutes={minutes} value={system} onChange={setSystem} />
+        {players === 1 && <PcPicker kind={kind} start={start} minutes={minutes} value={system} onChange={setSystem} />}
+        {players > 1 && <div className="caps muted">Player 1 · books for the group</div>}
         <ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} />
+        {Array.from({ length: players - 1 }, (_, i) => {
+          const o = others[i] || { name: '', phone: '' }
+          const set = (k) => (e) => { const next = [...others]; next[i] = { ...o, [k]: k === 'phone' ? e.target.value.replace(/[^\d+ ]/g, '') : e.target.value }; setOthers(next) }
+          return (
+            <div key={i} className="grid2">
+              <label><span>Player {i + 2} name <span className="req">*</span></span><input required value={o.name} onChange={set('name')} /></label>
+              <label>Mobile (optional)<input value={o.phone} onChange={set('phone')} inputMode="tel" placeholder="10 digits" /></label>
+            </div>
+          )
+        })}
         <div className="book-total">
           <span className="muted">{durLabel(minutes)}{players > 1 ? ` × ${players}` : ''}{happy ? ' · happy hours' : ''}</span>
           <b>{rs(amount)}</b>
         </div>
         {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
-        <button className="btn primary block" disabled={!ready} onClick={() => { setError(null); setStep('pay') }}>{!start ? 'Pick a start time' : name.trim().length < 2 ? 'Enter your name to book' : phone.replace(/\D/g, '').length < 10 ? 'Enter your 10-digit mobile to book' : `Book ${timeLabel(start)} · ${rs(amount)}`}</button>
+        <button className="btn primary block" disabled={!ready} onClick={() => { setError(null); setStep('pay') }}>{!start ? 'Pick a start time' : name.trim().length < 2 ? 'Enter your name to book' : phone.replace(/\D/g, '').length < 10 ? 'Enter your 10-digit mobile to book' : missing !== undefined ? `Enter player ${missing + 2}’s name` : `Book ${timeLabel(start)} · ${rs(amount)}`}</button>
       </div>
       <p className="muted small" style={{ textAlign: 'center' }}>Book for today or tomorrow. Advance payment & non-refundable once paid.</p>
     </Page>

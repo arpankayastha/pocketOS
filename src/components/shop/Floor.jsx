@@ -523,7 +523,10 @@ function Bookings({ systems = [], bookings = [], eventChecks = [], entryChecks =
   const [all, setAll] = useState(false)
   async function update(table, row, patch, msg, ask) {
     if (ask && !await dialog.confirm(ask)) return
-    const { error } = await supabase.from(table).update(patch).eq('id', row.id)
+    // A group booked online (one UPI payment for everyone): Received / Not received applies to all of them.
+    const { error } = table === 'shop_bookings' && row.group_id && row.status === 'requested'
+      ? await supabase.from(table).update(patch).eq('group_id', row.group_id).eq('status', 'requested')
+      : await supabase.from(table).update(patch).eq('id', row.id)
     setOpen(null)
     onChanged(error ? error.message : msg)
   }
@@ -551,13 +554,15 @@ function Bookings({ systems = [], bookings = [], eventChecks = [], entryChecks =
     ...bookings.map((b) => {
       const pc = systems.find((x) => x.id === b.system_id)?.name
       const req = b.status === 'requested'
+      const group = b.group_id ? bookings.filter((x) => x.group_id === b.group_id) : []
       return {
         id: b.id, badge: b.kind === 'PS' ? 'PS5' : pc || 'PC', cls: b.kind === 'PS' ? 'ps' : '', name: `${b.customer_name}${b.players > 1 ? ` · ${b.players} players` : ''}`,
-        sub: `${day(b.starts_at)} ${timeLabel(b.starts_at)} – ${until(b)}`, phone: b.customer_phone, check: req,
+        sub: `${day(b.starts_at)} ${timeLabel(b.starts_at)} – ${until(b)}${group.length > 1 ? ` · group of ${group.length}` : ''}`, phone: b.customer_phone, check: req,
         pill: req ? 'Payment?' : b.source === 'counter' ? 'Booked' : 'Paid',
         details: [
           ['When', `${day(b.starts_at)} ${timeLabel(b.starts_at)} – ${until(b)}`], ['Where', b.kind === 'PS' ? 'PS5' : pc || 'Any PC'], ['Amount', rs(b.amount)],
           ['Payment', b.source === 'counter' ? (Number(b.paid) > 0 ? `${rs(b.paid)} advance · ${b.paid_mode}` : 'at the counter') : req ? 'online · to check' : 'paid online'],
+          ['Group', group.length > 1 ? `${group.length} people · ${group.map((x) => x.customer_name).join(', ')}${req ? ' · one payment for all' : ''}` : null],
           ['UPI ref', b.upi_ref], ['Mobile', b.customer_phone], ['Booked by', b.source === 'counter' ? b.entered_by || 'staff' : 'online'], ['Checked by', b.handled_by], ['Note', b.note], ['Code', shortCode(b.id)]],
         main: req ? { label: 'Received', run: () => update('shop_bookings', b, { status: 'confirmed' }, 'Payment received · booking confirmed') }
           : { label: 'Arrived', run: () => { setOpen(null); onArrived(b) } },

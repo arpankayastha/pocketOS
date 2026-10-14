@@ -926,3 +926,53 @@ begin
   d := replace(d, 'Pick 30 minutes to 3 hours.', 'Pick 30 minutes to 5 hours.');
   execute d;
 end $mig$;
+-- Group booking (owner, 14 Oct: "5 persons ka daal, with name"): one online booking for a squad.
+-- PC: one booking row per person (each gets a PC; group_id = the lead's booking), same time and length.
+-- PS5: one booking with players = 2–3 and the other names in the note. The lead's name + mobile are
+-- required; the others need a name, their mobile is optional (the lead's is used to reach them).
+alter table public.shop_bookings add column if not exists group_id uuid;
+create index if not exists shop_bookings_group_idx on public.shop_bookings (group_id) where group_id is not null;
+
+create or replace function public.public_book_group(p_kind text, p_start timestamptz, p_minutes int, p_people jsonb, p_upi_ref text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare h uuid := private.public_shop(); n int := jsonb_array_length(coalesce(p_people, '[]')); r jsonb; t timestamptz;
+  lead jsonb := p_people -> 0; x jsonb; i int; v_name text; v_phone text; lead_phone text; amt numeric; maxn int;
+begin
+  if n < 1 then raise exception 'Enter at least one name.'; end if;
+  maxn := case p_kind when 'PS' then 3 else (select count(*) from public.shop_systems y where y.household_id = h and y.kind = 'PC' and y.active) end;
+  if n > maxn then raise exception 'At most % people for %.', maxn, case p_kind when 'PS' then 'the PS5' else 'PCs' end; end if;
+  for i in 1 .. n - 1 loop
+    v_name := trim(coalesce(p_people -> i ->> 'name', ''));
+    if length(v_name) < 2 or length(v_name) > 40 then raise exception 'Enter a name for player %.', i + 1; end if;
+  end loop;
+  if p_kind = 'PS' then
+    r := public.public_book('PS', p_start, p_minutes, n, lead ->> 'name', lead ->> 'phone', p_upi_ref);
+    if n > 1 then
+      update public.shop_bookings set note = 'With: ' || (select string_agg(trim(e ->> 'name') || coalesce(' ' || nullif(private.clean_phone(e ->> 'phone'), ''), ''), ', ')
+        from jsonb_array_elements(p_people) with ordinality as q(e, k) where k > 1) where id = (r ->> 'id')::uuid;
+    end if;
+    return r || jsonb_build_object('people', n);
+  end if;
+  -- PCs: hold the lock, check n PCs are free for the whole time, then one booking per person.
+  perform pg_advisory_xact_lock(hashtext(h::text || p_kind));
+  t := p_start;
+  while t < p_start + make_interval(mins => p_minutes) loop
+    if private.free_systems(h, p_kind, t, t + interval '30 minutes') < n then raise exception 'Not enough free PCs for % people at that time. Pick another time.', n; end if;
+    t := t + interval '30 minutes';
+  end loop;
+  r := public.public_book('PC', p_start, p_minutes, 1, lead ->> 'name', lead ->> 'phone', p_upi_ref);
+  lead_phone := private.clean_phone(lead ->> 'phone');
+  update public.shop_bookings set group_id = (r ->> 'id')::uuid where id = (r ->> 'id')::uuid;
+  for i in 1 .. n - 1 loop
+    x := p_people -> i;
+    v_phone := private.clean_phone(x ->> 'phone');
+    insert into public.shop_bookings (household_id, kind, starts_at, minutes, players, customer_name, customer_phone, amount, upi_ref, source, group_id, note, push_at)
+    values (h, 'PC', p_start, p_minutes, 1, trim(x ->> 'name'), case when length(coalesce(v_phone, '')) = 10 then v_phone else lead_phone end,
+      (r ->> 'amount')::numeric, nullif(trim(coalesce(p_upi_ref, '')), ''), 'online', (r ->> 'id')::uuid,
+      'With ' || trim(lead ->> 'name'), now());
+  end loop;
+  amt := (r ->> 'amount')::numeric * n;
+  return r || jsonb_build_object('amount', amt, 'people', n);
+end $$;
+revoke execute on function public.public_book_group(text, timestamptz, int, jsonb, text) from public;
+grant execute on function public.public_book_group(text, timestamptz, int, jsonb, text) to anon, authenticated;
