@@ -95,7 +95,7 @@ export default function Timer() {
         <form className="card timer-code" onSubmit={use}>
           <h2>Enter your code</h2>
           <p className="muted small">The 6-character code from your booking, or ask at the counter.</p>
-          <input className="mono" autoFocus value={input} onChange={(e) => setInput(e.target.value.toUpperCase().slice(0, 8))} placeholder="e.g. 4DB5C8" autoCapitalize="characters" spellCheck={false} />
+          <input className="mono" autoFocus={typeof matchMedia !== 'undefined' && matchMedia('(pointer: fine)').matches} value={input} onChange={(e) => setInput(e.target.value.toUpperCase().slice(0, 8))} placeholder="e.g. 4DB5C8" autoCapitalize="characters" spellCheck={false} />
           {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
           <button className="btn primary">Show my timer</button>
         </form>
@@ -123,7 +123,7 @@ export default function Timer() {
             </div>
           )
         })}
-        <p className="muted small" style={{ textAlign: 'center' }}>Code <b className="mono">{code}</b> · <button className="btn link" style={{ padding: 0 }} onClick={forget}>Use another code</button> · <button className="btn link" style={{ padding: 0 }} onClick={fullscreen}>Full screen</button></p>
+        <p className="muted small" style={{ textAlign: 'center' }}>Code <b className="mono">{code}</b> · <button className="btn link" style={{ padding: 0 }} onClick={forget}>Use another code</button> · <button className="btn link" style={{ padding: 0 }} onClick={fullscreen}>Full screen</button> · <a href="#">Home</a></p>
       </>)}
     </div>
   )
