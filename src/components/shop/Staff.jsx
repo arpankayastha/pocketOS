@@ -150,7 +150,7 @@ export default function Staff({ householdId, toast }) {
               <div className="gx-details">{m.own.map((x) => (
                 <button key={x.id} type="button" className="line gx-linebtn" onClick={() => go(() => setSheet({ kind: 'shift', shift: x, name: m.display_name || m.username }))}>
                   <span>{dayLabel(x.clock_in)} · {timeLabel(x.clock_in)} – {x.clock_out ? timeLabel(x.clock_out) : 'now'}</span>
-                  <b>{durLabel(mins(x))} ›</b>
+                  <b>{durLabel(mins(x))} · {rs((mins(x) / 60) * (Number(m.hourly_rate) || 0))} ›</b>
                 </button>
               ))}</div>
             )}

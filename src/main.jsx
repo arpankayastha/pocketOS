@@ -17,16 +17,17 @@ setTimeout(() => { try { sessionStorage.removeItem('gx.recovered') } catch { /* 
 if ('serviceWorker' in navigator) {
   const check = () => navigator.serviceWorker.getRegistration().then((r) => r?.update()).catch(() => {})
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check() })
-  setInterval(check, 60 * 60_000)
+  setInterval(check, 10 * 60_000) // the counter PC never leaves the screen, so check often
   const hadController = !!navigator.serviceWorker.controller
   let reloaded = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController || reloaded) return
     reloaded = true
-    // Don't throw away a form someone is typing in; reload the next time the app is opened instead.
-    if (document.activeElement?.matches?.('input, textarea, select')) {
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') location.reload() }, { once: true })
-    } else location.reload()
+    // Don't throw away a form or sheet someone is using: reload as soon as nothing is open (checked every
+    // 15 s — on the always-on counter PC the app is never hidden, so waiting for that would mean never).
+    const busy = () => document.activeElement?.matches?.('input, textarea, select') || document.querySelector('.modal-bg, .dialog-bg')
+    if (!busy()) location.reload()
+    else { const t = setInterval(() => { if (!busy()) { clearInterval(t); location.reload() } }, 15_000) }
   })
 }
 installSheetDrag()
