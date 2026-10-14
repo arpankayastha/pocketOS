@@ -1426,3 +1426,4 @@ html:fullscreen .pill-nav { display: none; }
 .gx-floor-bar .btn { min-height: 36px; padding: 6px 14px; }
 .gx-freetile:disabled { cursor: default; opacity: .45; background: var(--card-2); border-color: transparent; }
 .gx-freetile:disabled:active { transform: none; }
+.gx-rowcode { color: var(--text); letter-spacing: .04em; }
