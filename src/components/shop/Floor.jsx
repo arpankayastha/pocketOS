@@ -5,7 +5,7 @@ import { qrSvg } from '../../lib/upi'
 import PcPicker from '../PcPicker'
 import { DURATIONS, balanceFor, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, shortCode, timeLabel, useNow, rs } from '../../lib/shop'
 import { ActionGrid, ActionSheet, Chips, Sheet, SheetActions, SumRow, inOut } from './ui'
-import { ClockPlusIcon, CupIcon, MoveIcon, PauseIcon, PhoneIcon, PlayIcon, QrIcon, XIcon } from '../../lib/icons'
+import { CashIcon, ClockPlusIcon, CupIcon, MoveIcon, PauseIcon, PhoneIcon, PlayIcon, QrIcon, XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
 import { alarm, speak } from '../../lib/alarm'
 import CustomerFields from './CustomerFields'
@@ -151,8 +151,9 @@ export default function Floor({ shop, householdId, toast }) {
       {sheet?.kind === 'session' && <SessionSheet system={sheet.system} seat={sheet.seat} s={sheet.session} now={now} onClose={close}
         onAction={(kind) => setSheet({ ...sheet, kind })} onPause={(on) => pause([sheet.session], on)} onStart={() => startWaiting(sheet.session)} onCancel={() => cancelWaiting(sheet.session)} />}
       {sheet?.kind === 'controllers' && <ControllersSheet systems={multi} holders={holders} off={off} onSet={setOff} onClose={close} />}
-      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} deposits={shop.deposits} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
+      {sheet?.kind === 'collect' && <CollectSheet session={sheet.session} settings={shop.settings} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} settings={shop.settings} onClose={close} onDone={done} />}
       {sheet?.kind === 'timer' && <TimerCodeSheet session={sheet.session} onClose={close} />}
       {sheet?.kind === 'move' && <MoveSheet session={sheet.session} systems={shop.systems} freeOf={freeSeats} onClose={close} onDone={done} />}
@@ -233,6 +234,7 @@ function SessionSheet({ system, seat, s, now, onClose, onAction, onPause, onStar
         <div><span>To collect</span><b className={due ? 'neg' : ''}>{rs(due)}</b></div>
       </div>
       <ActionGrid items={[
+        due > 0 && { label: `Collect ${rs(due)}`, icon: <CashIcon />, onClick: () => onAction('collect') },
         { label: '+ F&B', icon: <CupIcon />, onClick: () => onAction('fnb') },
         { label: 'Extend', icon: <ClockPlusIcon />, onClick: () => onAction('extend') },
         { label: 'Move', icon: <MoveIcon />, onClick: () => onAction('move') },
@@ -277,7 +279,7 @@ const FNB = [[0, 'None'], [10, '₹10'], [20, '₹20'], [30, '₹30'], [40, '₹
 
 // Start one PC, or one or more PS5 controllers together (each controller = one customer, one timer, priced
 // per head). A booking's amount is split across its controllers as already paid online.
-function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rates, settings, happy, householdId, onClose, onDone }) {
+function StartSheet({ system: first, seats, freeOf, systems, booking, dues, deposits = [], rates, settings, happy, householdId, onClose, onDone }) {
   const now = useNow(30_000)
   // Owner: "booked PC2 but sat at PC4" — any free system of the same kind can be picked here.
   const [system, setSystem] = useState(first)
@@ -302,11 +304,16 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
   const total = gaming + fnb
   const key = customerKey(name, phone)
   const owes = key.length > 2 ? duesByCustomer(dues).find((d) => d.key === key) : null
+  // Owner, 14 Oct: regulars play on dues (pay days later) or from their deposit.
+  const dep = name.trim().length > 1 ? balanceFor(deposits, name.trim(), phone.trim()) : null
+  const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, total) : 0
   const toggle = (n) => setPicked((p) => (p.includes(n) ? (p.length > 1 ? p.filter((x) => x !== n) : p) : [...p, n].sort()))
 
   // later = the owner's "details first": the entry holds the PC, its clock starts from the row's ▶ Start timer.
   async function save(later = false) {
+    if (pay === 'due' && name.trim().length < 2) { setError('Add the customer’s name to keep it as dues.'); return }
     setBusy(true); setError(null)
+    let depLeft = fromDep
     const t0 = new Date().toISOString()
     const split = (v) => Math.round((v / count) * 100) / 100
     // Cash + online (owner: "₹80 bill, 50 cash and 30 online"): the cash part is shared across the timers.
@@ -315,12 +322,14 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
       const g = bookedSame ? split(Number(booking.amount)) : each
       const f = i === 0 ? fnb : 0
       const c = Math.round((g + f) * cashShare)
+      const d = Math.min(depLeft, g + f); depLeft -= d
       return {
         household_id: householdId, system_id: system.id, system_name: system.name, seat,
         customer_name: (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
         paid_cash: pay === 'cash' ? g + f : pay === 'split' ? c : 0,
         paid_online: pay === 'online' ? g + f : pay === 'split' ? g + f - c : pay === 'booked' ? split(Number(booking.amount)) : 0,
+        owed: pay === 'due' ? g + f : 0, paid_deposit: d,
         ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
     })
@@ -328,6 +337,8 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
     setBusy(false)
     if (error) { setError(error.code === '23505' ? (multi ? `Another controller on ${system.name} can’t start until the database update for controllers is approved. Start one at a time for now.` : `${system.name} is already running.`) : error.message); return }
     if (booking) await supabase.from('shop_bookings').update({ status: 'arrived', session_id: created[0].id }).eq('id', booking.id)
+    const used = rows.map((r, i) => ({ household_id: householdId, customer_name: dep?.name, customer_phone: dep?.phone || null, kind: 'use', amount: r.paid_deposit, session_id: created[i]?.id })).filter((r) => r.amount > 0)
+    if (used.length) await supabase.from('shop_deposits').insert(used)
     const where = `${system.name}${multi ? ` · controller${count > 1 ? 's' : ''} ${picked.join(', ')}` : ''}`
     onDone(later ? `${where} saved for ${name.trim() || 'walk-in'} · press ▶ Start timer when they sit down`
       : `${where} started for ${name.trim() || 'walk-in'} · ends ${timeLabel(new Date(Date.now() + mins * 60_000))}`)
@@ -354,13 +365,15 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, rate
         onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 5); setFnbOther(v); setFnb(Number(v) || 0) }} />
       <div className="caps muted">Payment</div>
       {booking && !online && Number(booking.paid) > 0 && <div className="small muted">{rs(booking.paid)} advance was taken when booking — it's offered at the end as {booking.customer_name}’s deposit.</div>}
-      <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online']]} value={pay} onChange={setPay} />
+      <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online'], ['due', 'Due · pays later'], ...(dep ? [['deposit', `From deposit · ${rs(dep.balance)}`]] : [])]} value={pay} onChange={setPay} />
+      {pay === 'due' && <div className="small muted">Goes into Cash → Customer dues under {name.trim() || 'their name'}.</div>}
+      {pay === 'deposit' && dep && <div className="small muted">{rs(fromDep)} from {dep.name}’s deposit{total > fromDep ? ` · ${rs(total - fromDep)} to collect at the end` : ''} · {rs(dep.balance - fromDep)} left after.</div>}
       {pay === 'split' && <label>Cash part<input inputMode="numeric" value={cashPart} onChange={(e) => setCashPart(e.target.value.replace(/\D/g, ''))} placeholder={`of ${rs(total)} — rest is online`} /></label>}
       {(pay === 'online' || pay === 'split') && <UpiQrButton settings={settings} amount={pay === 'split' ? Math.max(0, total - (Number(cashPart) || 0)) : total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
-        <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : total)} />
+        <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : pay === 'due' ? 'Into their dues' : pay === 'deposit' ? 'From deposit' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : pay === 'deposit' ? fromDep : total)} />
         {pay === 'split' && <SumRow label={`Cash ${rs(Math.min(Number(cashPart) || 0, total))} · online`} value={rs(Math.max(0, total - (Number(cashPart) || 0)))} />}
       </div>
       {/* Owner: several customers at once — save each entry first, start the clock when they sit down. */}
@@ -379,6 +392,31 @@ const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash
 const paidPatch = (session, pay, value) => pay === 'due' ? { owed: Number(session.owed || 0) + value } : pay === 'cash' ? { paid_cash: Number(session.paid_cash) + value }
   : pay === 'online' ? { paid_online: Number(session.paid_online) + value } : {}
 const payNote = (pay) => pay === 'due' ? ' · added to their dues' : pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
+
+// Owner, 14 Oct: the customer paid while still playing (staff forgot to pick a payment) — record it now;
+// End & collect then only asks for what's left.
+function CollectSheet({ session, settings, onClose, onDone }) {
+  const due = dueOf(session)
+  const [amount, setAmount] = useState(String(Math.round(due)))
+  const [mode, setMode] = useState('cash')
+  const [busy, setBusy] = useState(false)
+  const value = Math.min(Number(amount) || 0, due)
+  async function save() {
+    if (!value) return
+    setBusy(true)
+    const { error } = await supabase.from('shop_sessions').update(mode === 'cash' ? { paid_cash: Number(session.paid_cash) + value } : { paid_online: Number(session.paid_online) + value }).eq('id', session.id)
+    setBusy(false)
+    onDone(error ? error.message : `${rs(value)} ${mode} collected from ${session.customer_name}${due - value > 0 ? ` · ${rs(due - value)} still to collect` : ''}`)
+  }
+  return (
+    <Sheet title={`Collect · ${session.customer_name}`} sub={`${session.system_name} · ${rs(due)} to collect so far · keeps playing`} onClose={onClose} onSubmit={save}>
+      <label>Amount (₹)<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
+      <Chips options={[['cash', 'Cash'], ['online', 'Online']]} value={mode} onChange={setMode} />
+      {mode === 'online' && <UpiQrButton settings={settings} amount={value} note={`${session.system_name} · ${session.customer_name}`} />}
+      <SheetActions onClose={onClose} busy={busy} disabled={!value} label={`Collect ${rs(value)}`} />
+    </Sheet>
+  )
+}
 
 function FnbSheet({ session, settings, onClose, onDone }) {
   const [amt, setAmt] = useState(20)

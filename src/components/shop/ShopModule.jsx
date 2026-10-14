@@ -8,7 +8,7 @@ import { useBackAction } from '../../lib/backNav'
 import { useSwipe } from '../../lib/useSwipe'
 import { useRouteState } from '../../lib/route'
 import { useNow, useShop, useShopId } from '../../lib/shop'
-import { CalendarIcon, CashIcon, ClockIcon, HomeIcon, MonitorIcon, SettingsIcon, UsersIcon } from '../../lib/icons'
+import { BookIcon, CalendarIcon, CashIcon, ClockIcon, HomeIcon, MonitorIcon, SettingsIcon, UsersIcon } from '../../lib/icons'
 import Floor, { useTimeUpAlarm } from './Floor'
 import Shift from './Shift'
 import Cash from './Cash'
@@ -30,6 +30,7 @@ const ADMIN_TABS = [
 const STAFF_TABS = [
   { id: 'shift', label: 'Shift', icon: ClockIcon },
   { id: 'floor', label: 'Slots', icon: MonitorIcon },
+  { id: 'today', label: 'Sessions', icon: BookIcon }, // owner, 14 Oct: staff see the day's sessions and dues, date-wise (no totals / hours)
   { id: 'events', label: 'Events', icon: CalendarIcon },
   { id: 'cash', label: 'Cash', icon: CashIcon },
 ]
@@ -42,7 +43,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   const [tab, setTab] = useRouteState(1, home, (v) => v === 'settings' || tabs.some((t) => t.id === v))
   useBackAction(tab !== home, () => setTab(home), 2)
   const [hideMoney, toggleHideMoney] = useHideMoney()
-  setMoneyMasked(hideMoney && tab === 'today') // amounts on Today stay hidden until the 👁 is tapped
+  setMoneyMasked(hideMoney && tab === 'today' && !member) // amounts on Today stay hidden until the 👁 is tapped
   const [msg, setMsg] = useState(null)
   const timer = useRef(null)
   const toast = useCallback((m) => { setMsg(m); clearTimeout(timer.current); timer.current = setTimeout(() => setMsg(null), 2800) }, [])
@@ -63,7 +64,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   let body
   if (!householdId || shop.loading) body = <ListSkeleton />
   else if (shop.error) body = <div className="alert error">Couldn’t load the shop: {shop.error}</div>
-  else if (tab === 'today') body = <Today {...props} onOpen={setTab} toast={toast} />
+  else if (tab === 'today') body = <Today {...props} onOpen={setTab} toast={toast} staffView={!!member} />
   else if (tab === 'floor') body = <Floor {...props} />
   else if (tab === 'shift') body = <Shift householdId={householdId} userId={userId} toast={toast} shop={shop} onOpen={setTab} />
   else if (tab === 'cash') body = <Cash {...props} admin={!member} />
