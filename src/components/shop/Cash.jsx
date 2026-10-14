@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
+import { sessionTotal, customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
 import { ActionGrid, ActionSheet, Chips, SessionBreakdown, Sheet, SheetActions, SumRow, inOut } from './ui'
 import { XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
@@ -67,7 +67,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
     if (error) toast(error.message); else { setOpen(null); toast('Deposit cleared'); shop.reload() }
   }
   const entries = [
-    ...shop.sessions.filter((s) => s.status === 'closed' || sessionHasPay(s)).map((s) => ({
+    ...shop.sessions.filter((s) => s.status === 'closed' || s.status === 'running').map((s) => ({ // owner, 14 Oct: every entry, paid or not
       id: s.id, table: 'shop_sessions', at: s.ended_at || s.started_at, title: `${s.system_name} · ${s.customer_name} · ${durLabel(s.minutes)}`,
       sub: payLabel(s), time: inOut(s), session: s, amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
     })),
@@ -130,7 +130,10 @@ export default function Cash({ shop, householdId, toast, admin }) {
 
 const sessionHasPay = (s) => Number(s.paid_cash) + Number(s.paid_online) > 0
 function payLabel(s) {
-  if (s.status === 'running') return 'Paid at start'
+  if (s.status === 'running') {
+    const due = Math.max(0, sessionTotal(s) - Number(s.paid_cash) - Number(s.paid_online) - Number(s.paid_deposit || 0))
+    return `${s.waiting ? 'Waiting' : 'Playing'}${sessionHasPay(s) ? ' · part paid' : ''}${due ? ` · ${rs(due)} to collect` : ' · paid'}`
+  }
   if (Number(s.owed) > 0) return `Owes ${rs(s.owed)}`
   if (Number(s.paid_cash) && Number(s.paid_online)) return 'Cash + Online'
   return Number(s.paid_online) ? 'Online' : 'Cash'
