@@ -111,7 +111,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
       {open?.dues && (
         <ActionSheet title={open.dues.name} sub={`${open.dues.phone ? `${open.dues.phone} · ` : ''}owes ${rs(open.dues.total)}`} onClose={() => setOpen(null)}
           primary={<button type="button" className="btn primary" onClick={() => { setSheet({ dues: open.dues }); setOpen(null) }}>Collect</button>}>
-          <div className="gx-details">{open.dues.sessions.map((x) => <div key={x.id}><span>{dayLabel(x.started_at)} · {x.system_name}{x.handled_by ? ` · ${x.handled_by}` : ''}</span><b className="neg">{rs(x.owed)}</b></div>)}</div>
+          <div className="gx-details">{open.dues.sessions.map((x) => <div key={x.id}><span>{dayLabel(x.started_at)} · {x.system_name}{x.handled_by ? ` · ${x.handled_by}` : ''}<br /><small className="muted">{dueReason(x)}</small></span><b className="neg">{rs(x.owed)}</b></div>)}</div>
           {admin && <ActionGrid items={[{ label: 'Write off', icon: <XIcon />, onClick: () => writeOff(open.dues), danger: true }]} />}
         </ActionSheet>
       )}
@@ -132,7 +132,7 @@ const sessionHasPay = (s) => Number(s.paid_cash) + Number(s.paid_online) > 0
 function payLabel(s) {
   if (s.status === 'running') {
     const due = Math.max(0, sessionTotal(s) - Number(s.paid_cash) - Number(s.paid_online) - Number(s.paid_deposit || 0) - Number(s.owed || 0))
-    return `${s.waiting ? 'Waiting' : 'Playing'}${sessionHasPay(s) ? ' · part paid' : ''}${due ? ` · ${rs(due)} to collect` : ' · paid'}`
+    return `${s.waiting ? 'Waiting' : 'Playing'}${sessionHasPay(s) ? ' · part paid' : ''}${Number(s.owed) ? ` · ${rs(s.owed)} in dues` : ''}${due ? ` · ${rs(due)} to collect` : Number(s.owed) ? '' : ' · paid'}`
   }
   if (Number(s.owed) > 0) return `Owes ${rs(s.owed)}`
   if (Number(s.paid_cash) && Number(s.paid_online)) return 'Cash + Online'
@@ -292,4 +292,12 @@ function PlanClaims({ rows, order }) {
       })}
     </div>
   )
+}
+
+// Why a customer owes (owner, 15 Oct: "show the reason — extend or F&B"): the note saved with each due,
+// e.g. "Due: game + F&B ₹160 · Due: extend 30 min ₹50"; older dues without a note show the bill's parts.
+export function dueReason(x) {
+  const notes = (x.note || '').split(' · ').filter((t) => t.startsWith('Due:')).map((t) => t.slice(5))
+  if (notes.length) return notes.join(' · ')
+  return [Number(x.gaming_amount) && 'game', Number(x.extend_amount) && 'extend', (Number(x.fnb_before) + Number(x.fnb_while)) && 'F&B'].filter(Boolean).join(' + ')
 }

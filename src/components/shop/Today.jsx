@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { ActionGrid, ActionSheet, SessionBreakdown, inOut } from './ui'
 import { XIcon } from '../../lib/icons'
 import { duesByCustomer, addDays, dayLabel, dayStart, dayTotals, durLabel, hoursLabel, minutesLeft, sessionTotal, timeLabel, useDay, useNow, rs } from '../../lib/shop'
-import { DrawerCard } from './Cash'
+import { DrawerCard, dueReason } from './Cash'
 import { useSwipe } from '../../lib/useSwipe'
 import { useDialog } from '../../lib/dialog'
 
@@ -198,7 +198,7 @@ function Dues({ dues, order }) {
       {rows.length === 0 ? <div className="muted small">Nobody owes the shop anything.</div> : rows.map((r) => (
         <div key={r.key} className="line">
           <div className="grow" style={{ minWidth: 0 }}><div className="gx-ellipsis">{r.name}{r.phone ? <span className="muted small"> · {r.phone}</span> : null}</div>
-            <div className="muted small">{r.sessions.length} visit{r.sessions.length === 1 ? '' : 's'} · since {dayLabel(r.sessions[0].started_at)} · collect in Cash</div></div>
+            <div className="muted small">{r.sessions.map((x) => `${dayLabel(x.started_at)}: ${dueReason(x)} ${rs(x.owed)}`).join(' · ')}</div></div>
           <b className="neg">{rs(r.total)}</b>
         </div>
       ))}

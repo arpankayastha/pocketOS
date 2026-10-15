@@ -208,7 +208,7 @@ function RunRow({ sys, seat, s, now, onOpen, onStart }) {
       <span className={`gx-badge ${sys.kind === 'PS' ? 'ps' : ''}`}>{seatsOf1(sys) > 1 ? <span className="gx-badge-2">{sys.name}<small>C{seat}</small></span> : sys.name}</span>
       <div className="gx-run-main">
         <div className="gx-name">{s.customer_name}{s.players > 1 ? <span className="muted"> · {s.players} players</span> : ''}</div>
-        <div className="muted small">{s.waiting ? `Waiting · ${durLabel(s.minutes)} · not started` : `${timeLabel(s.started_at)} – ${timeLabel(sessionEnd(s, now))}${s.paused_at ? ' · paused' : ''}`} · <b className="mono gx-rowcode">{shortCode(s.id)}</b>{due > 0 && <span className="gx-due"> · {rs(due)} due</span>}</div>
+        <div className="muted small">{s.waiting ? `Waiting · ${durLabel(s.minutes)} · not started` : `${timeLabel(s.started_at)} – ${timeLabel(sessionEnd(s, now))}${s.paused_at ? ' · paused' : ''}`} · <b className="mono gx-rowcode">{shortCode(s.id)}</b>{due > 0 && <span className="gx-due"> · {rs(due)} due</span>}{Number(s.owed) > 0 && <span className="muted"> · {rs(s.owed)} in dues</span>}</div>
       </div>
       {s.waiting
         ? <button type="button" className="btn small primary" onClick={(e) => { e.stopPropagation(); onStart() }}>▶ Start</button>
@@ -307,14 +307,17 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, depo
   const owes = key.length > 2 ? duesByCustomer(dues).find((d) => d.key === key) : null
   // Owner, 14 Oct: regulars play on dues (pay days later) or from their deposit.
   const dep = name.trim().length > 1 ? balanceFor(deposits, name.trim(), phone.trim()) : null
-  const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, total) : 0
+  const [part, setPart] = useState('') // owner, 15 Oct: type how much goes to dues / comes from the deposit; the rest at the end
+  const partOf = (max) => (part === '' ? max : Math.min(max, Number(part) || 0))
+  const fromDep = pay === 'deposit' && dep ? partOf(Math.min(dep.balance, total)) : 0
+  const dueNow = pay === 'due' ? partOf(total) : 0
   const toggle = (n) => setPicked((p) => (p.includes(n) ? (p.length > 1 ? p.filter((x) => x !== n) : p) : [...p, n].sort()))
 
   // later = the owner's "details first": the entry holds the PC, its clock starts from the row's ▶ Start timer.
   async function save(later = false) {
     if (pay === 'due' && name.trim().length < 2) { setError('Add the customer’s name to keep it as dues.'); return }
     setBusy(true); setError(null)
-    let depLeft = fromDep
+    let depLeft = fromDep, dueLeft = dueNow
     const t0 = new Date().toISOString()
     const split = (v) => Math.round((v / count) * 100) / 100
     // Cash + online (owner: "₹80 bill, 50 cash and 30 online"): the cash part is shared across the timers.
@@ -324,13 +327,14 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, depo
       const f = i === 0 ? fnb : 0
       const c = Math.round((g + f) * cashShare)
       const d = Math.min(depLeft, g + f); depLeft -= d
+      const o = Math.min(dueLeft, g + f); dueLeft -= o
       return {
         household_id: householdId, system_id: system.id, system_name: system.name, seat,
         customer_name: i > 0 && (names[seat] || '').trim() ? names[seat].trim() : (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
         paid_cash: pay === 'cash' ? g + f : pay === 'split' ? c : 0,
         paid_online: pay === 'online' ? g + f : pay === 'split' ? g + f - c : pay === 'booked' ? split(Number(booking.amount)) : 0,
-        owed: pay === 'due' ? g + f : 0, paid_deposit: d,
+        owed: o, paid_deposit: d, note: o ? `Due: ${f ? `game + F&B` : 'game'} ${rs(o)}` : null,
         ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
     })
@@ -369,15 +373,16 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, depo
         onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 5); setFnbOther(v); setFnb(Number(v) || 0) }} />
       <div className="caps muted">Payment</div>
       {booking && !online && Number(booking.paid) > 0 && <div className="small muted">{rs(booking.paid)} advance was taken when booking — it's offered at the end as {booking.customer_name}’s deposit.</div>}
-      <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online'], ['due', 'Due · pays later'], ...(dep ? [['deposit', `From deposit · ${rs(dep.balance)}`]] : [])]} value={pay} onChange={setPay} />
-      {pay === 'due' && <div className="small muted">Goes into Cash → Customer dues under {name.trim() || 'their name'}.</div>}
+      <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online'], ['due', 'Due · pays later'], ...(dep ? [['deposit', `From deposit · ${rs(dep.balance)}`]] : [])]} value={pay} onChange={(v) => { setPay(v); setPart('') }} />
+      {(pay === 'due' || (pay === 'deposit' && dep)) && <label>{pay === 'due' ? 'Amount into dues' : 'Amount from deposit'} (₹)<input inputMode="numeric" value={part} onChange={(e) => setPart(e.target.value.replace(/\D/g, ''))} placeholder={`${rs(pay === 'due' ? total : Math.min(dep.balance, total))} · all`} /></label>}
+      {pay === 'due' && <div className="small muted">{rs(dueNow)} goes into Cash → Customer dues under {name.trim() || 'their name'}{total > dueNow ? ` · ${rs(total - dueNow)} to collect at the end` : ''}.</div>}
       {pay === 'deposit' && dep && <div className="small muted">{rs(fromDep)} from {dep.name}’s deposit{total > fromDep ? ` · ${rs(total - fromDep)} to collect at the end` : ''} · {rs(dep.balance - fromDep)} left after.</div>}
       {pay === 'split' && <label>Cash part<input inputMode="numeric" value={cashPart} onChange={(e) => setCashPart(e.target.value.replace(/\D/g, ''))} placeholder={`of ${rs(total)} — rest is online`} /></label>}
       {(pay === 'online' || pay === 'split') && <UpiQrButton settings={settings} amount={pay === 'split' ? Math.max(0, total - (Number(cashPart) || 0)) : total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
-        <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : pay === 'due' ? 'Into their dues' : pay === 'deposit' ? 'From deposit' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : pay === 'deposit' ? fromDep : total)} />
+        <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : pay === 'due' ? 'Into their dues' : pay === 'deposit' ? 'From deposit' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : pay === 'deposit' ? fromDep : pay === 'due' ? dueNow : total)} />
         {pay === 'split' && <SumRow label={`Cash ${rs(Math.min(Number(cashPart) || 0, total))} · online`} value={rs(Math.max(0, total - (Number(cashPart) || 0)))} />}
       </div>
       {/* Owner: several customers at once — save each entry first, start the clock when they sit down. */}
@@ -393,7 +398,8 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, depo
 // Pay for an add-on now or at the end (owner, 13 Oct: "customer paid online but it showed ₹50 to collect").
 // Owner, 14 Oct: 'Due' puts it straight into the customer's dues (Cash → Customer dues), by their name.
 const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['due', 'Due · customer owes']]
-const paidPatch = (session, pay, value) => pay === 'due' ? { owed: Number(session.owed || 0) + value } : pay === 'cash' ? { paid_cash: Number(session.paid_cash) + value }
+const addNote = (session, text) => [session.note, text].filter(Boolean).join(' · ')
+const paidPatch = (session, pay, value, what) => pay === 'due' ? { owed: Number(session.owed || 0) + value, note: addNote(session, `Due: ${what} ${rs(value)}`) } : pay === 'cash' ? { paid_cash: Number(session.paid_cash) + value }
   : pay === 'online' ? { paid_online: Number(session.paid_online) + value } : {}
 const payNote = (pay) => pay === 'due' ? ' · added to their dues' : pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
 
@@ -431,7 +437,7 @@ function FnbSheet({ session, settings, onClose, onDone }) {
   async function save() {
     if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').update({ fnb_while: Number(session.fnb_while) + value, ...paidPatch(session, pay, value) }).eq('id', session.id)
+    const { error } = await supabase.from('shop_sessions').update({ fnb_while: Number(session.fnb_while) + value, ...paidPatch(session, pay, value, 'F&B') }).eq('id', session.id)
     setBusy(false)
     if (error) { onDone(error.message); return }
     onDone(`${rs(value)} F&B added to ${session.system_name}${payNote(pay)}`)
@@ -460,7 +466,7 @@ function ExtendSheet({ system, session, rates, settings, onClose, onDone }) {
   async function save() {
     if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: Number(session.extend_amount) + extra, ...paidPatch(session, pay, extra) }).eq('id', session.id)
+    const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: Number(session.extend_amount) + extra, ...paidPatch(session, pay, extra, `extend ${durLabel(add)}`) }).eq('id', session.id)
     setBusy(false)
     if (error) { onDone(error.message); return }
     onDone(`${session.system_name} now ends ${timeLabel(newEnd)} · +${rs(extra)}${payNote(pay)}`)
@@ -508,6 +514,7 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
       status: 'closed', ended_at: new Date().toISOString(), closed_by: user?.id,
       discount: Number(session.discount) + disc,
       paid_cash: Number(session.paid_cash) + cash, paid_online: Number(session.paid_online) + online, owed: owedBefore + owed,
+      ...(owed ? { note: addNote(session, `Due: bill at the end ${rs(owed)}`) } : {}),
       paid_deposit: Number(session.paid_deposit || 0) + fromDep,
     }).eq('id', session.id)
     if (!error && fromDep > 0) {

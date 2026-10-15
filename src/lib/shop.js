@@ -112,7 +112,7 @@ export function useShop(householdId) {
       supabase.from('shop_event_bookings').select('*, shop_events(name, slot_minutes)').eq('household_id', householdId).eq('payment_ok', false).eq('status', 'booked').order('created_at'),
       supabase.from('shop_entries').select('*, shop_events(name)').eq('household_id', householdId).eq('status', 'requested').order('created_at'),
       // Customer dues still open (any day) and dues paid back today.
-      supabase.from('shop_sessions').select('id, customer_name, customer_phone, system_name, started_at, owed, entered_by, handled_by').eq('household_id', householdId).gt('owed', 0).neq('status', 'cancelled').order('started_at'),
+      supabase.from('shop_sessions').select('id, customer_name, customer_phone, system_name, started_at, owed, entered_by, handled_by, note, gaming_amount, extend_amount, fnb_before, fnb_while').eq('household_id', householdId).gt('owed', 0).neq('status', 'cancelled').order('started_at'),
       supabase.from('shop_dues_paid').select('*').eq('household_id', householdId).gte('created_at', from).order('created_at', { ascending: false }),
     ])
     const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid].find((r) => r.error)?.error
