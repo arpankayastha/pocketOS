@@ -221,7 +221,7 @@ function RunRow({ sys, seat, s, now, onOpen, onStart }) {
 // Everything for one customer, in one sheet: the bill so far, how it was paid, and the actions.
 function SessionSheet({ system, seat, s, now, onClose, onAction, onPause, onStart, onCancel }) {
   const left = minutesLeft(s, now)
-  const bill = sessionTotal(s), paid = sessionPaid(s), due = Math.max(0, bill - paid - Number(s.owed || 0))
+  const bill = sessionTotal(s), paid = sessionPaid(s), owed = Number(s.owed || 0), due = Math.max(0, bill - paid - owed)
   const how = [Number(s.paid_cash) && 'cash', Number(s.paid_online) && 'online', Number(s.paid_deposit || 0) && 'deposit'].filter(Boolean).join(' + ')
   return (
     <ActionSheet title={`${s.customer_name}${s.players > 1 ? ` · ${s.players} players` : ''}`}
@@ -231,10 +231,10 @@ function SessionSheet({ system, seat, s, now, onClose, onAction, onPause, onStar
       <div className="gx-skpis">
         <div><span>Bill</span><b>{rs(bill)}</b></div>
         <div><span>Paid{how ? ` · ${how}` : ''}</span><b className={paid ? 'pos' : ''}>{rs(paid)}</b></div>
-        <div><span>To collect</span><b className={due ? 'neg' : ''}>{rs(due)}</b></div>
+        <div><span>{owed ? 'To collect · in dues' : 'To collect'}</span><b className={due + owed ? 'neg' : ''}>{rs(due + owed)}</b></div>
       </div>
       <ActionGrid items={[
-        due > 0 && { label: `Collect ${rs(due)}`, icon: <CashIcon />, onClick: () => onAction('collect') },
+        due + owed > 0 && { label: `Collect ${rs(due + owed)}`, icon: <CashIcon />, onClick: () => onAction('collect') },
         { label: '+ F&B', icon: <CupIcon />, onClick: () => onAction('fnb') },
         { label: 'Extend', icon: <ClockPlusIcon />, onClick: () => onAction('extend') },
         { label: 'Move', icon: <MoveIcon />, onClick: () => onAction('move') },
@@ -389,7 +389,6 @@ function StartSheet({ system: first, seats, freeOf, systems, booking, dues, depo
       <div className="actions gx-start-actions">
         <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
         <button type="submit" className="btn primary" disabled={busy}>{busy ? 'Saving…' : 'Save · start later'}</button>
-        <button type="button" className="btn gx-ok" disabled={busy} onClick={() => save(false)}>{count > 1 ? `Start ${count} now` : 'Start now'}</button>
       </div>
     </Sheet>
   )
@@ -406,7 +405,9 @@ const payNote = (pay) => pay === 'due' ? ' · added to their dues' : pay === 'ca
 // Owner, 14 Oct: the customer paid while still playing (staff forgot to pick a payment) — record it now;
 // End & collect then only asks for what's left.
 function CollectSheet({ session, settings, onClose, onDone }) {
-  const due = dueOf(session)
+  // Also takes what was put in their dues while playing (owner, 15 Oct: tejas paid but showed Paid ₹0).
+  const owed = Number(session.owed || 0)
+  const due = dueOf(session) + owed
   const [amount, setAmount] = useState(String(Math.round(due)))
   const [mode, setMode] = useState('cash')
   const [busy, setBusy] = useState(false)
@@ -414,7 +415,8 @@ function CollectSheet({ session, settings, onClose, onDone }) {
   async function save() {
     if (!value) return
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').update(mode === 'cash' ? { paid_cash: Number(session.paid_cash) + value } : { paid_online: Number(session.paid_online) + value }).eq('id', session.id)
+    const fromDues = Math.min(owed, value) // dues first, then the rest of the bill
+    const { error } = await supabase.from('shop_sessions').update({ ...(mode === 'cash' ? { paid_cash: Number(session.paid_cash) + value } : { paid_online: Number(session.paid_online) + value }), ...(fromDues ? { owed: owed - fromDues } : {}) }).eq('id', session.id)
     setBusy(false)
     onDone(error ? error.message : `${rs(value)} ${mode} collected from ${session.customer_name}${due - value > 0 ? ` · ${rs(due - value)} still to collect` : ''}`)
   }

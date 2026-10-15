@@ -1428,3 +1428,5 @@ html:fullscreen .pill-nav { display: none; }
 .gx-freetile:disabled:active { transform: none; }
 .gx-rowcode { color: var(--text); letter-spacing: .04em; }
 .req { color: var(--accent); font-weight: 700; }
+/* Owner, 15 Oct: the timer code was cut off on waiting rows (the ▶ Start button takes the room) — let the line wrap */
+.gx-run-main .small { white-space: normal; overflow: visible; }
