@@ -568,9 +568,51 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
 // Online money to check, on every phone (admin and staff): slot bookings from /#book, event advances and
 // tournament entry fees from the home page. Staff open their UPI app, then tap Received — or Not received,
 // which cancels the request. "Arrived" on a confirmed slot booking starts its session, already paid.
+// The first booked time and each change (owner, 16 Oct: keep the original time in the record after a change).
+const whenLabel = (t) => `${new Date(t).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} ${timeLabel(t)}`
+const timeHistory = (b) => (b.first_starts_at ? [['First booked for', whenLabel(b.first_starts_at)],
+  ...(b.time_changes || []).map((c, i) => [`Change ${i + 1}`, `${timeLabel(c.from)} → ${whenLabel(c.to)}${c.by ? ` · by ${c.by}` : ''}`])] : [])
+
+// Owner, 16 Oct: "booked customers sometimes don't come on time — others are waiting, we give them the system".
+// Not arrived · change time: move the booking to a new day / time (same length); the first time is kept.
+function ChangeTimeSheet({ booking: b, onClose, onDone }) {
+  const d0 = new Date(b.starts_at)
+  const [date, setDate] = useState(d0.toLocaleDateString('en-CA'))
+  const [time, setTime] = useState(`${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  async function save() {
+    const to = new Date(`${date}T${time}`)
+    if (Number.isNaN(to.getTime())) { setError('Pick a date and time.'); return }
+    if (to.getTime() === d0.getTime()) { onClose(); return }
+    setBusy(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const by = user?.user_metadata?.username ? user.user_metadata.username.replace(/^./, (c) => c.toUpperCase()) : null
+    const { error } = await supabase.from('shop_bookings').update({
+      starts_at: to.toISOString(), first_starts_at: b.first_starts_at || b.starts_at,
+      time_changes: [...(b.time_changes || []), { from: b.starts_at, to: to.toISOString(), at: new Date().toISOString(), by }],
+    }).eq('id', b.id)
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    onDone(`${b.customer_name}'s booking moved to ${whenLabel(to)} · first booked ${whenLabel(b.first_starts_at || b.starts_at)}`)
+  }
+  return (
+    <Sheet title={`Change time · ${b.customer_name}`} sub={`Booked ${whenLabel(b.starts_at)} · ${durLabel(b.minutes)}${b.first_starts_at ? ` · first booked ${whenLabel(b.first_starts_at)}` : ''}`} onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <div className="grid2">
+        <label>Day<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+        <label>New start time<input type="time" autoFocus value={time} onChange={(e) => setTime(e.target.value)} /></label>
+      </div>
+      <div className="small muted">The system is free for others meanwhile. The first booked time stays in the booking's history.</div>
+      <SheetActions onClose={onClose} busy={busy} label="Change time" />
+    </Sheet>
+  )
+}
+
 function Bookings({ systems = [], bookings = [], eventChecks = [], entryChecks = [], onArrived, onChanged }) {
   const dialog = useDialog()
   const [open, setOpen] = useState(null)
+  const [move, setMove] = useState(null) // a booking whose customer didn't come on time → new time
   const [all, setAll] = useState(false)
   async function update(table, row, patch, msg, ask) {
     if (ask && !await dialog.confirm(ask)) return
@@ -607,14 +649,14 @@ function Bookings({ systems = [], bookings = [], eventChecks = [], entryChecks =
       const req = b.status === 'requested'
       const group = b.group_id ? bookings.filter((x) => x.group_id === b.group_id) : []
       return {
-        id: b.id, badge: b.kind === 'PS' ? 'PS5' : pc || 'PC', cls: b.kind === 'PS' ? 'ps' : '', name: `${b.customer_name}${b.players > 1 ? ` · ${b.players} players` : ''}`,
-        sub: `${day(b.starts_at)} ${timeLabel(b.starts_at)} – ${until(b)}${group.length > 1 ? ` · group of ${group.length}` : ''}`, phone: b.customer_phone, check: req,
+        raw: b, id: b.id, badge: b.kind === 'PS' ? 'PS5' : pc || 'PC', cls: b.kind === 'PS' ? 'ps' : '', name: `${b.customer_name}${b.players > 1 ? ` · ${b.players} players` : ''}`,
+        sub: `${day(b.starts_at)} ${timeLabel(b.starts_at)} – ${until(b)}${b.first_starts_at ? ` · moved from ${timeLabel(b.first_starts_at)}` : ''}${group.length > 1 ? ` · group of ${group.length}` : ''}`, phone: b.customer_phone, check: req,
         pill: req ? 'Payment?' : b.source === 'counter' ? 'Booked' : 'Paid',
         details: [
           ['When', `${day(b.starts_at)} ${timeLabel(b.starts_at)} – ${until(b)}`], ['Where', b.kind === 'PS' ? 'PS5' : pc || 'Any PC'], ['Amount', rs(b.amount)],
           ['Payment', b.source === 'counter' ? (Number(b.paid) > 0 ? `${rs(b.paid)} advance · ${b.paid_mode}` : 'at the counter') : req ? 'online · to check' : 'paid online'],
           ['Group', group.length > 1 ? `${group.length} people · ${group.map((x) => x.customer_name).join(', ')}${req ? ' · one payment for all' : ''}` : null],
-          ['UPI ref', b.upi_ref], ['Mobile', b.customer_phone], ['Booked by', b.source === 'counter' ? b.entered_by || 'staff' : 'online'], ['Checked by', b.handled_by], ['Note', b.note], ['Code', shortCode(b.id)]],
+          ...timeHistory(b), ['UPI ref', b.upi_ref], ['Mobile', b.customer_phone], ['Booked by', b.source === 'counter' ? b.entered_by || 'staff' : 'online'], ['Checked by', b.handled_by], ['Note', b.note], ['Code', shortCode(b.id)]],
         main: req ? { label: 'Received', run: () => update('shop_bookings', b, { status: 'confirmed' }, 'Payment received · booking confirmed') }
           : { label: 'Arrived', run: () => { setOpen(null); onArrived(b) } },
         other: req ? { label: 'Not received', run: () => update('shop_bookings', b, { status: 'cancelled' }, 'Booking cancelled', notPaid(b.customer_name)) }
@@ -645,10 +687,12 @@ function Bookings({ systems = [], bookings = [], eventChecks = [], entryChecks =
           <div className="gx-details">{open.details.filter(([, v]) => v).map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}</div>
           <ActionGrid items={[
             open.phone && { label: 'Call', icon: <PhoneIcon />, href: `tel:${open.phone}` },
+            open.raw?.status === 'confirmed' && { label: 'Not arrived · change time', icon: <ClockPlusIcon />, onClick: () => { setMove(open.raw); setOpen(null) } },
             { label: open.other.label, icon: <XIcon />, onClick: open.other.run, danger: true },
           ]} />
         </ActionSheet>
       )}
+      {move && <ChangeTimeSheet booking={move} onClose={() => setMove(null)} onDone={(m) => { setMove(null); onChanged(m) }} />}
     </div>
   )
 }
@@ -849,6 +893,7 @@ function SlotCalendar({ shop, onBook, onArrived, toast }) {
   const count = mine.length
   const [showPast, setShowPast] = useState(false)
   const [openB, setOpenB] = useState(null)
+  const [moveB, setMoveB] = useState(null)
   return (
     <div className="gx-cal">
       <Chips scroll options={days.map((d, i) => [ymdLocal(d), label(d, i)])} value={day} onChange={setDay} />
@@ -890,15 +935,17 @@ function SlotCalendar({ shop, onBook, onArrived, toast }) {
           <div className="gx-details">
             {[['Where', openB.kind === 'PS' ? 'PS5' : shop.systems.find((x) => x.id === openB.system_id)?.name || 'Any PC'], ['Amount', rs(openB.amount)],
               ['Payment', openB.source === 'counter' ? (Number(openB.paid) > 0 ? `${rs(openB.paid)} advance · ${openB.paid_mode}` : 'at the counter') : openB.status === 'requested' ? 'online · to check' : 'paid online'],
-              ['Mobile', openB.customer_phone], ['Booked by', openB.source === 'online' ? 'online' : openB.entered_by || 'staff'], ['Note', openB.note], ['Code', shortCode(openB.id)]]
+              ...timeHistory(openB), ['Mobile', openB.customer_phone], ['Booked by', openB.source === 'online' ? 'online' : openB.entered_by || 'staff'], ['Note', openB.note], ['Code', shortCode(openB.id)]]
               .filter(([, v]) => v).map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}
           </div>
           <ActionGrid items={[
             openB.customer_phone && { label: 'Call', icon: <PhoneIcon />, href: `tel:${openB.customer_phone}` },
+            openB.status === 'confirmed' && { label: 'Not arrived · change time', icon: <ClockPlusIcon />, onClick: () => { setMoveB(openB); setOpenB(null) } },
             openB.status !== 'arrived' && { label: 'Cancel booking', icon: <XIcon />, onClick: () => { const b = openB; setOpenB(null); cancel(b) }, danger: true },
           ]} />
         </ActionSheet>
       )}
+      {moveB && <ChangeTimeSheet booking={moveB} onClose={() => setMoveB(null)} onDone={(m) => { setMoveB(null); toast?.(m); shop.reload() }} />}
     </div>
   )
 }

@@ -1018,3 +1018,8 @@ begin
 end $$;
 revoke execute on function public.my_pay(uuid, date) from public, anon;
 grant execute on function public.my_pay(uuid, date) to authenticated;
+
+-- Owner, 16 Oct: booked customers sometimes don't come on time — staff move the booking to a new time
+-- (Not arrived · change time); the first booked time and every change are kept.
+alter table public.shop_bookings add column if not exists first_starts_at timestamptz;
+alter table public.shop_bookings add column if not exists time_changes jsonb not null default '[]';
