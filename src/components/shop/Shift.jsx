@@ -109,6 +109,7 @@ export default function Shift({ householdId, userId, toast, shop, onOpen }) {
           ))}
         </div>
       )}
+      <MyPay householdId={householdId} version={shifts?.length} />
       <details className="card gx-week">
         <summary><b>My hours · last 7 days</b><span className="muted small">{hoursLabel(week)}</span></summary>
         {shifts === null ? <div className="muted small">Loading…</div> : shifts.length === 0 ? <div className="muted small">No shifts yet.</div> : shifts.map((s) => (
@@ -121,5 +122,26 @@ export default function Shift({ householdId, userId, toast, shop, onOpen }) {
       </details>
       </div>
     </section>
+  )
+}
+
+// Owner, 16 Oct: staff see their own pay this month — hours × rate, deductions / bonus, what's been paid, what's left.
+function MyPay({ householdId, version }) {
+  const [p, setP] = useState(null)
+  useEffect(() => { supabase.rpc('my_pay', { p_household: householdId }).then(({ data }) => setP(data || null)) }, [householdId, version])
+  if (!p) return null
+  const left = Math.max(0, Number(p.pay) - Number(p.paid))
+  const month = new Date().toLocaleDateString('en-IN', { month: 'long' })
+  return (
+    <div className="card">
+      <div className="card-head"><h3>My pay · {month}</h3><b>{rs(p.pay)}</b></div>
+      <div className="line"><span className="muted">{hoursLabel(p.minutes)} × {rs(p.rate)}/hr</span><span>{rs(p.earned)}</span></div>
+      {Number(p.adjust) !== 0 && <div className="line"><span className="muted">{Number(p.adjust) < 0 ? 'Deductions' : 'Bonus'}</span><span className={Number(p.adjust) < 0 ? 'neg' : 'pos'}>{Number(p.adjust) < 0 ? '−' : '+'}{rs(Math.abs(p.adjust))}</span></div>}
+      <div className="line"><span className="muted">Paid so far</span><span className="pos">{rs(p.paid)}</span></div>
+      <div className="line"><b>Left to be paid</b><b>{rs(left)}</b></div>
+      {(p.payments || []).map((x, i) => (
+        <div key={i} className="muted small">Paid {rs(x.amount)} {x.mode} on {new Date(x.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{x.note ? ` · ${x.note}` : ''}</div>
+      ))}
+    </div>
   )
 }

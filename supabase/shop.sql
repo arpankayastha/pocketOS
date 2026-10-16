@@ -976,3 +976,45 @@ begin
 end $$;
 revoke execute on function public.public_book_group(text, timestamptz, int, jsonb, text) from public;
 grant execute on function public.public_book_group(text, timestamptz, int, jsonb, text) to anon, authenticated;
+
+-- Salary paid to staff (owner, 16 Oct: "salary paid option in admin; employee sees how much was paid";
+-- temporary staff are paid mid-month). Admin writes; each staff member reads their own via my_pay().
+create table if not exists public.shop_salary_payments (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  user_id uuid not null,
+  staff_name text,
+  amount numeric(10,2) not null check (amount > 0),
+  mode text not null default 'cash' check (mode in ('cash', 'online')),
+  note text,
+  paid_at timestamptz not null default now(),
+  entered_by text,
+  created_at timestamptz not null default now()
+);
+create index if not exists shop_salary_payments_hh_idx on public.shop_salary_payments (household_id, paid_at desc);
+create index if not exists shop_salary_payments_user_idx on public.shop_salary_payments (user_id);
+alter table public.shop_salary_payments enable row level security;
+create policy "admin salary" on public.shop_salary_payments for all to authenticated
+  using (household_id in (select private.my_admin_household_ids())) with check (household_id in (select private.my_admin_household_ids()));
+create or replace trigger shop_salary_payments_entered_by before insert on public.shop_salary_payments for each row execute function private.stamp_entered_by();
+
+-- A staff member's own pay for a month: hours × rate − deductions + bonuses, what was paid, what's left.
+create or replace function public.my_pay(p_household uuid, p_month date default null)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare uid uuid := auth.uid(); m_from timestamptz; m_to timestamptz; rate numeric; mins numeric; adj numeric; paid numeric;
+begin
+  if not exists (select 1 from public.household_members where household_id = p_household and user_id = uid) then raise exception 'Staff only.'; end if;
+  m_from := (date_trunc('month', coalesce(p_month, (now() at time zone 'Asia/Kolkata')::date)))::timestamp at time zone 'Asia/Kolkata';
+  m_to := ((date_trunc('month', coalesce(p_month, (now() at time zone 'Asia/Kolkata')::date)) + interval '1 month'))::timestamp at time zone 'Asia/Kolkata';
+  select coalesce(hourly_rate, 0) into rate from public.household_members where household_id = p_household and user_id = uid;
+  select coalesce(sum(extract(epoch from (coalesce(clock_out, now()) - clock_in)) / 60), 0) into mins
+    from public.shop_shifts where household_id = p_household and user_id = uid and clock_in >= m_from and clock_in < m_to;
+  select coalesce(sum(amount), 0) into adj from public.shop_pay_adjustments where household_id = p_household and user_id = uid and month = m_from::date;
+  select coalesce(sum(amount), 0) into paid from public.shop_salary_payments where household_id = p_household and user_id = uid and paid_at >= m_from and paid_at < m_to;
+  return jsonb_build_object('rate', rate, 'minutes', round(mins), 'earned', round(mins / 60 * rate), 'adjust', adj,
+    'pay', greatest(0, round(mins / 60 * rate) + adj), 'paid', paid,
+    'payments', coalesce((select jsonb_agg(jsonb_build_object('amount', amount, 'mode', mode, 'note', note, 'at', paid_at) order by paid_at desc)
+      from public.shop_salary_payments where household_id = p_household and user_id = uid and paid_at >= m_from and paid_at < m_to), '[]'));
+end $$;
+revoke execute on function public.my_pay(uuid, date) from public, anon;
+grant execute on function public.my_pay(uuid, date) to authenticated;

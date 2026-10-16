@@ -19,6 +19,7 @@ export default function Staff({ householdId, toast }) {
   const [staff, setStaff] = useState(null)
   const [shifts, setShifts] = useState([])
   const [adjust, setAdjust] = useState([]) // deductions (−) and bonuses (+) this month
+  const [salary, setSalary] = useState([]) // salary paid this month (owner, 16 Oct)
   const [google, setGoogle] = useState({}) // staff user_id → linked Gmail
   const [error, setError] = useState(null)
   const [sheet, setSheet] = useState(null) // { kind: 'add' } | { kind: 'shift', shift } | { kind: 'login', ... }
@@ -30,13 +31,14 @@ export default function Staff({ householdId, toast }) {
 
   const load = useCallback(async () => {
     const monthKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`
-    const [m, s, a] = await Promise.all([
+    const [m, s, a, sp] = await Promise.all([
       supabase.from('household_members').select('*').eq('household_id', householdId).eq('role', 'staff').order('created_at'),
       supabase.from('shop_shifts').select('*').eq('household_id', householdId).gte('clock_in', startIso).lt('clock_in', endIso).order('clock_in', { ascending: false }),
       supabase.from('shop_pay_adjustments').select('*').eq('household_id', householdId).eq('month', monthKey).order('created_at'),
+      supabase.from('shop_salary_payments').select('*').eq('household_id', householdId).gte('paid_at', startIso).lt('paid_at', endIso).order('paid_at', { ascending: false }),
     ])
     if (m.error || s.error) { setError((m.error || s.error).message); return }
-    setStaff(m.data); setShifts(s.data); setAdjust(a.data || [])
+    setStaff(m.data); setShifts(s.data); setAdjust(a.data || []); setSalary(sp.data || [])
     supabase.rpc('staff_google', { p_household: householdId }).then(({ data }) => setGoogle(data || {}))
   }, [householdId, startIso, endIso]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
@@ -49,7 +51,10 @@ export default function Staff({ householdId, toast }) {
     const earned = Math.round((minutes / 60) * (Number(m.hourly_rate) || 0))
     const adj = adjust.filter((x) => x.user_id === m.user_id)
     const adjTotal = adj.reduce((t, x) => t + Number(x.amount), 0)
-    return { ...m, own, minutes, days, earned, adj, adjTotal, pay: Math.max(0, earned + adjTotal), on: own.find((s) => !s.clock_out) }
+    const payments = salary.filter((x) => x.user_id === m.user_id)
+    const paid = payments.reduce((t, x) => t + Number(x.amount), 0)
+    const pay = Math.max(0, earned + adjTotal)
+    return { ...m, own, minutes, days, earned, adj, adjTotal, pay, payments, paid, left: Math.max(0, pay - paid), on: own.find((s) => !s.clock_out) }
   })
   const removed = shifts.filter((s) => !s.user_id)
   const monthSwipe = useSwipe({ onLeft: () => setMonth((m) => Math.min(0, m + 1)), onRight: () => setMonth((m) => m - 1) })
@@ -70,6 +75,11 @@ export default function Staff({ householdId, toast }) {
     if (!await dialog.confirm({ title: `Remove Google from ${m.display_name || m.username}?`, message: `${google[m.user_id]} won't open this staff login any more. Then use Link Google to add the right Gmail (it must tap Sign in with Google once first).`, confirmLabel: 'Remove Google', danger: true })) return
     const { error } = await supabase.rpc('unlink_staff_google', { p_staff: m.user_id })
     if (error) toast(error.message); else { toast('Google removed — link the new Gmail'); load() }
+  }
+  async function removePayment(x) {
+    if (!await dialog.confirm({ title: `Remove this salary payment?`, message: `${rs(x.amount)} paid to ${x.staff_name} on ${new Date(x.paid_at).toLocaleDateString('en-IN')}.`, confirmLabel: 'Remove', danger: true })) return
+    const { error } = await supabase.from('shop_salary_payments').delete().eq('id', x.id)
+    if (error) toast(error.message); else { toast('Payment removed'); setOpen(null); load() }
   }
   async function removeAdjust(x) {
     if (!await dialog.confirm({ title: `Remove “${x.reason}”?`, message: `${Number(x.amount) < 0 ? 'Deduction' : 'Bonus'} of ${rs(Math.abs(x.amount))}.`, confirmLabel: 'Remove', danger: true })) return
@@ -113,7 +123,7 @@ export default function Staff({ householdId, toast }) {
             <div className="gx-name">{m.display_name || m.username}{m.designation && <span className="muted small"> · {m.designation}</span>}</div>
             <div className={`small ${m.on ? 'pos' : 'muted'}`}>{m.on ? `On duty since ${timeLabel(m.on.clock_in)}` : `Off duty · ${m.days} day${m.days === 1 ? '' : 's'} this month`}</div>
           </div>
-          <div className="gx-left"><b>{rs(m.pay)}</b><span>{hoursLabel(m.minutes)}</span></div>
+          <div className="gx-left"><b>{rs(m.pay)}</b><span>{m.paid ? (m.left ? `${rs(m.left)} left` : 'paid') : hoursLabel(m.minutes)}</span></div>
         </div>
       ))}
       </div>
@@ -125,8 +135,8 @@ export default function Staff({ householdId, toast }) {
           <ActionSheet title={m.display_name || m.username} sub={`@${m.username}${m.designation ? ` · ${m.designation}` : ''}${google[m.user_id] ? ` · Google ${google[m.user_id]}` : ''}`} onClose={() => setOpen(null)}>
             <div className="gx-skpis">
               <div><span>Hours</span><b>{hoursLabel(m.minutes)}</b></div>
-              <div><span>Rate</span><b>{rs(m.hourly_rate)}/h</b></div>
-              <div><span>Pay</span><b>{rs(m.pay)}</b></div>
+              <div><span>Pay · {rs(m.hourly_rate)}/h</span><b>{rs(m.pay)}</b></div>
+              <div><span>Paid · left</span><b className={m.left ? 'neg' : 'pos'}>{rs(m.paid)} · {rs(m.left)}</b></div>
             </div>
             {m.adj.length > 0 && (
               <div className="gx-details">
@@ -138,7 +148,14 @@ export default function Staff({ householdId, toast }) {
                 ))}
               </div>
             )}
+            {m.payments.length > 0 && (
+              <div className="gx-details">{m.payments.map((x) => (
+                <div key={x.id}><span>Paid {new Date(x.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {x.mode}{x.entered_by ? ` · by ${x.entered_by}` : ''}{x.note ? ` · ${x.note}` : ''}</span>
+                  <b>{rs(x.amount)} <button className="btn link" style={{ padding: '0 0 0 8px' }} aria-label="Remove payment" onClick={() => removePayment(x)}>✕</button></b></div>
+              ))}</div>
+            )}
             <ActionGrid items={[
+              { label: 'Pay salary', icon: <CashIcon />, onClick: () => go(() => setSheet({ kind: 'salary', member: m })) },
               m.on && { label: 'Log out now', icon: <ClockIcon />, onClick: () => go(() => clockOutNow(m.on)) },
               { label: 'Edit', icon: <PencilIcon />, onClick: () => go(() => setSheet({ kind: 'edit', member: m })) },
               { label: 'Deduct / bonus', icon: <CashIcon />, onClick: () => go(() => setSheet({ kind: 'adjust', member: m })) },
@@ -160,6 +177,7 @@ export default function Staff({ householdId, toast }) {
       {sheet?.kind === 'add' && <AddStaff householdId={householdId} onClose={() => setSheet(null)} onCreated={(username, pin) => { load(); setSheet({ kind: 'login', username, pin }) }} />}
       {sheet?.kind === 'edit' && <EditStaff householdId={householdId} member={sheet.member} gmail={google[sheet.member.user_id]} onLinkGoogle={() => { setSheet(null); linkGoogle(sheet.member) }} onUnlinkGoogle={() => { setSheet(null); unlinkGoogle(sheet.member) }} onClose={() => setSheet(null)}
         onDone={(msg, login) => { load(); if (login) setSheet({ kind: 'login', ...login, reset: true }); else { setSheet(null); toast(msg) } }} />}
+      {sheet?.kind === 'salary' && <SalarySheet member={sheet.member} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
       {sheet?.kind === 'adjust' && <AdjustSheet member={sheet.member} householdId={householdId} month={start} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
       {sheet?.kind === 'login' && <LoginDetails {...sheet} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'shift' && <ShiftEditor shift={sheet.shift} name={sheet.name} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); load() }} />}
@@ -350,6 +368,37 @@ function AdjustSheet({ member, householdId, month, onClose, onDone }) {
       <label>Amount (₹)<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
       <label>Reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={kind === 'deduct' ? 'e.g. drawer short ₹200, late 2 days' : 'e.g. extra hours for the event'} /></label>
       <SheetActions onClose={onClose} busy={busy} disabled={!Number(amount) || reason.trim().length < 2} label={kind === 'deduct' ? `Deduct ${rs(amount || 0)}` : `Add ${rs(amount || 0)}`} danger={kind === 'deduct'} />
+    </Sheet>
+  )
+}
+
+// Owner, 16 Oct: record salary paid — the whole amount left this month, or any amount (temporary staff are paid
+// mid-month for a day or two). Staff see what was paid on their Shift screen.
+function SalarySheet({ member, householdId, onClose, onDone }) {
+  const [how, setHow] = useState(member.left > 0 ? 'all' : 'other')
+  const [amount, setAmount] = useState('')
+  const [mode, setMode] = useState('cash')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const value = how === 'all' ? member.left : Number(amount) || 0
+  const name = member.display_name || member.username
+  async function save() {
+    if (!value) return
+    setBusy(true)
+    const { error } = await supabase.from('shop_salary_payments').insert({ household_id: householdId, user_id: member.user_id, staff_name: name, amount: value, mode, note: note.trim() || null })
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    onDone(`${rs(value)} salary paid to ${name}`)
+  }
+  return (
+    <Sheet title={`Pay salary · ${name}`} sub={`This month: ${rs(member.pay)} earned · ${rs(member.paid)} paid · ${rs(member.left)} left`} onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <Chips options={[...(member.left > 0 ? [['all', `Pay all · ${rs(member.left)}`]] : []), ['other', 'Other amount']]} value={how} onChange={setHow} />
+      {how === 'other' && <label>Amount (₹)<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>}
+      <Chips options={[['cash', 'Cash'], ['online', 'Online']]} value={mode} onChange={setMode} />
+      <label>Note (optional)<input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. advance, 2 days" /></label>
+      <SheetActions onClose={onClose} busy={busy} disabled={!value} label={`Pay ${rs(value)}`} />
     </Sheet>
   )
 }
