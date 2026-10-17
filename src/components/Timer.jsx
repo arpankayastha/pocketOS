@@ -8,8 +8,12 @@ import PublicNav from './PublicNav'
 // booking, or the one staff read from Slots for a walk-in. Once staff press Start it shows the time left, live,
 // and "Paused" during a technical failure. Only public_timer is used: system, controller and times, no names.
 const KEY = 'gx.timerCode'
+// PC screen (owner, 17 Oct: "staff shouldn't type the code on every PC"): /#screen/<token>, bookmarked on that PC
+// (links in ⚙ → Systems), shows whatever runs on that system — no code. Uses public_screen(token).
+const screenToken = () => location.hash.match(/^#screen\/([0-9a-f]{6,})$/i)?.[1] || null
 
 export default function Timer() {
+  const [screen] = useState(screenToken)
   // A link from the counter (#timer/4DB5C8 — Slots → code → QR / WhatsApp) opens straight on that code.
   const [code, setCode] = useState(() => {
     const fromLink = location.hash.match(/^#timer\/([0-9a-f]{6})$/i)?.[1]?.toUpperCase()
@@ -22,24 +26,24 @@ export default function Timer() {
   const [, tick] = useState(0)
 
   const load = useCallback(async () => {
-    if (!code) return
-    const { data, error } = await supabase.rpc('public_timer', { p_code: code })
+    if (!code && !screen) return
+    const { data, error } = screen ? await supabase.rpc('public_screen', { p_token: screen }) : await supabase.rpc('public_timer', { p_code: code })
     if (error) { setError(error.message); return }
     setError(null); setData(data); setSkew(new Date(data.now).getTime() - Date.now())
-  }, [code])
+  }, [code, screen])
   useEffect(() => {
     load()
-    const t = setInterval(load, 10_000)
+    const t = setInterval(load, screen ? 5_000 : 10_000)
     const s = setInterval(() => tick((n) => n + 1), 1000)
     return () => { clearInterval(t); clearInterval(s) }
-  }, [load])
+  }, [load, screen])
 
   // Beep at 5 minutes left (5 s) and at time up (10 s). Booked ahead on the audio clock so it rings on time
   // even with a full-screen game in front; re-booked whenever the end time changes (extend / pause / resume).
   // A mark passed less than a minute ago (page just opened) rings at once.
   const booked = useRef({ key: '', cancel: [] })
   useEffect(() => {
-    const list = (data?.sessions || []).filter((x) => x.status === 'running' && !x.paused_at)
+    const list = (data?.sessions || []).filter((x) => x.status === 'running' && !x.paused_at && !x.waiting)
     const key = list.map((x) => `${x.system}:${x.seat}:${x.ends_at}`).join('|')
     if (key === booked.current.key) return
     booked.current.cancel.forEach((f) => f())
@@ -67,7 +71,7 @@ export default function Timer() {
     if (!data) return
     const id = (x) => `${x.system}:${x.seat}`
     const prev = wasRunning.current
-    wasRunning.current = new Set((data.sessions || []).filter((x) => x.status === 'running').map(id))
+    wasRunning.current = new Set((data.sessions || []).filter((x) => x.status === 'running' && !x.waiting).map(id))
     if (prev && (data.sessions || []).some((x) => x.status !== 'running' && prev.has(id(x)) && new Date(x.ends_at) > new Date(data.now))) {
       alarm(10); setTimeout(() => speak('Your time is up. Thanks for playing, do visit again!'), 10_000)
     }
@@ -85,8 +89,39 @@ export default function Timer() {
   const fullscreen = () => document.documentElement.requestFullscreen?.().catch(() => {})
 
   const now = Date.now() + skew
-  const running = (data?.sessions || []).filter((s) => s.status === 'running')
+  const running = (data?.sessions || []).filter((s) => s.status === 'running' && !s.waiting)
   const ended = (data?.sessions || []).filter((s) => s.status !== 'running')
+  const ready = (data?.sessions || []).some((s) => s.status === 'running' && s.waiting)
+  const cards = running.map((s) => {
+    const end = new Date(s.ends_at).getTime() + (s.paused_at ? now - new Date(data.now).getTime() : 0)
+    const left = Math.max(0, end - now)
+    const h = Math.floor(left / 3_600_000), m = Math.floor((left % 3_600_000) / 60_000), sec = Math.floor((left % 60_000) / 1000)
+    const total = (Number(s.minutes)) * 60_000
+    return (
+      <div key={`${s.system}-${s.seat}`} className={`card timer-card ${s.paused_at ? 'paused' : left < 5 * 60_000 ? 'low' : ''}`}>
+        <div className="timer-where">{s.system}{s.seats > 1 ? ` · Controller ${s.seat}` : ''}</div>
+        <div className="timer-big">{left ? `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(sec).padStart(2, '0')}` : 'Time up'}</div>
+        <div className="timer-sub">{s.paused_at ? 'Paused · your time is safe' : left ? `left · ends ${timeLabel(end)}` : 'Ask at the counter to extend'}</div>
+        <div className="gx-bar"><i style={{ width: `${Math.min(100, Math.max(0, 100 - (left / total) * 100))}%` }} /></div>
+      </div>
+    )
+  })
+
+  if (screen) return (
+    <div className="timer-page pub-page timer-screen">
+      {error && <div className="alert error">{error}</div>}
+      {data && !running.length && (
+        <div className="card timer-wait">
+          <div className="timer-where">{data.system.name}</div>
+          {ended.length ? <h2>Your time is up. Thanks for playing!<br /><span className="timer-again">Do visit again 🎮</span></h2>
+            : ready ? <><h2>Getting ready</h2><p className="muted">Your time starts when the counter presses Start.</p></>
+            : <><h2>Free</h2><p className="muted">Ask at the counter to start your time.</p></>}
+        </div>
+      )}
+      {cards}
+      <p className="muted small" style={{ textAlign: 'center' }}><button className="btn link" style={{ padding: 0 }} onClick={fullscreen}>Full screen</button></p>
+    </div>
+  )
 
   return (
     <div className="timer-page pub-page">
@@ -109,20 +144,7 @@ export default function Timer() {
             </>) : ended.length ? <h2>Your time is up. Thanks for playing!<br /><span className="timer-again">Do visit again 🎮</span></h2> : <h2>No game found for code {code}</h2>}
           </div>
         )}
-        {running.map((s) => {
-          const end = new Date(s.ends_at).getTime() + (s.paused_at ? now - new Date(data.now).getTime() : 0)
-          const left = Math.max(0, end - now)
-          const h = Math.floor(left / 3_600_000), m = Math.floor((left % 3_600_000) / 60_000), sec = Math.floor((left % 60_000) / 1000)
-          const total = (Number(s.minutes)) * 60_000
-          return (
-            <div key={`${s.system}-${s.seat}`} className={`card timer-card ${s.paused_at ? 'paused' : left < 5 * 60_000 ? 'low' : ''}`}>
-              <div className="timer-where">{s.system}{s.seats > 1 ? ` · Controller ${s.seat}` : ''}</div>
-              <div className="timer-big">{left ? `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(sec).padStart(2, '0')}` : 'Time up'}</div>
-              <div className="timer-sub">{s.paused_at ? 'Paused · your time is safe' : left ? `left · ends ${timeLabel(end)}` : 'Ask at the counter to extend'}</div>
-              <div className="gx-bar"><i style={{ width: `${Math.min(100, Math.max(0, 100 - (left / total) * 100))}%` }} /></div>
-            </div>
-          )
-        })}
+        {cards}
         <p className="muted small" style={{ textAlign: 'center' }}>Code <b className="mono">{code}</b> · <button className="btn link" style={{ padding: 0 }} onClick={forget}>Use another code</button> · <button className="btn link" style={{ padding: 0 }} onClick={fullscreen}>Full screen</button> · <a href="#">Home</a></p>
       </>)}
     </div>

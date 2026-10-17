@@ -1029,3 +1029,26 @@ alter table public.shop_bookings add column if not exists time_changes jsonb not
 alter table public.shop_sessions add column if not exists collected_at timestamptz;
 update public.shop_sessions s set collected_at = s.ended_at, ended_at = private.session_end(s)
   where s.status = 'closed' and s.ended_at > private.session_end(s) + interval '20 minutes';
+-- PC screen links (owner, 17 Oct: "staff shouldn't type a code on every PC"): each system has a secret
+-- screen_token; /#screen/<token> bookmarked on that PC shows whatever runs on it, no code. public_screen(token)
+-- (anon) returns the system and its running sessions (no names), plus ones that ended in the last 2 minutes.
+alter table public.shop_systems add column if not exists screen_token text not null default substr(replace(gen_random_uuid()::text, '-', ''), 1, 10);
+create unique index if not exists shop_systems_screen_token on public.shop_systems (screen_token);
+
+create or replace function public.public_screen(p_token text)
+returns jsonb language plpgsql stable security definer set search_path to '' as $$
+declare y public.shop_systems;
+begin
+  select * into y from public.shop_systems s where s.screen_token = p_token and s.active;
+  if y.id is null then raise exception 'This screen link is not valid any more. Ask the counter for the new one.'; end if;
+  return jsonb_build_object(
+    'system', jsonb_build_object('name', y.name, 'kind', y.kind, 'seats', y.seats),
+    'sessions', coalesce((select jsonb_agg(jsonb_build_object('system', s.system_name, 'seat', s.seat, 'seats', y.seats, 'started_at', s.started_at,
+        'minutes', s.minutes, 'paused_minutes', s.paused_minutes, 'paused_at', s.paused_at, 'status', s.status, 'waiting', s.waiting, 'ends_at', private.session_end(s)) order by s.seat)
+      from public.shop_sessions s
+      where s.system_id = y.id and s.started_at > now() - interval '1 day'
+        and (s.status = 'running' or (s.status = 'closed' and s.ended_at > now() - interval '2 minutes'))), '[]'),
+    'now', now());
+end $$;
+revoke all on function public.public_screen(text) from public;
+grant execute on function public.public_screen(text) to anon, authenticated;

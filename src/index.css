@@ -1431,3 +1431,5 @@ html:fullscreen .pill-nav { display: none; }
 /* Owner, 15 Oct: the timer code was cut off on waiting rows (the ▶ Start button takes the room) — let the line wrap */
 .gx-run-main .small { white-space: normal; overflow: visible; }
 .book-arrive { text-align: center; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--text); }
+.timer-screen .timer-wait h2 { font-size: clamp(28px, 6vw, 56px); }
+.timer-screen .timer-wait .timer-where { margin-bottom: 8px; }

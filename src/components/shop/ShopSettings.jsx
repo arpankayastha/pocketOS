@@ -70,6 +70,19 @@ function Systems({ shop, householdId, toast }) {
           <button className="btn small ghost" onClick={() => toggle(s)}>{s.active ? 'On floor' : 'Off'}</button>
         </div>
       ))}
+      {/* Owner, 17 Oct: open each link once on that PC and bookmark it — its timer shows when staff press Start, no code. */}
+      <div className="caps muted" style={{ marginTop: 8 }}>PC screen links · open on that PC, bookmark it</div>
+      {all.filter((s) => s.active && s.screen_token).map((s) => {
+        const url = `${location.origin}/#screen/${s.screen_token}`
+        return (
+          <div key={`scr-${s.id}`} className="line">
+            <b>{s.name}</b>
+            <span className="muted small grow gx-ellipsis mono">{url.replace(/^https?:\/\//, '')}</span>
+            <button type="button" className="btn small ghost" onClick={async () => { try { await navigator.clipboard.writeText(url); toast(`${s.name} screen link copied`) } catch { toast(url) } }}>Copy</button>
+            <a className="btn small ghost" href={url} target="_blank" rel="noreferrer">Open</a>
+          </div>
+        )
+      })}
       <button className="btn small" onClick={add}>+ Add system</button>
     </Collapsible>
   )

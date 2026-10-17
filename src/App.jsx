@@ -94,7 +94,7 @@ export default function App() {
   if (hash === '#jobs') return <Suspense fallback={<Splash />}><Jobs /></Suspense>
   if (hash === '#book') return <Suspense fallback={<Splash />}><Book /></Suspense>
   if (hash === '#poster') return <Suspense fallback={<Splash />}><Poster /></Suspense>
-  if (hash === '#timer' || hash.startsWith('#timer/')) return <Suspense fallback={<Splash />}><Timer /></Suspense>
+  if (hash === '#timer' || hash.startsWith('#timer/') || hash.startsWith('#screen/')) return <Suspense fallback={<Splash />}><Timer /></Suspense>
   if (hash === '#me') return <Suspense fallback={<Splash />}><Me /></Suspense>
   if (session === undefined) return <Splash />
   if (hash.startsWith('#event/')) return <Suspense fallback={<Splash />}><EventPage id={hash.slice(7)} session={session} /></Suspense>
