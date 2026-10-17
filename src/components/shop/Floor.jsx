@@ -513,7 +513,9 @@ function EndSheet({ session, settings, deposits = [], householdId, onClose, onDo
     setBusy(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('shop_sessions').update({
-      status: 'closed', ended_at: new Date().toISOString(), closed_by: user?.id,
+      // Owner, 17 Oct: the out time is when play ended (its planned end if End & collect is pressed later, e.g.
+      // next morning); when it was collected is kept apart.
+      status: 'closed', ended_at: new Date(Math.min(Date.now(), sessionEnd(session).getTime())).toISOString(), collected_at: new Date().toISOString(), closed_by: user?.id,
       discount: Number(session.discount) + disc,
       paid_cash: Number(session.paid_cash) + cash, paid_online: Number(session.paid_online) + online, owed: owedBefore + owed,
       ...(owed ? { note: addNote(session, `Due: bill at the end ${rs(owed)}`) } : {}),

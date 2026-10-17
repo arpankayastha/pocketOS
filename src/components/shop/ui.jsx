@@ -89,7 +89,7 @@ export function SessionBreakdown({ s }) {
       {rows.map(([l, v]) => <SumRow key={l} label={l} value={`${v < 0 ? '−' : ''}${rs(Math.abs(v))}`} />)}
       <SumRow strong label="Bill" value={rs(sessionTotal(s))} />
       {paid.map(([l, v]) => <SumRow key={l} label={l} value={rs(v)} tone={l === 'Owes' ? 'neg' : undefined} />)}
-      <div className="muted small">{inOut(s)}{s.entered_by ? ` · started by ${s.entered_by}` : ''}{s.handled_by && s.handled_by !== s.entered_by ? ` · ended by ${s.handled_by}` : ''}{s.customer_phone ? ` · ${s.customer_phone}` : ''}</div>
+      <div className="muted small">{inOut(s)}{s.collected_at && s.ended_at && new Date(s.collected_at) - new Date(s.ended_at) > 20 * 60_000 ? ` · collected ${new Date(s.collected_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} ${timeLabel(s.collected_at)}` : ''}{s.entered_by ? ` · started by ${s.entered_by}` : ''}{s.handled_by && s.handled_by !== s.entered_by ? ` · ended by ${s.handled_by}` : ''}{s.customer_phone ? ` · ${s.customer_phone}` : ''}</div>
     </div>
   )
 }

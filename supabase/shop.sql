@@ -1023,3 +1023,9 @@ grant execute on function public.my_pay(uuid, date) to authenticated;
 -- (Not arrived · change time); the first booked time and every change are kept.
 alter table public.shop_bookings add column if not exists first_starts_at timestamptz;
 alter table public.shop_bookings add column if not exists time_changes jsonb not null default '[]';
+
+-- Owner, 17 Oct: a session ended at night but End & collect was pressed next morning → the out time showed
+-- the morning. ended_at = when play ended (the planned end if pressed late), collected_at = when it was collected.
+alter table public.shop_sessions add column if not exists collected_at timestamptz;
+update public.shop_sessions s set collected_at = s.ended_at, ended_at = private.session_end(s)
+  where s.status = 'closed' and s.ended_at > private.session_end(s) + interval '20 minutes';
