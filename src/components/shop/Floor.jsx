@@ -129,7 +129,7 @@ export default function Floor({ shop, householdId, toast }) {
           <div className="card-head"><h3>Free now</h3><span className="muted small">Tap to start</span></div>
           <div className="gx-freegrid">
             {freeTiles.map((t) => (
-              <button key={t.sys.id} type="button" className={`gx-freetile ${t.sys.kind === 'PS' ? 'ps' : ''}`} onClick={() => setSheet({ kind: 'start', system: t.sys, seats: t.seats })}>
+              <button key={t.sys.id} type="button" className={`gx-freetile ${t.sys.kind === 'PS' ? 'ps' : ''}`} onClick={() => setSheet({ kind: 'start', system: t.sys, seats: t.seats.slice(0, 1) })}>
                 <b>{t.sys.name}</b><span>{t.sub}</span>
               </button>
             ))}
