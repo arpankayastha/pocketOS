@@ -1,23 +1,22 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { collectSplit, durLabel, endBill, priceFor, rs, sessionEnd, timeLabel, useNow } from '../../../lib/shop'
+import { collectSplit, durLabel, endBill, inr, priceFor, rs, sessionEnd, timeLabel, useNow } from '../../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from '../ui'
 import { UpiQrButton } from '../UpiQr'
-import { depPatch, dueOf, FNB, paidPatch, payNote, payOptions, takeFromDeposit, useDepositPick } from './common'
+import { depositOf, dueOf, FNB, payAdd, payNote, payOptions, saveSession, useDepositPick } from './common'
 
 // Owner, 14 Oct: the customer paid while still playing (staff forgot to pick a payment) — record it now;
 // End & collect then only asks for what's left.
 export function CollectSheet({ session, settings, onClose, onDone }) {
   // Also takes what was put in their dues while playing (owner, 15 Oct: tejas paid but showed Paid ₹0).
-  const owed = Number(session.owed || 0)
-  const [amount, setAmount] = useState(() => String(Math.round(dueOf(session) + owed)))
+  const [amount, setAmount] = useState(() => String(Math.round(dueOf(session) + Number(session.owed || 0))))
   const [mode, setMode] = useState('cash')
   const [busy, setBusy] = useState(false)
   const { due, value, fromDues } = collectSplit(session, amount)
   async function save() {
     if (!value) return
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').update({ ...(mode === 'cash' ? { paid_cash: Number(session.paid_cash) + value } : { paid_online: Number(session.paid_online) + value }), ...(fromDues ? { owed: owed - fromDues } : {}) }).eq('id', session.id)
+    const { error } = await saveSession(session.id, { add: { [mode === 'cash' ? 'paid_cash' : 'paid_online']: value, owed: -fromDues } })
     setBusy(false)
     onDone(error ? error.message : `${rs(value)} ${mode} collected from ${session.customer_name}${due - value > 0 ? ` · ${rs(due - value)} still to collect` : ''}`)
   }
@@ -31,7 +30,7 @@ export function CollectSheet({ session, settings, onClose, onDone }) {
   )
 }
 
-export function FnbSheet({ session, settings, deposits = [], householdId, onClose, onDone }) {
+export function FnbSheet({ session, settings, deposits = [], onClose, onDone }) {
   const d = useDepositPick(deposits, session.customer_name, session.customer_phone), dep = d.dep
   const [amt, setAmt] = useState(20)
   const [custom, setCustom] = useState('')
@@ -42,8 +41,11 @@ export function FnbSheet({ session, settings, deposits = [], householdId, onClos
     if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
     const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, value) : 0
-    const { error } = await supabase.from('shop_sessions').update({ fnb_while: Number(session.fnb_while) + value, ...(fromDep ? depPatch(session, fromDep, d) : paidPatch(session, pay, value, 'F&B')) }).eq('id', session.id)
-    if (!error && fromDep) await takeFromDeposit(householdId, dep, session, fromDep)
+    const { error } = await saveSession(session.id, {
+      add: { fnb_while: value, ...(fromDep ? { paid_deposit: fromDep } : payAdd(pay, value)) },
+      note: pay === 'due' ? `Due: F&B ${inr(value)}` : fromDep && d.friend ? `From ${dep.name}’s deposit ${inr(fromDep)}` : null,
+      deposit: depositOf(dep, fromDep),
+    })
     setBusy(false)
     if (error) { onDone(error.message); return }
     onDone(`${rs(value)} F&B added to ${session.system_name}${payNote(pay)}`)
@@ -64,7 +66,7 @@ export function FnbSheet({ session, settings, deposits = [], householdId, onClos
 
 // Owner (13 Oct): each extension is charged on its own from the rate card — +30 min is ₹50 every time
 // (before, the 2nd +30 min came to ₹30 because it was "2 h price − 1 h 30 m price").
-export function ExtendSheet({ system, session, rates, settings, deposits = [], householdId, onClose, onDone }) {
+export function ExtendSheet({ system, session, rates, settings, deposits = [], onClose, onDone }) {
   const d = useDepositPick(deposits, session.customer_name, session.customer_phone), dep = d.dep
   const [add, setAdd] = useState(30)
   const [pay, setPay] = useState('end')
@@ -76,8 +78,11 @@ export function ExtendSheet({ system, session, rates, settings, deposits = [], h
     if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
     const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, extra) : 0
-    const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: Number(session.extend_amount) + extra, ...(fromDep ? depPatch(session, fromDep, d) : paidPatch(session, pay, extra, `extend ${durLabel(add)}`)) }).eq('id', session.id)
-    if (!error && fromDep) await takeFromDeposit(householdId, dep, session, fromDep)
+    const { error } = await saveSession(session.id, {
+      add: { minutes: add, extend_amount: extra, ...(fromDep ? { paid_deposit: fromDep } : payAdd(pay, extra)) },
+      note: pay === 'due' ? `Due: extend ${durLabel(add)} ${inr(extra)}` : fromDep && d.friend ? `From ${dep.name}’s deposit ${inr(fromDep)}` : null,
+      deposit: depositOf(dep, fromDep),
+    })
     setBusy(false)
     if (error) { onDone(error.message); return }
     onDone(`${session.system_name} now ends ${timeLabel(newEnd)} · +${rs(extra)}${payNote(pay)}`)
@@ -99,7 +104,7 @@ export function ExtendSheet({ system, session, rates, settings, deposits = [], h
   )
 }
 
-export function EndSheet({ session, settings, deposits = [], householdId, onClose, onDone }) {
+export function EndSheet({ session, settings, deposits = [], onClose, onDone }) {
   const now = useNow(30_000)
   const d = useDepositPick(deposits, session.customer_name, session.customer_phone), dep = d.dep
   const [useDep, setUseDep] = useState(!!d.own)
@@ -116,18 +121,14 @@ export function EndSheet({ session, settings, deposits = [], householdId, onClos
     if (mode === 'owes' && session.customer_name === 'Walk-in') { setError('Add the customer’s name to keep this as dues.'); return }
     setBusy(true)
     const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('shop_sessions').update({
-      // Owner, 17 Oct: the out time is when play ended (its planned end if End & collect is pressed later, e.g.
-      // next morning); when it was collected is kept apart.
-      status: 'closed', ended_at: new Date(Math.min(Date.now(), sessionEnd(session).getTime())).toISOString(), collected_at: new Date().toISOString(), closed_by: user?.id,
-      discount: Number(session.discount) + disc,
-      paid_cash: Number(session.paid_cash) + cash, paid_online: Number(session.paid_online) + online, owed: owedBefore + owed,
-      ...(owed || (fromDep && d.friend) ? { note: [session.note, owed && `Due: bill at the end ${rs(owed)}`, fromDep && d.friend && `From ${dep.name}’s deposit ${rs(fromDep)}`].filter(Boolean).join(' · ') } : {}),
-      paid_deposit: Number(session.paid_deposit || 0) + fromDep,
-    }).eq('id', session.id)
-    if (!error && fromDep > 0) {
-      await supabase.from('shop_deposits').insert({ household_id: householdId, customer_name: dep.name, customer_phone: dep.phone || null, kind: 'use', amount: fromDep, session_id: session.id })
-    }
+    // Owner, 17 Oct: the out time is when play ended (its planned end if End & collect is pressed later, e.g.
+    // next morning); when it was collected is kept apart.
+    const { error } = await saveSession(session.id, {
+      add: { discount: disc, paid_cash: cash, paid_online: online, owed, paid_deposit: fromDep },
+      set: { status: 'closed', ended_at: new Date(Math.min(Date.now(), sessionEnd(session).getTime())).toISOString(), collected_at: new Date().toISOString(), closed_by: user?.id || null },
+      note: [owed && `Due: bill at the end ${inr(owed)}`, fromDep && d.friend && `From ${dep.name}’s deposit ${inr(fromDep)}`].filter(Boolean).join(' · ') || null,
+      deposit: depositOf(dep, fromDep),
+    })
     setBusy(false)
     if (error) { setError(error.message); return }
     onDone(mode === 'owes' ? `${session.system_name} is free. ${rs(owed)} kept as ${session.customer_name}’s dues.`

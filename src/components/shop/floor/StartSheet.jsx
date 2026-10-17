@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { customerKey, duesByCustomer, DURATIONS, durLabel, priceFor, rs, shareOut, startPayments, timeLabel, useNow } from '../../../lib/shop'
+import { customerKey, duesByCustomer, DURATIONS, durLabel, inr, priceFor, rs, shareOut, startPayments, timeLabel } from '../../../lib/shop'
 import { Chips, Sheet, SumRow } from '../ui'
 import { UpiQrButton } from '../UpiQr'
 import CustomerFields from '../CustomerFields'
@@ -9,7 +9,6 @@ import { depLabel, FNB, useDepositPick } from './common'
 // Start one PC, or one or more PS5 controllers together (each controller = one customer, one timer, priced
 // per head). A booking's amount is split across its controllers as already paid online.
 export function StartSheet({ system: first, seats, freeOf, systems, booking, dues, deposits = [], rates, settings, happy, householdId, onClose, onDone }) {
-  const now = useNow(30_000)
   // Owner: "booked PC2 but sat at PC4" — any free system of the same kind can be picked here.
   const [system, setSystem] = useState(first)
   const free = freeOf(system)
@@ -58,16 +57,14 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
         customer_name: i > 0 && (names[seat] || '').trim() ? names[seat].trim() : (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
         paid_cash, paid_online,
-        owed: o, paid_deposit: d, note: [o && `Due: ${f ? `game + F&B` : 'game'} ${rs(o)}`, d && friend && `From ${dep.name}’s deposit ${rs(d)}`].filter(Boolean).join(' · ') || null,
+        owed: o, paid_deposit: d, note: [o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`].filter(Boolean).join(' · ') || null,
         ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
     })
-    const { data: created, error } = await supabase.from('shop_sessions').insert(rows).select('id')
+    // One call: the timers, the deposit each one uses and the booking marked arrived (rpc shop_start_sessions).
+    const { error } = await supabase.rpc('shop_start_sessions', { p_rows: rows, p_booking: booking?.id || null, p_deposit: dep ? { name: dep.name, phone: dep.phone || null } : null })
     setBusy(false)
     if (error) { setError(error.code === '23505' ? (multi ? `Another controller on ${system.name} can’t start until the database update for controllers is approved. Start one at a time for now.` : `${system.name} is already running.`) : error.message); return }
-    if (booking) await supabase.from('shop_bookings').update({ status: 'arrived', session_id: created[0].id }).eq('id', booking.id)
-    const used = rows.map((r, i) => ({ household_id: householdId, customer_name: dep?.name, customer_phone: dep?.phone || null, kind: 'use', amount: r.paid_deposit, session_id: created[i]?.id })).filter((r) => r.amount > 0)
-    if (used.length) await supabase.from('shop_deposits').insert(used)
     const where = `${system.name}${multi ? ` · controller${count > 1 ? 's' : ''} ${picked.join(', ')}` : ''}`
     onDone(later ? `${where} saved for ${name.trim() || 'walk-in'} · press ▶ Start timer when they sit down`
       : `${where} started for ${name.trim() || 'walk-in'} · ends ${timeLabel(new Date(Date.now() + mins * 60_000))}`)

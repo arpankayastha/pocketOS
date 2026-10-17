@@ -37,19 +37,19 @@ export const depLabel = (own) => own ? `From deposit · ${rs(own.balance)}` : 'F
 // Owner, 14 Oct: 'Due' puts it straight into the customer's dues (Cash → Customer dues), by their name.
 export const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['due', 'Due · customer owes']]
 
-export const addNote = (session, text) => [session.note, text].filter(Boolean).join(' · ')
-
-export const paidPatch = (session, pay, value, what) => pay === 'due' ? { owed: Number(session.owed || 0) + value, note: addNote(session, `Due: ${what} ${rs(value)}`) } : pay === 'cash' ? { paid_cash: Number(session.paid_cash) + value }
-  : pay === 'online' ? { paid_online: Number(session.paid_online) + value } : {}
+// Amounts an add-on adds to the session (F&B / Extend): paid now cash / online, into their dues, or nothing
+// (with the bill at the end). The deposit case is handled by the caller (paid_deposit + the deposit used).
+export const payAdd = (pay, value) => (pay === 'due' ? { owed: value } : pay === 'cash' ? { paid_cash: value } : pay === 'online' ? { paid_online: value } : {})
 
 // Owner, 17 Oct: a customer with a deposit can have F&B / extend taken from it (up to the balance; any rest is with the bill at the end).
 export const payOptions = (d) => d.any ? [...PAY_NOW, ['deposit', depLabel(d.own)]] : PAY_NOW
 
-export const depPatch = (session, value, d) => ({ paid_deposit: Number(session.paid_deposit || 0) + value, ...(d.friend ? { note: addNote(session, `From ${d.dep.name}’s deposit ${rs(value)}`) } : {}) })
-
-export async function takeFromDeposit(householdId, dep, session, value) {
-  return supabase.from('shop_deposits').insert({ household_id: householdId, customer_name: dep.name, customer_phone: dep.phone || null, kind: 'use', amount: value, session_id: session.id })
+// One call saves the session change and the deposit used together (rpc shop_session_save, supabase/shop.sql):
+// add = amounts added to what's saved now, set = status / times, note = appended, deposit = {name, phone, amount}.
+export function saveSession(id, { add = {}, set = {}, note = null, deposit = null } = {}) {
+  return supabase.rpc('shop_session_save', { p_session: id, p_add: add, p_set: set, p_note: note, p_deposit: deposit })
 }
+export const depositOf = (dep, amount) => (dep && amount > 0 ? { name: dep.name, phone: dep.phone || null, amount } : null)
 
 export const payNote = (pay) => pay === 'deposit' ? ' · from their deposit' : pay === 'due' ? ' · added to their dues' : pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
 

@@ -186,14 +186,11 @@ export function BookSheet({ shop, householdId, initial, onClose, onDone }) {
     if (digits.length !== 10) { setError('Enter a 10-digit mobile number.'); return }
     const paid = pay === 'counter' ? 0 : Number(adv) || 0
     setBusy(true); setError(null)
-    const { error } = await supabase.from('shop_bookings').insert({
-      household_id: householdId, kind, starts_at: time, minutes: mins, players, customer_name: name.trim(), customer_phone: digits, system_id: kind === 'PC' ? system : null,
-      amount, status: 'confirmed', source: 'counter', paid, paid_mode: paid ? pay : null, note: note.trim() || null,
+    // One call: the booking and its advance (kept as the customer's deposit, money in today) — rpc shop_book_counter.
+    const { error } = await supabase.rpc('shop_book_counter', {
+      p_booking: { household_id: householdId, kind, starts_at: time, minutes: mins, players, customer_name: name.trim(), customer_phone: digits, system_id: kind === 'PC' ? system || null : null, amount, note: note.trim() || null },
+      p_advance: paid, p_mode: paid ? pay : null,
     })
-    if (!error && paid) {
-      // The advance is money in today (drawer / Cashbook) and becomes their deposit, used when they play.
-      await supabase.from('shop_deposits').insert({ household_id: householdId, customer_name: name.trim(), customer_phone: digits, kind: 'add', amount: paid, mode: pay })
-    }
     setBusy(false)
     if (error) { setError(error.message); return }
     onDone(`${name.trim()} booked${system && kind === 'PC' ? ` · ${shop.systems.find((x) => x.id === system)?.name}` : ''} · ${new Date(time).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })} ${timeLabel(time)}`)

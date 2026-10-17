@@ -1,7 +1,7 @@
 import { dueReason } from '../../lib/money'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { sessionTotal, customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
+import { sessionTotal, customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, inr, timeLabel, rs } from '../../lib/shop'
 import { ActionGrid, ActionSheet, Chips, SessionBreakdown, Sheet, SheetActions, SumRow, inOut } from './ui'
 import { XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
@@ -57,7 +57,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
   }
   async function writeOff(r) {
     if (!await dialog.confirm({ title: `Clear ${r.name}’s dues?`, message: `${rs(r.total)} won't be collected. The sessions stay in the records with nothing owed.`, confirmLabel: 'Clear dues', danger: true })) return
-    const results = await Promise.all(r.sessions.map((x) => supabase.from('shop_sessions').update({ owed: 0, note: `Dues ${rs(x.owed)} written off` }).eq('id', x.id)))
+    const results = await Promise.all(r.sessions.map((x) => supabase.from('shop_sessions').update({ owed: 0, note: `Dues ${inr(x.owed)} written off` }).eq('id', x.id)))
     const err = results.find((x) => x.error)?.error
     if (err) toast(err.message); else { setOpen(null); toast(`${r.name}’s dues cleared`); shop.reload() }
   }

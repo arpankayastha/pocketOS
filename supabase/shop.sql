@@ -1055,3 +1055,114 @@ grant execute on function public.public_screen(text) to anon, authenticated;
 -- Owner, 17 Oct: screen links read like the PC — screen_token = lower-case name (pc1, pc2 … ps5); the app sets it on
 -- add / rename (ShopSettings screenSlug).
 update public.shop_systems set screen_token = lower(regexp_replace(name, '[^A-Za-z0-9]', '', 'g'));
+-- One-call saves (18 Oct): each counter action is one database call that saves everything or nothing, so a
+-- dropped connection can't leave a session paid but its deposit not used (or the other way round).
+-- Security invoker: RLS applies exactly as for the old direct writes; the stamp / takings triggers still run.
+
+-- Deposit balance for one customer, same key as the app (lib/money.js customerKey): the mobile's last 10
+-- digits, or the lower-case name for deposits saved without a mobile.
+create or replace function public.shop_deposit_balance(p_household uuid, p_name text, p_phone text)
+returns numeric language sql stable security invoker set search_path = '' as $$
+  select coalesce(sum(case when d.kind = 'add' then d.amount else -d.amount end), 0)
+  from public.shop_deposits d
+  where d.household_id = p_household
+    and case when right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) <> ''
+      then right(regexp_replace(coalesce(d.customer_phone, ''), '\D', '', 'g'), 10) = right(regexp_replace(p_phone, '\D', '', 'g'), 10)
+      else right(regexp_replace(coalesce(d.customer_phone, ''), '\D', '', 'g'), 10) = '' and lower(trim(d.customer_name)) = lower(trim(coalesce(p_name, ''))) end
+$$;
+
+-- Take money from a deposit (inside the caller's transaction): refuses more than is left. One shop at a time
+-- (advisory lock), so two phones can't spend the same balance together.
+create or replace function public.shop_deposit_use(p_household uuid, p_deposit jsonb, p_session uuid)
+returns void language plpgsql security invoker set search_path = '' as $$
+declare amt numeric := coalesce((p_deposit->>'amount')::numeric, 0); bal numeric;
+begin
+  if amt <= 0 then return; end if;
+  perform pg_advisory_xact_lock(hashtext('gx-deposit:' || p_household::text));
+  bal := public.shop_deposit_balance(p_household, p_deposit->>'name', p_deposit->>'phone');
+  if bal + 0.5 < amt then raise exception '% has only ₹% left in their deposit. Refresh and try again.', p_deposit->>'name', round(bal); end if;
+  insert into public.shop_deposits (household_id, customer_name, customer_phone, kind, amount, session_id)
+  values (p_household, p_deposit->>'name', nullif(p_deposit->>'phone', ''), 'use', amt, p_session);
+end $$;
+
+-- Change a running / just-ended session: p_add = amounts to add (minutes, extend_amount, fnb_while, discount,
+-- paid_cash, paid_online, paid_deposit, owed — added to what's saved now, so two phones never overwrite each
+-- other), p_set = status / ended_at / collected_at / closed_by, p_note = text appended to the note,
+-- p_deposit = {name, phone, amount} taken from that customer's deposit in the same transaction.
+create or replace function public.shop_session_save(p_session uuid, p_add jsonb default '{}', p_set jsonb default '{}', p_note text default null, p_deposit jsonb default null)
+returns public.shop_sessions language plpgsql security invoker set search_path = '' as $$
+declare s public.shop_sessions; a jsonb := coalesce(p_add, '{}'); t jsonb := coalesce(p_set, '{}');
+  n numeric(10,2);
+begin
+  select * into s from public.shop_sessions where id = p_session for update;
+  if s.id is null then raise exception 'This entry is gone. Refresh Slots.'; end if;
+  if t->>'status' = 'closed' and s.status <> 'running' then raise exception '% was already ended. Refresh Slots.', s.system_name; end if;
+  update public.shop_sessions set
+    minutes = minutes + coalesce((a->>'minutes')::int, 0),
+    extend_amount = extend_amount + coalesce((a->>'extend_amount')::numeric, 0),
+    fnb_while = fnb_while + coalesce((a->>'fnb_while')::numeric, 0),
+    discount = discount + coalesce((a->>'discount')::numeric, 0),
+    paid_cash = paid_cash + coalesce((a->>'paid_cash')::numeric, 0),
+    paid_online = paid_online + coalesce((a->>'paid_online')::numeric, 0),
+    paid_deposit = paid_deposit + coalesce((a->>'paid_deposit')::numeric, 0),
+    owed = greatest(0, owed + coalesce((a->>'owed')::numeric, 0)),
+    status = coalesce(t->>'status', status),
+    ended_at = case when t ? 'ended_at' then (t->>'ended_at')::timestamptz else ended_at end,
+    collected_at = case when t ? 'collected_at' then (t->>'collected_at')::timestamptz else collected_at end,
+    closed_by = case when t ? 'closed_by' then (t->>'closed_by')::uuid else closed_by end,
+    note = case when nullif(trim(p_note), '') is null then note else concat_ws(' · ', nullif(note, ''), p_note) end
+  where id = p_session returning * into s;
+  if s.paid_cash < 0 or s.paid_online < 0 or s.paid_deposit < 0 then raise exception 'That would make a payment negative.'; end if;
+  perform public.shop_deposit_use(s.household_id, p_deposit, s.id);
+  return s;
+end $$;
+
+-- Start: the new timers (one row per PC / controller), the deposit used by each, and the booking marked
+-- arrived — together. p_rows = the session rows; p_deposit = {name, phone} whose deposit pays paid_deposit.
+create or replace function public.shop_start_sessions(p_rows jsonb, p_booking uuid default null, p_deposit jsonb default null)
+returns uuid[] language plpgsql security invoker set search_path = '' as $$
+declare r jsonb; s public.shop_sessions; ids uuid[] := '{}';
+begin
+  for r in select * from jsonb_array_elements(p_rows) loop
+    insert into public.shop_sessions (household_id, system_id, system_name, seat, customer_name, customer_phone, base_minutes, minutes,
+      gaming_amount, fnb_before, players, happy, booking_id, paid_cash, paid_online, paid_deposit, owed, note, waiting, paused_at)
+    values ((r->>'household_id')::uuid, (r->>'system_id')::uuid, r->>'system_name', coalesce((r->>'seat')::int, 1), coalesce(nullif(r->>'customer_name', ''), 'Walk-in'),
+      nullif(r->>'customer_phone', ''), (r->>'base_minutes')::int, (r->>'minutes')::int, coalesce((r->>'gaming_amount')::numeric, 0),
+      coalesce((r->>'fnb_before')::numeric, 0), coalesce((r->>'players')::int, 1), coalesce((r->>'happy')::boolean, false), (r->>'booking_id')::uuid,
+      coalesce((r->>'paid_cash')::numeric, 0), coalesce((r->>'paid_online')::numeric, 0), coalesce((r->>'paid_deposit')::numeric, 0),
+      coalesce((r->>'owed')::numeric, 0), nullif(r->>'note', ''), coalesce((r->>'waiting')::boolean, false), (r->>'paused_at')::timestamptz)
+    returning * into s;
+    ids := ids || s.id;
+    if s.paid_deposit > 0 then
+      perform public.shop_deposit_use(s.household_id, coalesce(p_deposit, '{}') || jsonb_build_object('amount', s.paid_deposit), s.id);
+    end if;
+  end loop;
+  if p_booking is not null then
+    update public.shop_bookings set status = 'arrived', session_id = ids[1] where id = p_booking;
+  end if;
+  return ids;
+end $$;
+
+-- + Book with an advance: the booking and the advance (saved as the customer's deposit) together.
+create or replace function public.shop_book_counter(p_booking jsonb, p_advance numeric default 0, p_mode text default null)
+returns uuid language plpgsql security invoker set search_path = '' as $$
+declare b public.shop_bookings;
+begin
+  insert into public.shop_bookings (household_id, kind, starts_at, minutes, players, customer_name, customer_phone, system_id, amount, status, source, paid, paid_mode, note)
+  values ((p_booking->>'household_id')::uuid, p_booking->>'kind', (p_booking->>'starts_at')::timestamptz, (p_booking->>'minutes')::int,
+    coalesce((p_booking->>'players')::int, 1), p_booking->>'customer_name', p_booking->>'customer_phone', (p_booking->>'system_id')::uuid,
+    coalesce((p_booking->>'amount')::numeric, 0), 'confirmed', 'counter', coalesce(p_advance, 0), case when p_advance > 0 then p_mode end, nullif(p_booking->>'note', ''))
+  returning * into b;
+  if p_advance > 0 then
+    insert into public.shop_deposits (household_id, customer_name, customer_phone, kind, amount, mode)
+    values (b.household_id, b.customer_name, b.customer_phone, 'add', p_advance, p_mode);
+  end if;
+  return b.id;
+end $$;
+
+revoke all on function public.shop_deposit_balance(uuid, text, text), public.shop_deposit_use(uuid, jsonb, uuid),
+  public.shop_session_save(uuid, jsonb, jsonb, text, jsonb), public.shop_start_sessions(jsonb, uuid, jsonb),
+  public.shop_book_counter(jsonb, numeric, text) from public, anon;
+grant execute on function public.shop_deposit_balance(uuid, text, text), public.shop_deposit_use(uuid, jsonb, uuid),
+  public.shop_session_save(uuid, jsonb, jsonb, text, jsonb), public.shop_start_sessions(jsonb, uuid, jsonb),
+  public.shop_book_counter(jsonb, numeric, text) to authenticated;

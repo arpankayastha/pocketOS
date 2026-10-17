@@ -113,6 +113,9 @@ export function duesByCustomer(dues = []) {
   }
   return [...m.values()].sort((a, b) => b.total - a.total)
 }
+// Rupees for saved text (session notes): never masked, unlike rs() on screen.
+export const inr = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`
+
 // What a session still owes before End & collect: the bill, what's paid, what's already in their dues.
 export const dueOf = (s) => Math.max(0, sessionTotal(s) - sessionPaid(s) - Number(s.owed || 0))
 
