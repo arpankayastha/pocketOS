@@ -1052,3 +1052,6 @@ begin
 end $$;
 revoke all on function public.public_screen(text) from public;
 grant execute on function public.public_screen(text) to anon, authenticated;
+-- Owner, 17 Oct: screen links read like the PC — screen_token = lower-case name (pc1, pc2 … ps5); the app sets it on
+-- add / rename (ShopSettings screenSlug).
+update public.shop_systems set screen_token = lower(regexp_replace(name, '[^A-Za-z0-9]', '', 'g'));

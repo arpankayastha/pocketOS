@@ -10,7 +10,7 @@ import PublicNav from './PublicNav'
 const KEY = 'gx.timerCode'
 // PC screen (owner, 17 Oct: "staff shouldn't type the code on every PC"): /#screen/<token>, bookmarked on that PC
 // (links in ⚙ → Systems), shows whatever runs on that system — no code. Uses public_screen(token).
-const screenToken = () => location.hash.match(/^#screen\/([0-9a-f]{6,})$/i)?.[1] || null
+const screenToken = () => location.hash.match(/^#screen\/([a-z0-9]{2,})$/i)?.[1]?.toLowerCase() || null
 
 export default function Timer() {
   const [screen] = useState(screenToken)

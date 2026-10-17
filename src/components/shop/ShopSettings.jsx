@@ -34,6 +34,8 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
   )
 }
 
+// Screen link = the system's name, lower case (owner, 17 Oct: easy to read — /#screen/pc1).
+const screenSlug = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '')
 function Systems({ shop, householdId, toast }) {
   const dialog = useDialog()
   const [all, setAll] = useState(null)
@@ -48,7 +50,7 @@ function Systems({ shop, householdId, toast }) {
     const name = await dialog.prompt({ title: 'New system', label: 'Name (e.g. PC6, PS5-2)', confirmLabel: 'Next' })
     if (!name?.trim()) return
     const ps = await dialog.confirm({ title: `${name.trim()}: what is it?`, message: 'PlayStation systems use the PS rates, PCs the PC rates.', confirmLabel: 'PlayStation', cancelLabel: 'PC', danger: false })
-    const { error } = await supabase.from('shop_systems').insert({ household_id: householdId, name: name.trim(), kind: ps ? 'PS' : 'PC', sort: all.length + 1 })
+    const { error } = await supabase.from('shop_systems').insert({ household_id: householdId, name: name.trim(), kind: ps ? 'PS' : 'PC', sort: all.length + 1, screen_token: screenSlug(name) })
     if (error) toast(error.message); else { load(); shop.reload() }
   }
   async function toggle(s) {
@@ -58,7 +60,7 @@ function Systems({ shop, householdId, toast }) {
   async function rename(s) {
     const name = await dialog.prompt({ title: 'Rename', label: 'Name', defaultValue: s.name, confirmLabel: 'Save' })
     if (!name?.trim() || name.trim() === s.name) return
-    const { error } = await supabase.from('shop_systems').update({ name: name.trim() }).eq('id', s.id)
+    const { error } = await supabase.from('shop_systems').update({ name: name.trim(), screen_token: screenSlug(name) }).eq('id', s.id)
     if (error) toast(error.message); else { load(); shop.reload() }
   }
   return (
