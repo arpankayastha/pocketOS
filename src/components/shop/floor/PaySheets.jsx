@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { durLabel, priceFor, rs, sessionEnd, sessionPaid, sessionTotal, timeLabel, useNow } from '../../../lib/shop'
+import { collectSplit, durLabel, endBill, priceFor, rs, sessionEnd, timeLabel, useNow } from '../../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from '../ui'
 import { UpiQrButton } from '../UpiQr'
 import { depPatch, dueOf, FNB, paidPatch, payNote, payOptions, takeFromDeposit, useDepositPick } from './common'
@@ -10,15 +10,13 @@ import { depPatch, dueOf, FNB, paidPatch, payNote, payOptions, takeFromDeposit, 
 export function CollectSheet({ session, settings, onClose, onDone }) {
   // Also takes what was put in their dues while playing (owner, 15 Oct: tejas paid but showed Paid ₹0).
   const owed = Number(session.owed || 0)
-  const due = dueOf(session) + owed
-  const [amount, setAmount] = useState(String(Math.round(due)))
+  const [amount, setAmount] = useState(() => String(Math.round(dueOf(session) + owed)))
   const [mode, setMode] = useState('cash')
   const [busy, setBusy] = useState(false)
-  const value = Math.min(Number(amount) || 0, due)
+  const { due, value, fromDues } = collectSplit(session, amount)
   async function save() {
     if (!value) return
     setBusy(true)
-    const fromDues = Math.min(owed, value) // dues first, then the rest of the bill
     const { error } = await supabase.from('shop_sessions').update({ ...(mode === 'cash' ? { paid_cash: Number(session.paid_cash) + value } : { paid_online: Number(session.paid_online) + value }), ...(fromDues ? { owed: owed - fromDues } : {}) }).eq('id', session.id)
     setBusy(false)
     onDone(error ? error.message : `${rs(value)} ${mode} collected from ${session.customer_name}${due - value > 0 ? ` · ${rs(due - value)} still to collect` : ''}`)
@@ -111,15 +109,8 @@ export function EndSheet({ session, settings, deposits = [], householdId, onClos
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const disc = Number(discount) || 0
-  const total = sessionTotal(session) - disc
-  const paid = sessionPaid(session)
-  const owedBefore = Number(session.owed || 0) // Extend / F&B put as "Due" while playing — already in their dues
-  const before = Math.max(0, total - paid - owedBefore)
-  const fromDep = useDep && dep ? Math.min(dep.balance, before) : 0
-  const due = before - fromDep
-  const cash = mode === 'cash' ? due : mode === 'split' ? Math.min(due, Number(cashPart) || 0) : 0
-  const online = mode === 'online' ? due : mode === 'split' ? due - cash : 0
-  const owed = mode === 'owes' ? due : 0
+  // owedBefore = Extend / F&B put as "Due" while playing — already in their dues
+  const { paid, owedBefore, fromDep, due, cash, online, owed } = endBill(session, { discount: disc, deposit: dep?.balance || 0, useDeposit: useDep && !!dep, mode, cashPart })
 
   async function save() {
     if (mode === 'owes' && session.customer_name === 'Walk-in') { setError('Add the customer’s name to keep this as dues.'); return }

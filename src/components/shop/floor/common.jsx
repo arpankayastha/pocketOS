@@ -1,7 +1,8 @@
 // Small helpers shared by the Slots screens (Floor.jsx and the sheets in this folder).
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { balanceFor, depositBalances, minutesLeft, rs, sessionPaid, sessionTotal, timeLabel } from '../../../lib/shop'
+import { balanceFor, depositBalances, minutesLeft, rs, timeLabel } from '../../../lib/shop'
+export { dueOf } from '../../../lib/money'
 
 export const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.waiting ? 'waiting' : s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
 
@@ -11,8 +12,6 @@ export const leftLabel = (m) => { m = Math.max(0, Math.round(m)); const h = Math
 export const whereOf = (sys, seat) => (seatsOf1(sys) > 1 ? `${sys.name} · controller ${seat}` : sys.name)
 
 export const seatsOf1 = (sys) => sys.seats || 1
-
-export const dueOf = (s) => Math.max(0, sessionTotal(s) - sessionPaid(s) - Number(s.owed || 0))
 
 export const FNB = [[0, 'None'], [10, '₹10'], [20, '₹20'], [30, '₹30'], [40, '₹40'], [60, '₹60']]
 

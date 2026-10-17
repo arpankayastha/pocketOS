@@ -1,3 +1,4 @@
+import { dueReason } from '../../lib/money'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { sessionTotal, customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, timeLabel, rs } from '../../lib/shop'
@@ -294,10 +295,6 @@ function PlanClaims({ rows, order }) {
   )
 }
 
-// Why a customer owes (owner, 15 Oct: "show the reason — extend or F&B"): the note saved with each due,
-// e.g. "Due: game + F&B ₹160 · Due: extend 30 min ₹50"; older dues without a note show the bill's parts.
-export function dueReason(x) {
-  const notes = (x.note || '').split(' · ').filter((t) => t.startsWith('Due:')).map((t) => t.slice(5))
-  if (notes.length) return notes.join(' · ')
-  return [Number(x.gaming_amount) && 'game', Number(x.extend_amount) && 'extend', (Number(x.fnb_before) + Number(x.fnb_while)) && 'F&B'].filter(Boolean).join(' + ')
-}
+
+
+export { dueReason }

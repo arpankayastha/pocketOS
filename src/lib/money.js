@@ -113,3 +113,62 @@ export function duesByCustomer(dues = []) {
   }
   return [...m.values()].sort((a, b) => b.total - a.total)
 }
+// What a session still owes before End & collect: the bill, what's paid, what's already in their dues.
+export const dueOf = (s) => Math.max(0, sessionTotal(s) - sessionPaid(s) - Number(s.owed || 0))
+
+// Why a customer owes: the "Due: …" parts of the session note, else the parts of the bill (older dues).
+export function dueReason(x) {
+  const notes = (x.note || '').split(' · ').filter((t) => t.startsWith('Due:')).map((t) => t.slice(5))
+  if (notes.length) return notes.join(' · ')
+  return [Number(x.gaming_amount) && 'game', Number(x.extend_amount) && 'extend', (Number(x.fnb_before) + Number(x.fnb_while)) && 'F&B'].filter(Boolean).join(' + ')
+}
+
+// Share `total` over n parts in paise so they add up exactly (₹200 over 3 → 66.67, 66.67, 66.66).
+export function shareOut(total, n) {
+  const p = Math.round(Number(total) * 100), base = Math.floor(p / n)
+  return Array.from({ length: n }, (_, i) => (base + (i < p - base * n ? 1 : 0)) / 100)
+}
+
+// Start: how each new timer (one per PC / PS5 controller) is paid. items = [{ g, f }] (game, F&B before).
+// pay: end | cash | online | split (cash part typed, rest online) | due | deposit | booked (online booking:
+// `booked` = what was paid online, shared across the timers; F&B is collected at the end).
+// Dues and the deposit fill the first timers first; the split's cash part and a booking's amount add up exactly.
+export function startPayments(items, { pay, cashPart = 0, fromDep = 0, dueNow = 0, booked = 0 }) {
+  const total = items.reduce((t, x) => t + x.g + x.f, 0)
+  const cashTotal = pay === 'split' ? Math.min(Math.max(0, Number(cashPart) || 0), total) : 0
+  let depLeft = fromDep, dueLeft = dueNow, cashLeft = cashTotal
+  const bookedShare = shareOut(booked, items.length)
+  return items.map(({ g, f }, i) => {
+    const line = g + f
+    const c = i === items.length - 1 ? cashLeft : Math.min(cashLeft, Math.round(total ? (line * cashTotal) / total : 0)); cashLeft -= c
+    const d = Math.min(depLeft, line); depLeft -= d
+    const o = Math.min(dueLeft, line); dueLeft -= o
+    return {
+      paid_cash: pay === 'cash' ? line : pay === 'split' ? c : 0,
+      paid_online: pay === 'online' ? line : pay === 'split' ? line - c : pay === 'booked' ? bookedShare[i] : 0,
+      paid_deposit: d, owed: o,
+    }
+  })
+}
+
+// End & collect: what's left after what's paid and what's already in their dues, the deposit used, and how
+// the rest is taken (cash / online / split / owes = into their dues).
+export function endBill(s, { discount = 0, deposit = 0, useDeposit = false, mode = 'cash', cashPart = 0 } = {}) {
+  const total = sessionTotal(s) - discount
+  const paid = sessionPaid(s)
+  const owedBefore = Number(s.owed || 0)
+  const before = Math.max(0, total - paid - owedBefore)
+  const fromDep = useDeposit ? Math.min(deposit, before) : 0
+  const due = before - fromDep
+  const cash = mode === 'cash' ? due : mode === 'split' ? Math.min(due, Number(cashPart) || 0) : 0
+  const online = mode === 'online' ? due : mode === 'split' ? due - cash : 0
+  const owed = mode === 'owes' ? due : 0
+  return { total, paid, owedBefore, before, fromDep, due, cash, online, owed }
+}
+
+// Collect while playing: dues from this session first (lowering owed), then the rest of the bill.
+export function collectSplit(s, amount) {
+  const owed = Number(s.owed || 0), due = dueOf(s) + owed
+  const value = Math.min(Math.max(0, Number(amount) || 0), due)
+  return { due, value, fromDues: Math.min(owed, value) }
+}

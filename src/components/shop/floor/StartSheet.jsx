@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { customerKey, duesByCustomer, DURATIONS, durLabel, priceFor, rs, timeLabel, useNow } from '../../../lib/shop'
+import { customerKey, duesByCustomer, DURATIONS, durLabel, priceFor, rs, shareOut, startPayments, timeLabel, useNow } from '../../../lib/shop'
 import { Chips, Sheet, SumRow } from '../ui'
 import { UpiQrButton } from '../UpiQr'
 import CustomerFields from '../CustomerFields'
@@ -46,23 +46,18 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   async function save(later = false) {
     if (pay === 'due' && name.trim().length < 2) { setError('Add the customer’s name to keep it as dues.'); return }
     setBusy(true); setError(null)
-    let depLeft = fromDep, dueLeft = dueNow
     const t0 = new Date().toISOString()
-    const split = (v) => Math.round((v / count) * 100) / 100
-    // Cash + online (owner: "₹80 bill, 50 cash and 30 online"): the cash part is shared across the timers.
-    const cashShare = pay === 'split' && total > 0 ? Math.min(Number(cashPart) || 0, total) / total : 0
+    // A booking's amount and the cash part are shared across the timers so they add up exactly (money.js).
+    const games = bookedSame ? shareOut(Number(booking.amount), count) : picked.map(() => each)
+    const pays = startPayments(picked.map((_, i) => ({ g: games[i], f: i === 0 ? fnb : 0 })), { pay, cashPart, fromDep, dueNow, booked: pay === 'booked' ? Number(booking.amount) : 0 })
     const rows = picked.map((seat, i) => {
-      const g = bookedSame ? split(Number(booking.amount)) : each
-      const f = i === 0 ? fnb : 0
-      const c = Math.round((g + f) * cashShare)
-      const d = Math.min(depLeft, g + f); depLeft -= d
-      const o = Math.min(dueLeft, g + f); dueLeft -= o
+      const g = games[i], f = i === 0 ? fnb : 0
+      const { paid_cash, paid_online, paid_deposit: d, owed: o } = pays[i]
       return {
         household_id: householdId, system_id: system.id, system_name: system.name, seat,
         customer_name: i > 0 && (names[seat] || '').trim() ? names[seat].trim() : (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
-        paid_cash: pay === 'cash' ? g + f : pay === 'split' ? c : 0,
-        paid_online: pay === 'online' ? g + f : pay === 'split' ? g + f - c : pay === 'booked' ? split(Number(booking.amount)) : 0,
+        paid_cash, paid_online,
         owed: o, paid_deposit: d, note: [o && `Due: ${f ? `game + F&B` : 'game'} ${rs(o)}`, d && friend && `From ${dep.name}’s deposit ${rs(d)}`].filter(Boolean).join(' · ') || null,
         ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
