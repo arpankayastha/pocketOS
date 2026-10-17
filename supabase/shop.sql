@@ -1166,3 +1166,95 @@ revoke all on function public.shop_deposit_balance(uuid, text, text), public.sho
 grant execute on function public.shop_deposit_balance(uuid, text, text), public.shop_deposit_use(uuid, jsonb, uuid),
   public.shop_session_save(uuid, jsonb, jsonb, text, jsonb), public.shop_start_sessions(jsonb, uuid, jsonb),
   public.shop_book_counter(jsonb, numeric, text) to authenticated;
+-- Daily self-check (18 Oct). Dues paid now sync the Cashbook on the day they're paid (before, only a later
+-- session / deposit change that day picked them up).
+create or replace function private.floor_takings_trigger()
+returns trigger language plpgsql security definer set search_path to '' as $$
+begin
+  if tg_table_name in ('shop_deposits', 'shop_dues_paid') then
+    if tg_op in ('UPDATE', 'DELETE') then perform private.sync_floor_takings(old.household_id, (old.created_at at time zone 'Asia/Kolkata')::date); end if;
+    if tg_op in ('INSERT', 'UPDATE') then perform private.sync_floor_takings(new.household_id, (new.created_at at time zone 'Asia/Kolkata')::date); end if;
+  else
+    if tg_op in ('UPDATE', 'DELETE') then perform private.sync_floor_takings(old.household_id, (old.started_at at time zone 'Asia/Kolkata')::date); end if;
+    if tg_op in ('INSERT', 'UPDATE') then perform private.sync_floor_takings(new.household_id, (new.started_at at time zone 'Asia/Kolkata')::date); end if;
+  end if;
+  return null;
+end $$;
+create or replace trigger shop_dues_paid_floor_takings after insert or update or delete on public.shop_dues_paid
+  for each row execute function private.floor_takings_trigger();
+
+-- public.shop_health(household, day) (admin; security invoker): the day's checks for Today → Daily check —
+-- Cashbook = the day's money in; every closed bill adds up (paid + dues + dues paid); deposits used match the
+-- sessions; no deposit below zero; nothing left running from an earlier day. Each check: key, label, ok, detail,
+-- items [{text, session}].
+create or replace function public.shop_health(p_household uuid, p_day date)
+returns jsonb language plpgsql stable security invoker set search_path = '' as $$
+declare
+  out jsonb := '[]'; items jsonb;
+  m_cash numeric; m_online numeric; b_cash numeric; b_online numeric;
+  ist text := 'Asia/Kolkata';
+begin
+  -- 1. Cashbook (Shop book "Floor takings") = sessions' payments + deposits paid in + dues paid that day.
+  select coalesce(sum(paid_cash), 0), coalesce(sum(paid_online), 0) into m_cash, m_online
+    from public.shop_sessions where household_id = p_household and status <> 'cancelled' and (started_at at time zone ist)::date = p_day;
+  select m_cash + coalesce(sum(amount) filter (where mode = 'cash'), 0), m_online + coalesce(sum(amount) filter (where mode = 'online'), 0) into m_cash, m_online
+    from public.shop_deposits where household_id = p_household and kind = 'add' and (created_at at time zone ist)::date = p_day;
+  select m_cash + coalesce(sum(amount) filter (where mode = 'cash'), 0), m_online + coalesce(sum(amount) filter (where mode = 'online'), 0) into m_cash, m_online
+    from public.shop_dues_paid where household_id = p_household and (created_at at time zone ist)::date = p_day;
+  select coalesce(sum(amount) filter (where shop_takings = 'cash'), 0), coalesce(sum(amount) filter (where shop_takings = 'online'), 0) into b_cash, b_online
+    from public.hisab_entries where household_id = p_household and occurred_on = p_day and shop_takings is not null;
+  out := out || jsonb_build_object('key', 'cashbook', 'label', 'Cashbook matches the day''s money',
+    'ok', abs(m_cash - b_cash) < 0.5 and abs(m_online - b_online) < 0.5,
+    'detail', format('Money in: cash ₹%s · online ₹%s. Cashbook: cash ₹%s · online ₹%s.', round(m_cash), round(m_online), round(b_cash), round(b_online)), 'items', '[]'::jsonb);
+
+  -- 2. Closed bills that don't add up: bill − paid (cash + online + deposit) − dues − dues paid back ≠ 0.
+  select coalesce(jsonb_agg(jsonb_build_object('session', x.id, 'text',
+      format('%s · %s: bill ₹%s, paid ₹%s, dues ₹%s, dues paid ₹%s → ₹%s %s', x.system_name, x.customer_name, round(x.bill), round(x.paid), round(x.owed), round(x.dp),
+        round(abs(x.gap)), case when x.gap > 0 then 'not accounted for' else 'paid extra' end)) order by x.started_at), '[]') into items
+  from (
+    select s.*, s.gaming_amount + s.extend_amount + s.fnb_before + s.fnb_while - s.discount as bill,
+      s.paid_cash + s.paid_online + s.paid_deposit as paid,
+      coalesce((select sum(p.amount) from public.shop_dues_paid p where p.session_id = s.id), 0) as dp,
+      (s.gaming_amount + s.extend_amount + s.fnb_before + s.fnb_while - s.discount) - (s.paid_cash + s.paid_online + s.paid_deposit) - s.owed
+        - coalesce((select sum(p.amount) from public.shop_dues_paid p where p.session_id = s.id), 0) as gap
+    from public.shop_sessions s
+    where s.household_id = p_household and s.status = 'closed' and (s.started_at at time zone ist)::date = p_day
+      and coalesce(s.note, '') not ilike '%written off%'
+  ) x where abs(x.gap) >= 0.5;
+  out := out || jsonb_build_object('key', 'bills', 'label', 'Every bill adds up', 'ok', jsonb_array_length(items) = 0,
+    'detail', case when jsonb_array_length(items) = 0 then 'Paid + dues = bill for every closed session.' else jsonb_array_length(items) || ' session(s) don''t add up.' end, 'items', items);
+
+  -- 3. Deposit used on a session (paid_deposit) = the deposit "use" rows linked to it.
+  select coalesce(jsonb_agg(jsonb_build_object('session', x.id, 'text',
+      format('%s · %s: session says ₹%s from deposit, deposits show ₹%s used', x.system_name, x.customer_name, round(x.paid_deposit), round(x.used)))), '[]') into items
+  from (
+    select s.*, coalesce((select sum(d.amount) from public.shop_deposits d where d.session_id = s.id and d.kind = 'use'), 0) as used
+    from public.shop_sessions s
+    where s.household_id = p_household and s.status <> 'cancelled' and (s.started_at at time zone ist)::date = p_day
+  ) x where abs(x.paid_deposit - x.used) >= 0.5;
+  out := out || jsonb_build_object('key', 'deposit_use', 'label', 'Deposits used match the sessions', 'ok', jsonb_array_length(items) = 0,
+    'detail', case when jsonb_array_length(items) = 0 then 'Every ₹ taken from a deposit is recorded on both sides.' else jsonb_array_length(items) || ' session(s) differ.' end, 'items', items);
+
+  -- 4. No deposit balance below zero (any day).
+  select coalesce(jsonb_agg(jsonb_build_object('text', format('%s: ₹%s', x.name, round(x.bal)))), '[]') into items
+  from (
+    select min(d.customer_name) as name, sum(case when d.kind = 'add' then d.amount else -d.amount end) as bal
+    from public.shop_deposits d where d.household_id = p_household
+    group by coalesce(nullif(right(regexp_replace(coalesce(d.customer_phone, ''), '\D', '', 'g'), 10), ''), lower(trim(d.customer_name)))
+  ) x where x.bal <= -0.5;
+  out := out || jsonb_build_object('key', 'deposit_balance', 'label', 'No deposit below zero', 'ok', jsonb_array_length(items) = 0,
+    'detail', case when jsonb_array_length(items) = 0 then 'All deposit balances are ₹0 or more.' else 'Used more than was paid in:' end, 'items', items);
+
+  -- 5. Nothing still running from an earlier day (forgotten End & collect).
+  select coalesce(jsonb_agg(jsonb_build_object('session', s.id, 'text',
+      format('%s · %s: started %s, still open', s.system_name, s.customer_name, to_char(s.started_at at time zone ist, 'DD Mon HH12:MI am')))), '[]') into items
+  from public.shop_sessions s
+  where s.household_id = p_household and s.status = 'running' and (s.started_at at time zone ist)::date <= p_day
+    and (s.started_at at time zone ist)::date < (now() at time zone ist)::date;
+  out := out || jsonb_build_object('key', 'left_running', 'label', 'No entry left open overnight', 'ok', jsonb_array_length(items) = 0,
+    'detail', case when jsonb_array_length(items) = 0 then 'Every earlier session was ended.' else 'End & collect these (or Cancel entry):' end, 'items', items);
+
+  return jsonb_build_object('day', p_day, 'checks', out);
+end $$;
+revoke all on function public.shop_health(uuid, date) from public, anon;
+grant execute on function public.shop_health(uuid, date) to authenticated;

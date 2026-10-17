@@ -5,6 +5,7 @@ import { XIcon } from '../../lib/icons'
 import { duesByCustomer, addDays, dayLabel, dayStart, dayTotals, durLabel, hoursLabel, minutesLeft, sessionTotal, timeLabel, useDay, useNow, rs } from '../../lib/shop'
 import { DrawerCard, dueReason } from './Cash'
 import { useSwipe } from '../../lib/useSwipe'
+import { MASK, moneyMasked } from '../../lib/privacy'
 import { useDialog } from '../../lib/dialog'
 
 // Admin's first screen: today's money, sessions, hours by system, who is on shift, and the drawer.
@@ -84,6 +85,7 @@ export default function Today({ shop: live, householdId, onOpen, toast, staffVie
       <ByStaff sessions={shop.sessions} from={day || dayStart()} order={7} onOpen={setWho} />
       <Dues dues={live.dues} order={8} />
       <DrawerCard shop={shop} from={day || dayStart()} order={9} />
+      <DailyCheck householdId={householdId} day={day || dayStart()} version={version + live.sessions.length} order={10} />
       </>}
       {who && (() => {
         const list = shop.sessions.filter((s) => (s.entered_by || 'Unknown') === who && s.status !== 'cancelled' && new Date(s.started_at) >= (day || dayStart()))
@@ -202,6 +204,40 @@ function Dues({ dues, order }) {
           <b className="neg">{rs(r.total)}</b>
         </div>
       ))}
+    </div>
+  )
+}
+
+// Daily self-check (admin, 18 Oct): rpc shop_health — the Cashbook matches the day's money, every bill adds up,
+// deposits used match the sessions, no deposit below zero, nothing left open overnight. Tap a problem for details.
+function DailyCheck({ householdId, day, version, order }) {
+  const [res, setRes] = useState(null)
+  const [open, setOpen] = useState(null)
+  const key = day.toLocaleDateString('en-CA')
+  useEffect(() => {
+    let live = true
+    supabase.rpc('shop_health', { p_household: householdId, p_day: key }).then(({ data, error }) => { if (live) setRes(error ? { error: error.message } : data) })
+    return () => { live = false }
+  }, [householdId, key, version])
+  if (!res) return null
+  const checks = res.checks || []
+  const hide = (t) => (moneyMasked() ? String(t || '').replace(/₹[\d,.]+/g, MASK) : t) // 👁 hides amounts here too
+  const bad = checks.filter((c) => !c.ok)
+  return (
+    <div className="card" style={{ order }}>
+      <div className="card-head"><h3>Daily check</h3>{res.error ? null : bad.length ? <b className="neg">{bad.length} to look at</b> : <b className="pos">All {checks.length} ✓</b>}</div>
+      {res.error && <div className="muted small">{res.error}</div>}
+      {checks.map((c) => (
+        <div key={c.key} className="line" role={c.ok ? undefined : 'button'} tabIndex={c.ok ? undefined : 0} onClick={() => !c.ok && setOpen(c)} style={c.ok ? undefined : { cursor: 'pointer' }}>
+          <span className={c.ok ? 'pos' : 'neg'} aria-hidden="true">{c.ok ? '✓' : '!'}</span>
+          <div className="grow" style={{ minWidth: 0 }}><div className="gx-ellipsis">{c.label}</div>{!c.ok && <div className="muted small">{hide(c.detail)}</div>}</div>
+        </div>
+      ))}
+      {open && (
+        <ActionSheet title={open.label} sub={hide(open.detail)} onClose={() => setOpen(null)}>
+          <div className="gx-details">{(open.items || []).map((x, i) => <div key={i}><span>{hide(x.text)}</span></div>)}</div>
+        </ActionSheet>
+      )}
     </div>
   )
 }
