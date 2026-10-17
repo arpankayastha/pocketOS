@@ -11,6 +11,8 @@ import PcPicker from './PcPicker'
 // talks to public_shop_info / public_availability / public_book (security definer, checked on the server).
 // Customers book a PC or the PS5 for today or tomorrow, pay the full amount by UPI (advance, non-refundable),
 // and staff confirm the request on the Floor once the payment shows up.
+// Owner, 17 Oct: arrive early; a slot is held 10 minutes, then it may go to a walk-in.
+const ARRIVE = 'Please arrive 10 minutes before your slot. We hold your slot for up to 10 minutes after the start time — after that, it may be given to someone else.'
 const DURS = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300] // online: up to 5 h (owner, 14 Oct; public_book's limit)
 
 export default function Book() {
@@ -77,6 +79,7 @@ export default function Book() {
         <h2>Booking request sent</h2>
         <div className="book-code mono">{done.code}</div>
         <p>{done.kind === 'PS' ? 'PS5' : done.system || 'PC'} · {new Date(done.start).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {timeLabel(done.start)} – {timeLabel(new Date(done.start).getTime() + done.minutes * 60_000)}{done.players > 1 ? ` · ${done.players} ${done.kind === 'PS' ? 'players' : 'people'}` : ''} · {rs(done.amount)}</p>
+        <p className="book-arrive small">{ARRIVE}</p>
         <p className="muted small">The shop confirms it once your payment shows up. Show this code at the counter. Your booking and, once you start playing, your time left show on the home page.</p>
         <div className="gx-btns"><a className="btn primary" style={{ flex: 1 }} href="#">Home</a>
         <button className="btn" style={{ flex: 1 }} onClick={() => { setStep('form'); setStart(null); setRef(''); setDone(null) }}>Book another</button></div>
@@ -99,6 +102,7 @@ export default function Book() {
             <label className="book-ref">UPI reference / last 4 digits (optional)<input value={ref} onChange={(e) => setRef(e.target.value)} inputMode="numeric" /></label>
           </>) : <p className="muted small">Pay at the counter when you arrive.</p>}
           <p className="muted small" style={{ margin: 0 }}>Advance payment & non-refundable once paid.</p>
+          <p className="book-arrive small" style={{ margin: 0 }}>{ARRIVE}</p>
           {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
           <button className="btn primary block" disabled={busy} onClick={send}>{busy ? 'Sending…' : info.upi_id ? 'I’ve paid · send booking' : 'Send booking'}</button>
         </div>
@@ -163,6 +167,7 @@ export default function Book() {
         {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
         <button className="btn primary block" disabled={!ready} onClick={() => { setError(null); setStep('pay') }}>{!start ? 'Pick a start time' : name.trim().length < 2 ? 'Enter your name to book' : phone.replace(/\D/g, '').length < 10 ? 'Enter your 10-digit mobile to book' : missing !== undefined ? `Enter player ${missing + 2}’s name` : `Book ${timeLabel(start)} · ${rs(amount)}`}</button>
       </div>
+      <p className="book-arrive small">{ARRIVE}</p>
       <p className="muted small" style={{ textAlign: 'center' }}>Book for today or tomorrow. Advance payment & non-refundable once paid.</p>
     </Page>
   )
