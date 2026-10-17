@@ -1,4 +1,4 @@
-import { durLabel, rs, sessionEnd, sessionTotal, timeLabel } from '../../lib/shop'
+import { durLabel, pausedMinutes, rs, sessionEnd, sessionTotal, timeLabel } from '../../lib/shop'
 // Small building blocks shared by the Shop screens: a bottom sheet with a form, and a chip row.
 
 export function Sheet({ title, sub, onClose, onSubmit, children }) {
@@ -94,4 +94,4 @@ export function SessionBreakdown({ s }) {
   )
 }
 // "3:25 pm – 5:25 pm": in and out (owner: both, not only one time).
-export const inOut = (s) => s.waiting ? `saved ${timeLabel(s.started_at)} · not started` : `${timeLabel(s.started_at)} – ${s.ended_at ? timeLabel(s.ended_at) : s.status === 'running' ? `ends ${timeLabel(sessionEnd(s))}` : '…'}`
+export const inOut = (s) => s.waiting ? `saved ${timeLabel(s.started_at)} · not started` : `${timeLabel(s.started_at)} – ${s.ended_at ? timeLabel(s.ended_at) : s.status === 'running' ? `ends ${timeLabel(sessionEnd(s))}` : '…'}${pausedMinutes(s) > 0 ? ` · paused ${durLabel(pausedMinutes(s))}` : ''}`

@@ -44,6 +44,8 @@ export function sessionEnd(s, now = Date.now()) {
   const base = new Date(s.started_at).getTime() + (Number(s.minutes) + Number(s.paused_minutes || 0)) * MIN
   return new Date(s.paused_at ? now + (base - new Date(s.paused_at).getTime()) : base)
 }
+// Minutes a session has been paused so far (owner, 17 Oct: shown next to the end time, which moves by this much).
+export const pausedMinutes = (s, now = Date.now()) => Math.round(Number(s.paused_minutes || 0) + (s.paused_at && !s.waiting ? (now - new Date(s.paused_at).getTime()) / MIN : 0))
 // The code a customer types on the PC / phone timer (#timer): first 6 characters of the id, like booking codes.
 export const shortCode = (id) => String(id || '').replace(/-/g, '').slice(0, 6).toUpperCase()
 export const sessionTotal = (s) => Number(s.gaming_amount) + Number(s.extend_amount) + Number(s.fnb_before) + Number(s.fnb_while) - Number(s.discount)

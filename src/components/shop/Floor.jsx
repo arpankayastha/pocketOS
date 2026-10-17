@@ -3,7 +3,7 @@ import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
 import { qrSvg } from '../../lib/upi'
 import PcPicker from '../PcPicker'
-import { DURATIONS, balanceFor, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, priceFor, sessionEnd, sessionPaid, sessionTotal, shortCode, timeLabel, useNow, rs } from '../../lib/shop'
+import { DURATIONS, balanceFor, customerKey, duesByCustomer, durLabel, isHappyDay, minutesLeft, pausedMinutes, priceFor, sessionEnd, sessionPaid, sessionTotal, shortCode, timeLabel, useNow, rs } from '../../lib/shop'
 import { ActionGrid, ActionSheet, Chips, Sheet, SheetActions, SumRow, inOut } from './ui'
 import { CashIcon, ClockPlusIcon, CupIcon, MoveIcon, PauseIcon, PhoneIcon, PlayIcon, QrIcon, XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
@@ -208,7 +208,7 @@ function RunRow({ sys, seat, s, now, onOpen, onStart }) {
       <span className={`gx-badge ${sys.kind === 'PS' ? 'ps' : ''}`}>{seatsOf1(sys) > 1 ? <span className="gx-badge-2">{sys.name}<small>C{seat}</small></span> : sys.name}</span>
       <div className="gx-run-main">
         <div className="gx-name">{s.customer_name}{s.players > 1 ? <span className="muted"> · {s.players} players</span> : ''}</div>
-        <div className="muted small">{s.waiting ? `Waiting · ${durLabel(s.minutes)} · not started` : `${timeLabel(s.started_at)} – ${timeLabel(sessionEnd(s, now))}${s.paused_at ? ' · paused' : ''}`} · <b className="mono gx-rowcode">{shortCode(s.id)}</b>{due > 0 && <span className="gx-due"> · {rs(due)} due</span>}{Number(s.owed) > 0 && <span className="muted"> · {rs(s.owed)} in dues</span>}</div>
+        <div className="muted small">{s.waiting ? `Waiting · ${durLabel(s.minutes)} · not started` : `${timeLabel(s.started_at)} – ${timeLabel(sessionEnd(s, now))}${pausedMinutes(s, now) > 0 ? ` · paused ${durLabel(pausedMinutes(s, now))}` : s.paused_at ? ' · paused' : ''}`} · <b className="mono gx-rowcode">{shortCode(s.id)}</b>{due > 0 && <span className="gx-due"> · {rs(due)} due</span>}{Number(s.owed) > 0 && <span className="muted"> · {rs(s.owed)} in dues</span>}</div>
       </div>
       {s.waiting
         ? <button type="button" className="btn small primary" onClick={(e) => { e.stopPropagation(); onStart() }}>▶ Start</button>
@@ -225,7 +225,7 @@ function SessionSheet({ system, seat, s, now, onClose, onAction, onPause, onStar
   const how = [Number(s.paid_cash) && 'cash', Number(s.paid_online) && 'online', Number(s.paid_deposit || 0) && 'deposit'].filter(Boolean).join(' + ')
   return (
     <ActionSheet title={`${s.customer_name}${s.players > 1 ? ` · ${s.players} players` : ''}`}
-      sub={`${whereOf(system, seat)} · ${s.waiting ? `waiting · ${durLabel(s.minutes)}` : `${inOut(s)}${s.paused_at ? ' · paused' : left > 0 ? ` · ${durLabel(left)} left` : ' · time up'}`}`}
+      sub={`${whereOf(system, seat)} · ${s.waiting ? `waiting · ${durLabel(s.minutes)}` : `${inOut(s)}${s.paused_at ? ' · on pause now' : left > 0 ? ` · ${durLabel(left)} left` : ' · time up'}`}`}
       onClose={onClose}
       primary={s.waiting ? <button type="button" className="btn primary" onClick={onStart}>▶ Start timer</button> : <button type="button" className="btn primary" onClick={() => onAction('end')}>End &amp; collect</button>}>
       <div className="gx-skpis">
