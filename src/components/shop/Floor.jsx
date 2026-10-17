@@ -154,10 +154,10 @@ export default function Floor({ shop, householdId, toast }) {
       {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} deposits={shop.deposits} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
       {sheet?.kind === 'collect' && <CollectSheet session={sheet.session} settings={shop.settings} onClose={close} onDone={done} />}
-      {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} settings={shop.settings} onClose={close} onDone={done} />}
+      {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'timer' && <TimerCodeSheet session={sheet.session} onClose={close} />}
       {sheet?.kind === 'move' && <MoveSheet session={sheet.session} systems={shop.systems} freeOf={freeSeats} onClose={close} onDone={done} />}
-      {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} settings={shop.settings} onClose={close} onDone={done} />}
+      {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
     </section>
   )
@@ -400,7 +400,13 @@ const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash
 const addNote = (session, text) => [session.note, text].filter(Boolean).join(' · ')
 const paidPatch = (session, pay, value, what) => pay === 'due' ? { owed: Number(session.owed || 0) + value, note: addNote(session, `Due: ${what} ${rs(value)}`) } : pay === 'cash' ? { paid_cash: Number(session.paid_cash) + value }
   : pay === 'online' ? { paid_online: Number(session.paid_online) + value } : {}
-const payNote = (pay) => pay === 'due' ? ' · added to their dues' : pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
+// Owner, 17 Oct: a customer with a deposit can have F&B / extend taken from it (up to the balance; any rest is with the bill at the end).
+const payOptions = (dep) => dep ? [...PAY_NOW, ['deposit', `From deposit · ${rs(dep.balance)}`]] : PAY_NOW
+const depPatch = (session, value) => ({ paid_deposit: Number(session.paid_deposit || 0) + value })
+async function takeFromDeposit(householdId, dep, session, value) {
+  return supabase.from('shop_deposits').insert({ household_id: householdId, customer_name: dep.name, customer_phone: dep.phone || null, kind: 'use', amount: value, session_id: session.id })
+}
+const payNote = (pay) => pay === 'deposit' ? ' · from their deposit' : pay === 'due' ? ' · added to their dues' : pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
 
 // Owner, 14 Oct: the customer paid while still playing (staff forgot to pick a payment) — record it now;
 // End & collect then only asks for what's left.
@@ -430,7 +436,8 @@ function CollectSheet({ session, settings, onClose, onDone }) {
   )
 }
 
-function FnbSheet({ session, settings, onClose, onDone }) {
+function FnbSheet({ session, settings, deposits = [], householdId, onClose, onDone }) {
+  const dep = balanceFor(deposits, session.customer_name, session.customer_phone)
   const [amt, setAmt] = useState(20)
   const [custom, setCustom] = useState('')
   const [pay, setPay] = useState('end')
@@ -439,7 +446,9 @@ function FnbSheet({ session, settings, onClose, onDone }) {
   async function save() {
     if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').update({ fnb_while: Number(session.fnb_while) + value, ...paidPatch(session, pay, value, 'F&B') }).eq('id', session.id)
+    const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, value) : 0
+    const { error } = await supabase.from('shop_sessions').update({ fnb_while: Number(session.fnb_while) + value, ...(fromDep ? depPatch(session, fromDep) : paidPatch(session, pay, value, 'F&B')) }).eq('id', session.id)
+    if (!error && fromDep) await takeFromDeposit(householdId, dep, session, fromDep)
     setBusy(false)
     if (error) { onDone(error.message); return }
     onDone(`${rs(value)} F&B added to ${session.system_name}${payNote(pay)}`)
@@ -449,7 +458,8 @@ function FnbSheet({ session, settings, onClose, onDone }) {
       <Chips scroll options={FNB.slice(1)} value={custom ? null : amt} onChange={(v) => { setAmt(v); setCustom('') }} />
       <label>Other amount<input inputMode="numeric" value={custom} onChange={(e) => setCustom(e.target.value.replace(/\D/g, ''))} placeholder="₹" /></label>
       <div className="caps muted">Payment</div>
-      <Chips options={PAY_NOW} value={pay} onChange={setPay} />
+      <Chips options={payOptions(dep)} value={pay} onChange={setPay} />
+      {pay === 'deposit' && dep && value > dep.balance && <p className="muted small" style={{ margin: 0 }}>{rs(dep.balance)} from the deposit, {rs(value - dep.balance)} with the bill at the end.</p>}
       {pay === 'online' && value > 0 && <UpiQrButton settings={settings} amount={value} note={`${session.system_name} F&B · ${session.customer_name}`} />}
       <SheetActions onClose={onClose} busy={busy} disabled={!(value > 0)} label={`Add ${rs(value || 0)}`} />
     </Sheet>
@@ -458,7 +468,8 @@ function FnbSheet({ session, settings, onClose, onDone }) {
 
 // Owner (13 Oct): each extension is charged on its own from the rate card — +30 min is ₹50 every time
 // (before, the 2nd +30 min came to ₹30 because it was "2 h price − 1 h 30 m price").
-function ExtendSheet({ system, session, rates, settings, onClose, onDone }) {
+function ExtendSheet({ system, session, rates, settings, deposits = [], householdId, onClose, onDone }) {
+  const dep = balanceFor(deposits, session.customer_name, session.customer_phone)
   const [add, setAdd] = useState(30)
   const [pay, setPay] = useState('end')
   const [busy, setBusy] = useState(false)
@@ -468,7 +479,9 @@ function ExtendSheet({ system, session, rates, settings, onClose, onDone }) {
   async function save() {
     if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
-    const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: Number(session.extend_amount) + extra, ...paidPatch(session, pay, extra, `extend ${durLabel(add)}`) }).eq('id', session.id)
+    const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, extra) : 0
+    const { error } = await supabase.from('shop_sessions').update({ minutes, extend_amount: Number(session.extend_amount) + extra, ...(fromDep ? depPatch(session, fromDep) : paidPatch(session, pay, extra, `extend ${durLabel(add)}`)) }).eq('id', session.id)
+    if (!error && fromDep) await takeFromDeposit(householdId, dep, session, fromDep)
     setBusy(false)
     if (error) { onDone(error.message); return }
     onDone(`${session.system_name} now ends ${timeLabel(newEnd)} · +${rs(extra)}${payNote(pay)}`)
@@ -481,7 +494,8 @@ function ExtendSheet({ system, session, rates, settings, onClose, onDone }) {
         <SumRow strong label="Extend amount" value={`+${rs(extra)}`} />
       </div>
       <div className="caps muted">Payment</div>
-      <Chips options={PAY_NOW} value={pay} onChange={setPay} />
+      <Chips options={payOptions(dep)} value={pay} onChange={setPay} />
+      {pay === 'deposit' && dep && extra > dep.balance && <p className="muted small" style={{ margin: 0 }}>{rs(dep.balance)} from the deposit, {rs(extra - dep.balance)} with the bill at the end.</p>}
       {pay === 'online' && <UpiQrButton settings={settings} amount={extra} note={`${session.system_name} extend · ${session.customer_name}`} />}
       <SheetActions onClose={onClose} busy={busy} label="Extend" />
     </Sheet>
