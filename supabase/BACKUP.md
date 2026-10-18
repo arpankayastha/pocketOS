@@ -14,3 +14,9 @@ it (one tap), shows the last backup and has **Back up now**.
   expires the long-term token after 7 days.
 - **Restore:** `node scripts/restore-backup.mjs <file.json.gz> --dry-run` shows what's inside; see the header of that script
   for restoring into a fresh project.
+
+## What a restore does and doesn't bring back
+- **Brought back:** every Budget / Hisab / Plan / Dues / captures row, categories, accounts, and the encrypted Vault, Emergency sheet and Will, exactly as they were.
+- **Not in the file (made again by hand):** the database structure and functions (apply `supabase/schema.sql`, redeploy `supabase/functions/*`, set the secrets), the owner's Google login (sign in once), household member logins and their PINs, and phone pairings (`quick_devices`).
+- **Vault access after a restore:** the same master password / recovery code opens it. A member's own unlocker is dropped; **Enable Vault** for them again.
+- The restore script has not been rehearsed on a real second project — do a dry run (`--dry-run`) on a downloaded backup now and then.

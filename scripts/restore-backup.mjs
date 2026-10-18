@@ -4,7 +4,7 @@
 //   SUPABASE_URL=https://<ref>.supabase.co SUPABASE_SERVICE_ROLE_KEY=… node scripts/restore-backup.mjs <file.json.gz> [--owner <new user id>]
 // For a fresh project: apply supabase/schema.sql, sign in once with Google (that creates the owner user), delete the
 // starter household it seeds, then run this with --owner <that user's id> so every row belongs to the new owner.
-// Household member logins are NOT restored (they are made again in Settings → Households); the vault stays
+// Household member logins and phone pairings are NOT restored (made again in Settings → Households / Phone widget); the vault stays
 // encrypted exactly as it was, so the same master password / recovery code opens it.
 import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
@@ -30,10 +30,14 @@ const db = createClient(url, key, { auth: { persistSession: false } })
 // Parents before children.
 const ORDER = ['households', 'accounts', 'categories', 'hisab_books', 'hisab_categories', 'recurring_items', 'dues', 'due_entries', 'budgets',
   'transactions', 'hisab_entries', 'capture_rules', 'captures', 'vault_unlockers', 'vault_items', 'wills', 'will_versions', 'will_log']
-const remap = (row) => (newOwner && row.user_id === backup.owner ? { ...row, user_id: newOwner } : row)
+// Rows made by a household member login (they have no account in a fresh project) go to the owner, as when a login is
+// removed in the app; a member's own vault unlockers are dropped (members get theirs again from Settings → Households).
+const mine = (row) => row.user_id === backup.owner
+const remap = (row) => (newOwner && row.user_id ? { ...row, user_id: newOwner } : row)
 
 for (const t of ORDER) {
-  const rows = (backup.tables[t] || []).map(remap)
+  const all = backup.tables[t] || []
+  const rows = (newOwner && t === 'vault_unlockers' ? all.filter(mine) : all).map(remap)
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await db.from(t).upsert(rows.slice(i, i + 200), { onConflict: 'id' })
     if (error) { console.error(`${t}: ${error.message}`); process.exit(1) }
