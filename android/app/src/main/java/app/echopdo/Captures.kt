@@ -48,7 +48,9 @@ object Captures {
         val what = "${d.reason} · ${Calc.money(t.amount)}${t.accountHint?.let { " · ••$it" } ?: ""}"
         // Key without "|" (the list separator): a reference, else a hash of sender + text.
         if (!Store.markSeen(ctx, t.ref ?: "h" + Integer.toHexString("$sender $text".hashCode()))) { log("sent", "$what · already sent"); return false }
-        val req = body(t, smsTime)
+        // GPay / Paytm told us who this payment was to: use that name instead of a bare UPI id.
+        val named = if (t.direction == "in" || t.direction == "out") runCatching { UpiLink.nameFor(ctx, t.direction, t.amount, smsTime) }.getOrNull() else null
+        val req = body(if (named != null && (t.payee.isNullOrEmpty() || t.payee.contains('@'))) t.copy(payee = named) else t, smsTime)
         try {
             val res = Api.call(ctx, JSONObject(req.toString()))
             if (notify && !res.optBoolean("duplicate")) show(ctx, res)

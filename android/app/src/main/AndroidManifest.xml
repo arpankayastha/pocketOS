@@ -100,6 +100,17 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/quick_widget_small_info" />
         </receiver>
 
+        <!-- GPay / Paytm payment notifications (names for the bank SMS payments). Needs "Notification access". -->
+        <service
+            android:name=".UpiNotifications"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <receiver android:name=".ActionReceiver" android:exported="false" />
         <receiver android:name=".UpdateReceiver" android:exported="false" />
 

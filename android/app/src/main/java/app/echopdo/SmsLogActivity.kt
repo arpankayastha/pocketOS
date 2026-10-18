@@ -25,6 +25,7 @@ import java.time.format.DateTimeFormatter
 class SmsLogActivity : Activity() {
     private lateinit var list: LinearLayout
     private var filter = "all"
+    private val upi by lazy { intent.getStringExtra("kind") == "upi" }
     private val fmt = DateTimeFormatter.ofPattern("d MMM, h:mm a")
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,13 +38,14 @@ class SmsLogActivity : Activity() {
         }
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         head.addView(label("‹", 26f, C.text, true).apply { setPadding(0, 0, dp(14), 0); setOnClickListener { finish() } })
-        head.addView(label("SMS log", 20f, C.text, true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(label(if (upi) "UPI log" else "SMS log", 20f, C.text, true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         head.addView(label("Clear", 14f, C.muted).apply {
             setPadding(dp(10), dp(8), 0, dp(8))
-            setOnClickListener { Store.clearSmsLog(this@SmsLogActivity); render() }
+            setOnClickListener { if (upi) Store.clearUpiLog(this@SmsLogActivity) else Store.clearSmsLog(this@SmsLogActivity); render() }
         })
         root.addView(head)
-        root.addView(label("Bank SMS this phone read and what happened to each. The text stays on this phone. " +
+        root.addView(label(if (upi) "GPay and Paytm notifications this phone read and what happened to each. The text stays on this phone. Tap Copy on one that was read wrong to send it for fixing."
+            else "Bank SMS this phone read and what happened to each. The text stays on this phone. " +
             "Tap Copy on one that went wrong to send it for fixing.", 13f, C.muted).apply { setPadding(0, dp(6), 0, dp(10)); setLineSpacing(0f, 1.2f) })
         val chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; tag = "chips" }
         root.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(chips) })
@@ -53,13 +55,13 @@ class SmsLogActivity : Activity() {
         render()
     }
 
-    private fun rows() = Store.smsLog(this).let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+    private fun rows() = (if (upi) Store.upiLog(this) else Store.smsLog(this)).let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
 
     private fun render() {
         val all = rows()
         val chips = (window.decorView.findViewWithTag<LinearLayout>("chips"))
         chips.removeAllViews()
-        val groups = listOf("all" to "All", "sent" to "Added", "skip" to "Skipped", "unknown" to "Not understood")
+        val groups = listOf("all" to "All", "sent" to (if (upi) "Used" else "Added"), "skip" to "Skipped", "unknown" to "Not understood")
         for ((id, name) in groups) {
             val n = all.count { matches(it, id) }
             chips.addView(chip("$name $n", filter == id) { filter = id; render() },
@@ -68,7 +70,7 @@ class SmsLogActivity : Activity() {
         list.removeAllViews()
         val shown = all.filter { matches(it, filter) }
         if (shown.isEmpty()) {
-            list.addView(label(if (all.isEmpty()) "Nothing yet. New bank SMS show up here; “Look back” fills it with older ones." else "None here.", 14f, C.muted).apply { setPadding(0, dp(20), 0, 0) })
+            list.addView(label(if (all.isEmpty()) if (upi) "Nothing yet. Payments shown by GPay or Paytm will appear here." else "Nothing yet. New bank SMS show up here; “Look back” fills it with older ones." else "None here.", 14f, C.muted).apply { setPadding(0, dp(20), 0, 0) })
             return
         }
         for (r in shown) list.addView(row(r), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) })
@@ -76,7 +78,7 @@ class SmsLogActivity : Activity() {
 
     private fun matches(r: JSONObject, id: String) = when (id) {
         "all" -> true
-        "sent" -> r.optString("outcome") == "sent"
+        "sent" -> r.optString("outcome") in setOf("sent", "wait")
         "skip" -> r.optString("outcome") in setOf("skip", "otp")
         else -> r.optString("outcome") in setOf("unknown", "error")
     }
@@ -89,7 +91,8 @@ class SmsLogActivity : Activity() {
         }
         val outcome = r.optString("outcome")
         val (badge, color) = when (outcome) {
-            "sent" -> "Added" to C.pos
+            "sent" -> (if (upi) "Used" else "Added") to C.pos
+            "wait" -> "Waiting" to C.accent
             "skip", "otp" -> "Skipped" to C.muted
             "error" -> "Error" to C.neg
             else -> "Not understood" to C.neg
@@ -110,7 +113,7 @@ class SmsLogActivity : Activity() {
             box.addView(body)
             val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
             actions.addView(chip("Copy", false) {
-                getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("SMS", "${r.optString("sender")}: $text"))
+                getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(if (upi) "UPI" else "SMS", "${r.optString("sender")}: $text"))
                 Toast.makeText(this, "Copied — paste it to report this SMS", Toast.LENGTH_SHORT).show()
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) })
             if (outcome != "sent") actions.addView(chip("Add by hand", false) {

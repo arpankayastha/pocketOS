@@ -20,6 +20,13 @@
 //                                              on that card within ±25 % is taken over instead) → { bill: true, id, … }
 //   { action: 'unbill', token, id }          → undo that (deletes the transaction, or restores the taken-over one)
 //   { action: 'add_category', token, direction, name } → a Hisab category typed in the sheet → { name, icon }
+//   { action: 'enrich', token, direction, amount, payee } → a GPay / Paytm notification's payee name goes onto the bank-SMS
+//                                              capture of the same payment (same amount + direction, last 20 min): its
+//                                              payee, and — if already auto-added — the entry's note (and its category,
+//                                              re-guessed from the name, when it was "Other") → { enriched }
+//   { action: 'capture', source: 'upi', … }  → the same notification when no bank SMS came in time: names the matching
+//                                              capture if one turned up meanwhile (→ { duplicate, enriched }), else adds a
+//                                              payment of its own (never paired as a transfer)
 // Transfers are not spending: a capture whose payee is marked is_self, or one that pairs with an
 // opposite capture of the same amount (±1 day) on a different account, becomes status 'transfer'.
 // With the phone's auto_capture on (default), a capture is filed on arrival: the payee's
@@ -249,6 +256,47 @@ Deno.serve(async (req) => {
     if (c?.entry_id && c.target === 'hisab') await db.from('hisab_entries').update({ occurred_at: at }).eq('id', c.entry_id).is('occurred_at', null)
   }
 
+  // A GPay / Paytm notification names a payment the bank SMS already brought in (or: nothing to name yet).
+  async function enrichRecent(amount: number, direction: string, name: string | null) {
+    const since = new Date(Date.now() - 20 * 60_000).toISOString()
+    const { data: rows } = await db.from('captures').select('id, payee, status, entry_id, target')
+      .eq('household_id', hid).eq('amount', amount).eq('direction', direction).eq('card', false).gte('created_at', since)
+      .order('created_at', { ascending: false }).limit(5)
+    const list = rows || []
+    const hit = list.find((r) => !r.payee || r.payee.includes('@')) || list[0]
+    if (!hit) return null
+    // It already has a real name (or there's none to give): leave it.
+    if (!name || (hit.payee && !hit.payee.includes('@'))) return { id: hit.id, changed: false }
+    await db.from('captures').update({ payee: name }).eq('id', hit.id)
+    if (hit.status === 'filed' && hit.entry_id && hit.target === 'hisab') {
+      const { data: ent } = await db.from('hisab_entries').select('note, category').eq('id', hit.entry_id).eq('household_id', hid).maybeSingle()
+      if (ent) {
+        const upd: Record<string, unknown> = {}
+        if (!ent.note || ent.note === hit.payee) upd.note = name
+        if (direction === 'out' && (!ent.category || ent.category === 'Other')) {
+          const g = guessName(name, direction)
+          if (g !== 'Other') {
+            const c = (await pickerNames()).hisab.out.find((n) => n.toLowerCase() === g.toLowerCase())
+            if (c) upd.category = c
+          }
+        }
+        if (Object.keys(upd).length) await db.from('hisab_entries').update(upd).eq('id', hit.entry_id).eq('household_id', hid)
+      }
+    } else if (hit.status === 'filed' && hit.entry_id && hit.target === 'budget') {
+      const { data: tx } = await db.from('transactions').select('note').eq('id', hit.entry_id).eq('household_id', hid).maybeSingle()
+      if (tx && (!tx.note || tx.note === hit.payee)) await db.from('transactions').update({ note: name }).eq('id', hit.entry_id).eq('household_id', hid)
+    }
+    return { id: hit.id, changed: true }
+  }
+
+  if (action === 'enrich') {
+    const amount = amountOf(body.amount)
+    const name = clean(body.payee, 80)
+    if (!amount || !name) return json({ error: 'Nothing to add.' }, 400)
+    const e = await enrichRecent(amount, body.direction === 'in' ? 'in' : 'out', name)
+    return json({ enriched: !!e, ...(e ? { id: e.id, changed: e.changed } : {}) })
+  }
+
   if (action === 'config') {
     const since = new Date(Date.now() - 60 * 86400_000).toISOString().slice(0, 10)
     const [hh, books, hcats, cats, accts, recent] = await Promise.all([
@@ -435,6 +483,11 @@ Deno.serve(async (req) => {
     const direction = body.direction === 'in' ? 'in' : 'out'
     const date = isDate(body.date) ? body.date as string : todayIST()
     const ref = clean(body.ref, 40)
+    const fromNotice = body.source === 'upi' // a GPay / Paytm notice with no bank SMS: no account digits, no reference
+    if (fromNotice) {
+      const e = await enrichRecent(amount, direction, clean(body.payee, 80))
+      if (e) return json({ duplicate: true, enriched: true, id: e.id })
+    }
     const row = {
       user_id: dev.user_id, household_id: hid, device_id: dev.id, direction, amount, occurred_on: date,
       account_hint: clean(body.account_hint, 8), card: body.card === true, payee: clean(body.payee, 80), ref, bank: clean(body.bank, 40),
@@ -466,7 +519,7 @@ Deno.serve(async (req) => {
       const { data: self } = await db.from('capture_rules').select('id').eq('household_id', hid).eq('key', payeeKey(row.payee)).eq('is_self', true).maybeSingle()
       if (self) { await toTransfer(cap.id); return json({ ...cap, date, transfer: true, self: true }) }
     }
-    if (!row.card) {
+    if (!row.card && !fromNotice) {
       const d0 = new Date(date + 'T00:00:00Z')
       const day = (n: number) => new Date(d0.getTime() + n * 86400_000).toISOString().slice(0, 10)
       const { data: pairs } = await db.from('captures').select('id, status, account_hint, bank')

@@ -53,25 +53,44 @@ object Store {
     fun setSmsStatus(ctx: Context, s: String) { prefs(ctx).edit().putString("smsStatus", s).apply() }
     fun setSmsEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("sms", on).apply() }
 
-    // ----- SMS log (on this phone only, never uploaded) -----
-    // The last 300 bank / service SMS and what eChopdo did with each, so a missed payment can be
-    // explained (and copied to report it). OTP texts are never kept.
-    private fun logPrefs(ctx: Context) = ctx.getSharedPreferences("echopdo_smslog", Context.MODE_PRIVATE)
-    @Synchronized fun smsLog(ctx: Context): JSONArray =
-        logPrefs(ctx).getString("log", null)?.let { runCatching { JSONArray(it) }.getOrNull() } ?: JSONArray()
-    @Synchronized fun logSms(ctx: Context, at: Long, sender: String?, text: String, outcome: String, detail: String) {
+    // ----- SMS / UPI logs (on this phone only, never uploaded) -----
+    // The last 300 bank / service SMS (and GPay / Paytm notifications) and what eChopdo did with each, so a
+    // missed payment can be explained (and copied to report it). OTP texts are never kept.
+    private fun logPrefs(ctx: Context, name: String) = ctx.getSharedPreferences(name, Context.MODE_PRIVATE)
+    @Synchronized private fun readLog(ctx: Context, name: String): JSONArray =
+        logPrefs(ctx, name).getString("log", null)?.let { runCatching { JSONArray(it) }.getOrNull() } ?: JSONArray()
+    @Synchronized private fun writeLog(ctx: Context, name: String, at: Long, sender: String?, text: String, outcome: String, detail: String) {
         val key = "${sender.orEmpty()}|$at|${text.hashCode()}"
-        val old = smsLog(ctx)
+        val old = readLog(ctx, name)
         val next = JSONArray()
         next.put(JSONObject().put("key", key).put("at", at).put("sender", sender.orEmpty()).put("outcome", outcome).put("detail", detail)
             .put("text", if (outcome == "otp") "" else text.take(600)))
-        // Newest first; one row per SMS (a look-back re-reads the same SMS: keep the latest outcome).
+        // Newest first; one row per message (a look-back re-reads the same SMS: keep the latest outcome).
         for (i in 0 until old.length()) { val r = old.getJSONObject(i); if (r.optString("key") != key && next.length() < 300) next.put(r) }
-        // Keep it sorted by SMS time, newest first.
+        // Keep it sorted by message time, newest first.
         val rows = (0 until next.length()).map { next.getJSONObject(it) }.sortedByDescending { it.optLong("at") }
-        logPrefs(ctx).edit().putString("log", JSONArray(rows).toString()).apply()
+        logPrefs(ctx, name).edit().putString("log", JSONArray(rows).toString()).apply()
     }
-    fun clearSmsLog(ctx: Context) { logPrefs(ctx).edit().remove("log").apply() }
+    fun smsLog(ctx: Context): JSONArray = readLog(ctx, "echopdo_smslog")
+    fun logSms(ctx: Context, at: Long, sender: String?, text: String, outcome: String, detail: String) = writeLog(ctx, "echopdo_smslog", at, sender, text, outcome, detail)
+    fun clearSmsLog(ctx: Context) { logPrefs(ctx, "echopdo_smslog").edit().remove("log").apply() }
+    fun upiLog(ctx: Context): JSONArray = readLog(ctx, "echopdo_upilog")
+    fun logUpi(ctx: Context, at: Long, app: String, text: String, outcome: String, detail: String) = writeLog(ctx, "echopdo_upilog", at, app, text, outcome, detail)
+    fun clearUpiLog(ctx: Context) { logPrefs(ctx, "echopdo_upilog").edit().remove("log").apply() }
+
+    // ----- GPay / Paytm notifications -----
+    // On unless turned off in the app (Android's "Notification access" must also be allowed).
+    fun upiEnabled(ctx: Context) = prefs(ctx).getBoolean("upi", true)
+    fun setUpiEnabled(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("upi", on).apply() }
+    /** Recent payment notices waiting for their bank SMS: [{ key, at, direction, amount, name, app, state }]. state: open | named | sent */
+    @Synchronized fun upiRecent(ctx: Context): JSONArray {
+        val cutoff = System.currentTimeMillis() - 24 * 3600_000L
+        val all = prefs(ctx).getString("upiRecent", null)?.let { runCatching { JSONArray(it) }.getOrNull() } ?: JSONArray()
+        val keep = JSONArray()
+        for (i in 0 until all.length()) { val r = all.getJSONObject(i); if (r.optLong("at") >= cutoff) keep.put(r) }
+        return keep
+    }
+    @Synchronized fun setUpiRecent(ctx: Context, a: JSONArray) { prefs(ctx).edit().putString("upiRecent", a.toString()).apply() }
 
     /** Forget which SMS were sent (for "Resync"; the server still refuses real duplicates). */
     fun clearSeen(ctx: Context) { prefs(ctx).edit().remove("seen").apply() }
