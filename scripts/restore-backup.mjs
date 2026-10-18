@@ -29,7 +29,7 @@ const db = createClient(url, key, { auth: { persistSession: false } })
 
 // Parents before children.
 const ORDER = ['households', 'accounts', 'categories', 'hisab_books', 'hisab_categories', 'recurring_items', 'dues', 'due_entries', 'budgets',
-  'transactions', 'hisab_entries', 'capture_rules', 'captures', 'vault_unlockers', 'vault_items', 'wills', 'will_versions', 'will_log']
+  'loans', 'property_deals', 'transactions', 'hisab_entries', 'capture_rules', 'captures', 'vault_unlockers', 'vault_items', 'wills', 'will_versions', 'will_log']
 // Rows made by a household member login (they have no account in a fresh project) go to the owner, as when a login is
 // removed in the app; a member's own vault unlockers are dropped (members get theirs again from Settings → Households).
 const mine = (row) => row.user_id === backup.owner

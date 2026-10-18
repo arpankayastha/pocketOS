@@ -28,7 +28,7 @@ const PAGE = 1000
 
 // Tables saved, and how each is scoped to this owner. quick_devices (hashed phone tokens) and member_signup_tickets
 // are left out on purpose: phones are paired again, tickets are one-time.
-const BY_HOUSEHOLD = ['accounts', 'categories', 'transactions', 'budgets', 'recurring_items', 'dues', 'due_entries', 'hisab_books',
+const BY_HOUSEHOLD = ['accounts', 'categories', 'transactions', 'budgets', 'recurring_items', 'dues', 'due_entries', 'loans', 'property_deals', 'hisab_books',
   'hisab_entries', 'hisab_categories', 'captures', 'capture_rules', 'household_members']
 const BY_USER = ['vault_unlockers', 'vault_items', 'wills', 'will_versions', 'will_log']
 

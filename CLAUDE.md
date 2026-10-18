@@ -110,6 +110,7 @@ One login (the master account) manages several isolated **households** (workspac
 - **Code splitting**: every tab, the Vault screens and the Will module are `React.lazy` in `App.jsx` (wrapped in `Suspense` with the matching skeleton); Recharts lives only in `src/components/Charts.jsx`, used through `LazyCharts.jsx` (same-size placeholder while loading). `preloadBudget()` fetches Home + charts while the unlock screen is up. Main chunk ≈ 500 kB (142 kB gz), was 1.09 MB. Don't import `recharts` anywhere else.
 - Money and date helpers are in `src/lib/format.js` (INR / en-IN by default via env). `moneyShort` writes K / L / Cr for en-IN (ICU's compact form says "T" for thousand).
 - After any schema change: add the SQL to `supabase/schema.sql`, apply it as a migration, then run the Supabase security and performance advisors.
+- **A new table must also go into the backup**: add it to `BY_HOUSEHOLD` / `BY_USER` in `supabase/functions/backup/index.ts` (redeploy it) and to `ORDER` in `scripts/restore-backup.mjs`, parents before children — the user expects the weekly Drive backup to cover every new feature (`loans`, `property_deals` already are).
 
 ## Commands
 - `npm run dev`: start the dev server
