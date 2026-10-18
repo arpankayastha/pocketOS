@@ -840,3 +840,8 @@ details.section[open] .chev { transform: rotate(90deg); }
 
 .hh-check { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .hh-check input { width: 22px; height: 22px; flex: none; accent-color: var(--accent-bg); }
+
+/* Docs module */
+.docs-filters { display: flex; gap: 8px; margin: 0 0 12px; }
+.docs-filters select { flex: 1; min-width: 0; }
+.small.warn { color: var(--warn); }

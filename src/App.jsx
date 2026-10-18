@@ -33,6 +33,7 @@ const VaultItems = lazy(() => import('./components/VaultItems'))
 const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
+const Docs = lazy(() => import('./components/Docs'))
 const WillModule = lazy(() => import('./components/will/WillModule'))
 function preloadBudget() {
   loadDashboard()
@@ -143,6 +144,7 @@ function Shell({ session }) {
     // Any tap or key press counts as activity for the vault's idle auto-lock, in every module.
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
+        : module === 'docs' ? <DocsModule topbar={topbar} vault={vault} />
         : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
         : <BudgetModule topbar={topbar} email={session.user.email} vault={vault} />}
       {toast && <div className="toast" role="status">{toast}</div>}
@@ -195,6 +197,7 @@ function MemberShell({ session }) {
   return (
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' && vaultOn ? <VaultModule topbar={topbar} vault={vault} member />
+        : module === 'docs' && vaultOn ? <DocsModule topbar={topbar} vault={vault} member />
         : <BudgetModule topbar={topbar} email={memberName(session)} member appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} startTab={info.hisab_only ? 'hisab' : info.start_tab || 'dashboard'} hisabOnly={!!info.hisab_only} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
@@ -290,7 +293,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
               <CaptureInbox householdId={data.activeHouseholdId} categories={data.categories} accounts={data.accounts}
                 onFiled={() => { setDataVersion((v) => v + 1); data.refresh() }} />
             )}
-            {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
+            {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} docs={vault?.docs} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
@@ -326,6 +329,36 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
         <TransactionForm accounts={data.accounts} categories={data.categories} householdId={data.activeHouseholdId} presetKind={quickAddKind}
           onClose={() => setQuickAddKind(null)}
           onSaved={() => { setQuickAddKind(null); setDataVersion((v) => v + 1); data.refresh() }} />
+      )}
+    </div>
+  )
+}
+
+// Docs: links to the family's documents in Google Drive, with notes. Same vault lock and sharing as Vault.
+function DocsModule({ topbar, vault, member }) {
+  const [openDoc, setOpenDoc] = useState(null)
+  const [editing, setEditing] = useState(null) // document being edited, {} for a new one
+  const unlocked = vault.status === 'unlocked'
+  const [wasUnlocked, setWasUnlocked] = useState(unlocked)
+  if (wasUnlocked !== unlocked) {
+    setWasUnlocked(unlocked)
+    if (!unlocked) { setOpenDoc(null); setEditing(null) }
+  }
+  return (
+    <div className="app">
+      <Topbar {...topbar} right={unlocked && (
+        <button className="btn icon lock-btn" aria-label="Lock" title="Lock" onClick={vault.lockNow}><LockIcon /></button>
+      )}><div className="spacer" /></Topbar>
+      <main className="content fade-in">
+        <Suspense fallback={<ListSkeleton />}>
+          {unlocked ? <Docs vault={vault} member={member} open={openDoc} setOpen={setOpenDoc} editing={editing} setEditing={setEditing} />
+            : <VaultGate vault={vault} onRecovered={() => {}} onRecoveryCode={() => {}} />}
+        </Suspense>
+      </main>
+      {unlocked && (
+        <div className="fab-wrap">
+          <button className="fab" aria-label="Add document" onClick={() => setEditing({})}><PlusIcon /></button>
+        </div>
       )}
     </div>
   )

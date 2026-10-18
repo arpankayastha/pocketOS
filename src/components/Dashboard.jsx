@@ -7,13 +7,14 @@ import { DashboardSkeleton } from './Skeleton'
 import { useMonthSwipe } from '../lib/useSwipe'
 import { loadMonthMoney } from '../lib/runway'
 import { colorFor, iconFor } from '../lib/hisab'
+import { dueLabel, dueSoon, docSubtitle, REMIND_DAYS } from '../lib/docs'
 
 // Home, kept to what the family uses (simplified Oct 2026, the user's call): last / this / next month.
 //   this month — Left to spend, what's still coming up from Plan, where the Daily Hisab money went;
 //   next month — what's planned (income − commitments) and the commitments by day;
 //   last month — what was spent and where.
 // The detail lives in Plan (commitments, card bills) and Hisab (every spend).
-export default function Dashboard({ categories, accounts, activeHouseholdId }) {
+export default function Dashboard({ categories, accounts, activeHouseholdId, docs }) {
   const thisMonth = currentMonth()
   const range = { min: shiftMonth(thisMonth, -1), max: shiftMonth(thisMonth, 1) }
   const [month, setMonth] = useState(thisMonth)
@@ -66,6 +67,9 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
   const spent = breakdown.reduce((s, d) => s + d.value, 0)
   const received = (spends[month] || []).filter((e) => e.direction === 'in').reduce((s, e) => s + Number(e.amount), 0)
 
+  // Documents (Docs module) whose expiry / renewal is within 45 days.
+  const docsDue = useMemo(() => dueSoon(docs), [docs])
+
   const swipe = useMonthSwipe(month, setMonth, range)
   if (!loaded) return <DashboardSkeleton />
   return (
@@ -95,6 +99,23 @@ export default function Dashboard({ categories, accounts, activeHouseholdId }) {
           <div className="muted small">Spent in {monthLabel(month)} · Hisab Daily</div>
           <div className="plan-left-num neg">{money(spent)}</div>
           {received > 0 && <div className="muted small">Received {money(received)}</div>}
+        </div>
+      )}
+
+      {isNow && docsDue.length > 0 && (
+        <div className="card">
+          <h3>Documents <span className="muted small">next {REMIND_DAYS} days</span></h3>
+          <div className="list">
+            {docsDue.map(({ doc, days }) => (
+              <div className="txn" key={doc.id}>
+                <span className="grow">
+                  <div className="ellipsis">{doc.title}</div>
+                  <div className="muted small ellipsis">{docSubtitle(doc)}</div>
+                </span>
+                <span className={`small ${days < 0 ? 'neg' : 'warn'}`}>{dueLabel(days)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
