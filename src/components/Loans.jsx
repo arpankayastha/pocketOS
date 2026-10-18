@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { today } from '../lib/format'
 import {
-  KINDS, kindLabel, summaryOf, prepaySavings, fyTable, emiOf, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
+  KINDS, kindLabel, summaryOf, prepaySavings, interestUntil, fyTable, emiOf, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
   loadLoans, loadDeals, saveDeal, deleteDeal, starterChecklist,
 } from '../lib/loans'
 import { loadDues } from '../lib/dues'
@@ -136,7 +136,7 @@ function LoanCard({ loan, onOpen }) {
         <div className="muted small due-foot">
           <span>{money(s.yearlyInterest)} interest a year</span>
           <span className={s.state === 'overdue' ? 'neg' : s.state === 'soon' ? 'warn' : ''}>
-            {loan.closed_on ? `closed ${fmtDate(loan.closed_on)}` : s.state === 'overdue' ? `overdue by ${-s.daysToDue} days` : s.daysToInterest <= 60 ? `interest due in ${s.daysToInterest} days` : `interest on ${fmtDate(s.nextInterestOn)}`}
+            {loan.closed_on ? `closed ${fmtDate(loan.closed_on)}` : s.daysToDue !== null && s.daysToDue < 0 ? `renewal overdue by ${-s.daysToDue} days` : s.daysToInterest < 0 ? `interest overdue by ${-s.daysToInterest} days` : s.daysToInterest <= 60 ? `interest due in ${s.daysToInterest} days` : `interest on ${fmtDate(s.nextInterestOn)}`}
           </span>
         </div>
       ) : s.incomplete ? <div className="muted small">Add the tenure or EMI to see the schedule.</div> : (
@@ -172,9 +172,9 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
     e.preventDefault()
     setBusy(true); setError(null)
     try {
-      const item = ev.type === 'prepay'
-        ? { id: crypto.randomUUID(), type: 'prepay', date: ev.date, amount: Number(ev.amount) }
-        : { id: crypto.randomUUID(), type: 'rate', date: ev.date, rate: Number(ev.rate) }
+      const item = ev.type === 'rate'
+        ? { id: crypto.randomUUID(), type: 'rate', date: ev.date, rate: Number(ev.rate) }
+        : { id: crypto.randomUUID(), type: ev.type, date: ev.date, amount: Number(ev.amount) }
       await setLoanEvents(loan, [...(loan.events || []), item])
       setEv(null); onChanged()
     } catch (err) { setError(err.message) }
@@ -201,6 +201,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
             <Stat label="Next interest due" value={s.nextInterestOn ? fmtDate(s.nextInterestOn) : '—'} tone={s.state === 'soon' ? 'warn' : ''} />
             <Stat label={s.lastInterestOn ? `Built up since ${fmtDate(s.lastInterestOn)}` : 'Built up since you took it'} value={money(s.sinceLast)} />
             <Stat label="Renewal / closing date" value={loan.due_date ? fmtDate(loan.due_date) : '—'} tone={s.state === 'overdue' ? 'neg' : ''} />
+            <Stat label="Interest paid so far" value={money(s.paidInterest)} tone="pos" />
             <Stat label="Gold pledged" value={loan.grams ? `${loan.grams} g` : '—'} />
           </div>
         ) : s.incomplete ? <div className="alert error">Edit the loan and add its tenure or EMI to see the schedule.</div> : (
@@ -240,31 +241,31 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
           </>
         )}
 
-        {!s.gold && (
+        {(
           <>
-            <h4>Prepayments and rate changes</h4>
-            {events.length === 0 && <p className="muted small">None yet. Add one when it happens, so the schedule follows your loan.</p>}
+            <h4>{s.gold ? 'Interest payments' : 'Prepayments and rate changes'}</h4>
+            {events.length === 0 && <p className="muted small">{s.gold ? 'None yet. Pay the interest whenever you like — even before the year ends — and add it here; what builds up then counts from that day.' : 'None yet. Add one when it happens, so the schedule follows your loan.'}</p>}
             {events.map((x) => (
               <div key={x.id} className="line">
-                <span>{x.type === 'prepay' ? `Prepaid ${money(x.amount)}` : `Rate changed to ${x.rate}%`}<span className="muted small"> · {fmtDate(x.date)}</span></span>
+                <span>{x.type === 'prepay' ? `Prepaid ${money(x.amount)}` : x.type === 'interest' ? `Paid interest ${money(x.amount)}` : `Rate changed to ${x.rate}%`}<span className="muted small"> · {fmtDate(x.date)}</span></span>
                 <button className="btn icon" aria-label="Remove" onClick={() => removeEvent(x.id)}><TrashIcon /></button>
               </div>
             ))}
             {ev ? (
               <form className="stack" onSubmit={addEvent}>
-                <div className="seg">
+                {!s.gold && <div className="seg">
                   <button type="button" className={ev.type === 'prepay' ? 'on' : ''} onClick={() => setEv({ ...ev, type: 'prepay' })}>Prepayment</button>
                   <button type="button" className={ev.type === 'rate' ? 'on' : ''} onClick={() => setEv({ ...ev, type: 'rate' })}>Rate change</button>
-                </div>
+                </div>}
                 <div className="row2">
-                  <label>Date<input type="date" required value={ev.date} onChange={(e) => setEv({ ...ev, date: e.target.value })} /></label>
-                  {ev.type === 'prepay'
-                    ? <label>Amount<input type="number" inputMode="decimal" min="1" step="0.01" required value={ev.amount} onChange={(e) => setEv({ ...ev, amount: e.target.value })} /></label>
+                  <label>Date<input type="date" required value={ev.date} onChange={(e) => setEv({ ...ev, date: e.target.value, ...(ev.type === 'interest' && !ev.touched ? { amount: String(Math.round(interestUntil(loan, e.target.value))) } : {}) })} /></label>
+                  {ev.type !== 'rate'
+                    ? <label>{ev.type === 'interest' ? 'Interest paid' : 'Amount'}<input type="number" inputMode="decimal" min="1" step="0.01" required value={ev.amount} onChange={(e) => setEv({ ...ev, amount: e.target.value, touched: true })} /></label>
                     : <label>New rate %<input type="number" inputMode="decimal" min="0" step="0.01" required value={ev.rate} onChange={(e) => setEv({ ...ev, rate: e.target.value })} /></label>}
                 </div>
                 <div className="actions"><div className="spacer" /><button type="button" className="btn" onClick={() => setEv(null)}>Cancel</button><button className="btn primary" disabled={busy}>Add</button></div>
               </form>
-            ) : <button className="btn small" onClick={() => setEv({ type: 'prepay', date: day, amount: '', rate: '' })}>+ Add prepayment or rate change</button>}
+            ) : <button className="btn small" onClick={() => setEv(s.gold ? { type: 'interest', date: day, amount: String(Math.round(interestUntil(loan, day))), rate: '' } : { type: 'prepay', date: day, amount: '', rate: '' })}>{s.gold ? '+ Pay interest (till date)' : '+ Add prepayment or rate change'}</button>}
           </>
         )}
 

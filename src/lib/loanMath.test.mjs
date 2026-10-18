@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { pmt, addMonths, fyOf, schedule, summary, prepaySavings, fyTable, goldSummary, summaryOf, daysBetween } from './loanMath.js'
+import { interestUntil, pmt, addMonths, fyOf, schedule, summary, prepaySavings, fyTable, goldSummary, summaryOf, daysBetween } from './loanMath.js'
 
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`)
 
@@ -54,20 +54,26 @@ assert.equal(fy[0].fy, 'FY 2025-26')
 assert.equal(fy[0].planned, false)
 assert.equal(fy[fy.length - 1].planned, true)
 
-// Gold loan: interest only, paid once a year on the loan's anniversary.
-const gold = { principal: 200000, rate: 9, start_date: '2026-01-01', due_date: '2027-12-31', interest_only: true, closed_on: null }
+// Gold loan: interest only, paid about once a year — or earlier, "interest till date".
+const gold = { principal: 200000, rate: 9, start_date: '2026-01-01', due_date: '2027-12-31', interest_only: true, closed_on: null, events: [] }
 const g = goldSummary(gold, '2026-07-01')
 near(g.yearlyInterest, 18000, 0.01, 'gold yearly')
 near(g.sinceLast, 200000 * 9 / 36500 * 181, 0.01, 'gold since start')
 assert.equal(g.nextInterestOn, '2027-01-01')
 assert.equal(g.lastInterestOn, null)
 assert.equal(g.state, 'ok')
-const g2 = goldSummary(gold, '2027-03-01') // a year has passed: the first interest was due 1 Jan 2027
-assert.equal(g2.lastInterestOn, '2027-01-01')
-assert.equal(g2.nextInterestOn, '2028-01-01')
-near(g2.sinceLast, 200000 * 9 / 36500 * 59, 0.01, 'gold since last')
 assert.equal(goldSummary(gold, '2026-12-20').state, 'soon') // interest due in 12 days
-assert.equal(goldSummary({ ...gold, due_date: '2026-12-31' }, '2027-01-05').state, 'overdue')
+assert.equal(goldSummary(gold, '2027-01-05').state, 'overdue') // a year passed, nothing paid
+// Paying the interest early restarts the count from that day and the next one is a year later.
+const paid = { ...gold, events: [{ id: 'i', type: 'interest', date: '2026-07-01', amount: 8900 }] }
+near(interestUntil(gold, '2026-07-01'), 200000 * 9 / 36500 * 181, 0.01, 'interest till date')
+const gp = goldSummary(paid, '2026-08-01')
+near(gp.sinceLast, 200000 * 9 / 36500 * 31, 0.01, 'built up after paying')
+assert.equal(gp.paidInterest, 8900)
+assert.equal(gp.lastInterestOn, '2026-07-01')
+assert.equal(gp.nextInterestOn, '2027-07-01')
+assert.equal(gp.state, 'ok')
+assert.equal(goldSummary({ ...gold, due_date: '2026-12-31' }, '2027-01-05').state, 'overdue') // renewal passed
 assert.equal(goldSummary({ ...gold, closed_on: '2026-09-01' }, '2026-12-01').state, 'closed')
 assert.equal(summaryOf(gold, '2026-07-01').gold, true)
 

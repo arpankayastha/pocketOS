@@ -128,31 +128,38 @@ export function fyTable(rows, today) {
   return [...map.values()].map((e) => ({ ...e, planned: e.last > today }))
 }
 
-// Interest-only loans (gold): the principal is repaid at the end and the interest is paid once a year, on the
-// loan's anniversary. Interest runs by the day, so `sinceLast` is what has built up since the last anniversary.
+// Interest-only loans (gold): the principal is repaid at the end. Interest runs by the day and is paid about once
+// a year, but it can be paid early — "interest till date". Each payment is an `interest` event; what has built up
+// counts from the last payment (or from the day the loan was taken), and the next one falls a year after that.
+export const lastInterestPayment = (loan) => (loan.events || []).filter((e) => e.type === 'interest').sort(byDate).pop() || null
+
+// Interest built up on `date`, from the last interest payment (or the loan date).
+export function interestUntil(loan, date) {
+  const from = lastInterestPayment(loan)?.date || loan.start_date
+  return Number(loan.principal) * Number(loan.rate) / 36500 * Math.max(0, daysBetween(from, date))
+}
+
 export function goldSummary(loan, today) {
   const principal = Number(loan.principal)
   const rate = Number(loan.rate)
   const closed = !!loan.closed_on
   const end = closed && loan.closed_on < today ? loan.closed_on : today
-  const days = Math.max(0, daysBetween(loan.start_date, end))
-  let n = 1
-  while (addMonths(loan.start_date, 12 * n) <= end && n < 100) n++
-  const lastInterestOn = addMonths(loan.start_date, 12 * (n - 1))
-  const nextInterestOn = addMonths(loan.start_date, 12 * n)
+  const last = lastInterestPayment(loan)
+  const from = last?.date || loan.start_date
+  const nextInterestOn = addMonths(from, 12)
   const daysToDue = loan.due_date ? daysBetween(today, loan.due_date) : null
   const daysToInterest = closed ? null : daysBetween(today, nextInterestOn)
+  const paid = (loan.events || []).filter((e) => e.type === 'interest').reduce((t, e) => t + Number(e.amount), 0)
   return {
     outstanding: closed ? 0 : principal,
     yearlyInterest: principal * rate / 100,
-    sinceLast: principal * rate / 36500 * Math.max(0, daysBetween(lastInterestOn, end)),
-    accrued: principal * rate / 36500 * days,
-    days,
-    lastInterestOn: n > 1 ? lastInterestOn : null,
+    sinceLast: interestUntil(loan, end),
+    paidInterest: paid,
+    lastInterestOn: last?.date || null,
     nextInterestOn: closed ? null : nextInterestOn,
     daysToInterest,
     daysToDue,
-    state: closed ? 'closed' : daysToDue !== null && daysToDue < 0 ? 'overdue' : (daysToDue !== null && daysToDue <= 15) || daysToInterest <= 15 ? 'soon' : 'ok',
+    state: closed ? 'closed' : (daysToDue !== null && daysToDue < 0) || daysToInterest < 0 ? 'overdue' : (daysToDue !== null && daysToDue <= 15) || daysToInterest <= 15 ? 'soon' : 'ok',
   }
 }
 
