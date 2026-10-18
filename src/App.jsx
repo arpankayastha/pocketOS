@@ -17,7 +17,7 @@ import { MODULES } from './lib/modules'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon, UmbrellaIcon } from './lib/icons'
+import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, ShieldIcon, LockIcon, UmbrellaIcon } from './lib/icons'
 
 // Tabs and modules load on demand (code-split), so the first screen only downloads the shell.
 // The Home tab and the chart chunk are preloaded as soon as the app starts (see preloadBudget).
@@ -30,7 +30,6 @@ const Hisab = lazy(() => import('./components/Hisab'))
 const Settings = lazy(() => import('./components/Settings'))
 const CaptureInbox = lazy(() => import('./components/CaptureInbox'))
 const VaultItems = lazy(() => import('./components/VaultItems'))
-const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const Emergency = lazy(() => import('./components/Emergency'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
@@ -54,7 +53,6 @@ const BUDGET_TABS = [
 
 const VAULT_TABS = [
   { id: 'items', label: 'Passwords', icon: KeyIcon },
-  { id: 'generator', label: 'Generator', icon: DiceIcon },
   { id: 'security', label: 'Security', icon: ShieldIcon },
   { id: 'emergency', label: 'Emergency', icon: UmbrellaIcon },
 ]
@@ -358,7 +356,6 @@ function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword, m
   )
   else if (!unlocked) body = <VaultGate vault={vault} onRecovered={() => setMustResetPassword(true)} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: true })} />
   else if (tab === 'items') body = <VaultItems vault={vault} member={member} open={openItem} setOpen={setOpenItem} editing={editing} setEditing={setEditing} />
-  else if (tab === 'generator') body = <PasswordGenerator />
   else if (tab === 'emergency') body = <Emergency vault={vault} member={member} />
   else body = <VaultSecurity vault={vault} member={member} onRecoveryCode={(code) => setRecoveryCode({ code, firstTime: false })} onOpenItem={(item) => { setTab('items'); setOpenItem(item) }} />
 
