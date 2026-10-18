@@ -1,12 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { FolderIcon, FileIcon } from '../lib/icons'
-import { FOLDER_MIME, childrenOf, clearDriveToken, driveFolderId, driveFileId, getCachedIndex, hasDriveToken, indexDrive, pathNames, setCachedIndex, subtreeOf } from '../lib/drive'
+import { FOLDER_MIME, clearDriveToken, driveFolderId, driveFileId, getCachedIndex, hasDriveToken, indexDrive, pathNames, setCachedIndex, subtreeOf } from '../lib/drive'
 import { guessCategory, guessFromPath } from '../lib/docs'
 
 const DocPreview = lazy(() => import('./DocPreview'))
 
 const sizeLabel = (n) => (n ? (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`) : '')
 const dateLabel = (iso) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+const countLabel = (list) => { const n = list?.length || 0; return n ? `${n} item${n === 1 ? '' : 's'}` : 'Empty' }
 const stripExt = (n) => n.replace(/\.[a-z0-9]{2,5}$/i, '')
 
 // A live window onto the Drive folder the family documents live in: nothing is copied. Names come
@@ -32,6 +33,15 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
   // Already signed in to Google this session (token in memory): load without asking again.
   useEffect(() => { if (root && !index && state.status === 'idle' && hasDriveToken()) load() }, [root, index, state.status, load])
 
+  // parent id → its children (folders first, then by name): one pass, reused by every list.
+  const kids = useMemo(() => {
+    const m = new Map()
+    if (!index) return m
+    for (const f of index.values()) for (const p of f.parents || []) (m.get(p) || m.set(p, []).get(p)).push(f)
+    for (const list of m.values()) list.sort((a, b) => (b.mimeType === FOLDER_MIME) - (a.mimeType === FOLDER_MIME) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+    return m
+  }, [index])
+
   const known = useMemo(() => {
     const m = new Map()
     for (const d of vault.docs) { const id = driveFileId(d.link); if (id) m.set(id, d) }
@@ -52,12 +62,13 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
       <form className="card" onSubmit={saveRoot}>
         <h3>Choose your documents folder</h3>
         <p className="muted small">Browse your whole Google Drive, or paste the link of one folder that holds your documents. eChopdo only reads names and shows files — nothing is copied.</p>
+        <button type="button" className="btn primary drive-whole" onClick={(e) => saveRoot(e, true)}>Use my whole Drive</button>
+        <div className="muted small drive-or">or only one folder</div>
         <div className="field-row">
-          <input className="grow" inputMode="url" autoCapitalize="none" placeholder="https://drive.google.com/drive/folders/…" value={link} onChange={(e) => setLink(e.target.value)} />
-          <button className="btn primary" disabled={!link.trim()}>Save</button>
+          <input className="grow" inputMode="url" autoCapitalize="none" placeholder="Paste the folder link" value={link} onChange={(e) => setLink(e.target.value)} />
+          <button className="btn" disabled={!link.trim()}>Save</button>
         </div>
         {linkError && <div className="alert error">{linkError}</div>}
-        <div className="actions"><button type="button" className="btn" onClick={(e) => saveRoot(e, true)}>Use my whole Drive instead</button></div>
       </form>
     )
   }
@@ -96,19 +107,19 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
   const q = query.trim().toLowerCase()
   const rows = q.length >= 2
     ? subtreeOf(index, rootId).filter((f) => f.name.toLowerCase().includes(q)).slice(0, 100)
-    : childrenOf(index, current)
+    : (kids.get(current) || [])
   const crumbs = [{ id: rootId, name: rootFolder.name }, ...trail.map((id) => ({ id, name: index.get(id)?.name || '…' }))]
 
   function addDetails(f) {
     const names = pathNames(index, f, rootId)
-    onAddDetails({ link: f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`, title: stripExt(f.name), category: guessCategory(f.name), ...guessFromPath(names) })
+    onAddDetails({ link: f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`, title: stripExt(f.name), category: guessCategory([...names, f.name].join(' ')), ...guessFromPath(names) })
   }
 
   return (
     <section>
-      <div className="toolbar">
-        <input type="search" placeholder={`Search "${rootFolder.name}"…`} value={query} onChange={(e) => setQuery(e.target.value)} />
-        <button className="btn small" onClick={load} title="Read Drive again" aria-label="Refresh">↻</button>
+      <div className="drive-bar">
+        <input type="search" placeholder={`Search ${rootFolder.name}…`} value={query} onChange={(e) => setQuery(e.target.value)} />
+        <button className="btn icon" onClick={load} title="Read Drive again" aria-label="Refresh">↻</button>
       </div>
       {q.length < 2 && (
         <div className="drive-crumbs no-swipe">
@@ -129,17 +140,18 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
               <span className="site-badge type" aria-hidden="true">{isFolder ? <FolderIcon /> : <FileIcon />}</span>
               <span className="grow">
                 <div className="ellipsis">{f.name}</div>
-                <div className="muted small ellipsis">{where || (isFolder ? 'Folder' : [dateLabel(f.modifiedTime), sizeLabel(Number(f.size))].filter(Boolean).join(' · '))}</div>
+                <div className="muted small ellipsis">{where || (isFolder ? countLabel(kids.get(f.id)) : [dateLabel(f.modifiedTime), sizeLabel(Number(f.size))].filter(Boolean).join(' · '))}</div>
               </span>
               {!isFolder && (detail
-                ? <button className="vault-tag" onClick={(e) => { e.stopPropagation(); onOpenDetails(detail) }}>Details</button>
-                : <button className="btn small ghost" onClick={(e) => { e.stopPropagation(); addDetails(f) }}>+ Details</button>)}
+                ? <button type="button" className="drive-tag" onClick={(e) => { e.stopPropagation(); onOpenDetails(detail) }}>Details</button>
+                : <button type="button" className="drive-add" onClick={(e) => { e.stopPropagation(); addDetails(f) }} aria-label="Add details">+ Details</button>)}
+              {isFolder && <span className="drive-caret" aria-hidden="true">›</span>}
             </div>
           )
         })}
         {rows.length === 0 && <p className="muted pad">{q.length >= 2 ? 'Nothing matches.' : 'This folder is empty.'}</p>}
       </div>
-      <button className="btn link small" onClick={() => vault.deleteItem(root.id)}>Use a different folder</button>
+      <button className="btn link small drive-change" onClick={() => vault.deleteItem(root.id)}>Use a different folder</button>
       {previewing && <Suspense fallback={null}><DocPreview id={previewing.id} link={previewing.webViewLink || `https://drive.google.com/file/d/${previewing.id}/view`} title={previewing.name} onClose={() => setPreviewing(null)} /></Suspense>}
     </section>
   )

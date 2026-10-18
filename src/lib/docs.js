@@ -57,9 +57,17 @@ export function guessCategory(name) {
   return hit ? hit[0] : 'Other'
 }
 
-// Member and year from the folders above a file ("Member" / "2025" in either order).
+// Year from the folders above a file, and the family member only when a folder is named like
+// "<Name> Docs" (one word, e.g. "Mom Docs"); "Common Docs" means everyone. Other folders
+// (a loan, a property, a bill type) are never mistaken for a person.
 export function guessFromPath(names) {
-  const year = names.find((n) => /^(19|20)\d{2}$/.test(n.trim()))
-  const member = names.find((n) => n !== year && !/^(19|20)\d{2}/.test(n.trim()))
-  return { year: year?.trim() || '', member: member?.trim() || '' }
+  const year = names.find((n) => /^(19|20)\d{2}$/.test(n.trim()))?.trim() || ''
+  let member = ''
+  for (const n of names) {
+    const m = n.trim().match(/^([\p{L}]+)\s+docs?$/iu)
+    if (!m) continue
+    member = /^common$/i.test(m[1]) ? EVERYONE : m[1][0].toUpperCase() + m[1].slice(1)
+    break
+  }
+  return { year, member }
 }

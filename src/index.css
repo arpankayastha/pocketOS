@@ -853,3 +853,12 @@ details.section[open] .chev { transform: rotate(90deg); }
 .drive-crumbs { display: flex; gap: 2px; overflow-x: auto; margin: -4px 0 10px; padding-bottom: 4px; scrollbar-width: none; }
 .drive-crumbs button { flex: none; border: none; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 6px 6px; min-height: 36px; cursor: pointer; white-space: nowrap; }
 .drive-crumbs button.on { color: var(--text); font-weight: 600; }
+.drive-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.drive-bar input { flex: 1; min-width: 0; }
+.drive-whole { width: 100%; margin: 4px 0 12px; }
+.drive-or { text-align: center; margin-bottom: 8px; }
+.drive-tag, .drive-add { flex: none; border: 1px solid var(--line); background: none; font: inherit; font-size: 12px; font-weight: 600; border-radius: 99px; padding: 4px 10px; min-height: 30px; cursor: pointer; }
+.drive-tag { background: var(--accent-2); border-color: transparent; color: var(--accent); }
+.drive-add { color: var(--muted); }
+.drive-caret { color: var(--muted); font-size: 20px; flex: none; }
+.drive-change { margin: 8px 0 90px; }
