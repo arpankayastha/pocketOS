@@ -87,7 +87,10 @@ export function useVault(session, { householdId } = {}) {
       }
     }
     out.sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' }))
-    // The removed Docs module saved its records here (type 'doc' / 'driveroot'); keep them out of the password list.
+    // The removed Docs module saved its records here (type 'doc' / 'driveroot'). One-time clean-up
+    // (the owner asked for them to be deleted): remove my own, and keep any I couldn't out of the list.
+    const stale = out.filter((i) => (i.type === 'doc' || i.type === 'driveroot') && i.mine).map((i) => i.id)
+    if (stale.length) await supabase.from('vault_items').delete().in('id', stale)
     setItems(out.filter((i) => i.type !== 'doc' && i.type !== 'driveroot'))
   }, [session.user.id])
 
