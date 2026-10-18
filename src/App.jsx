@@ -11,7 +11,7 @@ import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
 import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/AppLockScreen'
 import { isMember, memberName, markFingerprint } from './lib/members'
-import { isDemo, leaveDemo } from './lib/demo'
+import { demoIsStale, demoOwnerEmail, isDemo, leaveDemo } from './lib/demo'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES } from './lib/modules'
@@ -80,6 +80,7 @@ export default function App() {
   }
   if (session === undefined) return <Splash />
   if (!session) return <Auth />
+  if (isDemo(session) && demoIsStale()) { leaveDemo(); return <Splash /> } // the app was closed while on demo: back to the owner
   return isMember(session) ? <MemberShell session={session} /> : <Shell session={session} />
 }
 
@@ -143,15 +144,9 @@ function Shell({ session }) {
   return (
     // Any tap or key press counts as activity for the vault's idle auto-lock, in every module.
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
-      {isDemo(session) && (
-        <div className="demo-bar" role="status">
-          <span>Demo account · nothing here is yours</span>
-          <button className="btn small" onClick={leaveDemo}>Back to my account</button>
-        </div>
-      )}
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
         : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
-        : <BudgetModule topbar={topbar} email={session.user.email} vault={vault} />}
+        : <BudgetModule topbar={topbar} email={isDemo(session) ? demoOwnerEmail() : session.user.email} vault={vault} demo={isDemo(session)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -243,7 +238,7 @@ function UnlockScreen({ vault, onRecovered }) {
   )
 }
 
-function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard', hisabOnly = false }) {
+function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard', hisabOnly = false, demo = false }) {
   // A member login the owner set to "Only Hisab" sees just that tab (⚙ stays for their own settings).
   const tabs = hisabOnly ? BUDGET_TABS.filter((t) => t.id === 'hisab') : BUDGET_TABS
   // The "home" tab: where the app opens and where Android back returns to. A member's comes from
@@ -302,7 +297,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
-            {tab === 'settings' && <Settings {...data} email={email} member={member} appLock={appLock} vault={vault} />}
+            {tab === 'settings' && <Settings {...data} email={email} demo={demo} member={member} appLock={appLock} vault={vault} />}
           </Suspense>
         )}
       </main>
