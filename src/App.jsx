@@ -14,6 +14,7 @@ import { isMember, memberName, markFingerprint } from './lib/members'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES } from './lib/modules'
+import { peekSharedLink, takeSharedLink } from './lib/shareIntake'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
@@ -113,6 +114,8 @@ function Shell({ session }) {
   useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
   useOfferFingerprint(vault, dialog, setToast)
   useBackAction(module !== 'budget', () => setModule('budget'), 1)
+  // A Drive link shared into the app: once unlocked, land on Docs (its Add form opens with the link).
+  useEffect(() => { if (vault.status === 'unlocked' && peekSharedLink()) setModule('docs') }, [vault.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hidden Will: press and hold the logo, then confirm with a fingerprint (master password if
   // this device has no fingerprint set up).
@@ -183,6 +186,7 @@ function MemberShell({ session }) {
   useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
   useOfferFingerprint(vault, dialog, setToast)
   useBackAction(module !== 'budget', () => setModule('budget'), 1)
+  useEffect(() => { if (vaultOn && peekSharedLink()) setModule('docs') }, [vaultOn])
 
   if (vault.status === 'loading' || !info) return <Splash />
   if (vault.status === 'locked') return <UnlockScreen vault={vault} onRecovered={() => {}} />
@@ -344,6 +348,12 @@ function DocsModule({ topbar, vault, member }) {
     setWasUnlocked(unlocked)
     if (!unlocked) { setOpenDoc(null); setEditing(null) }
   }
+  // A Drive link shared into the app opens the Add form with the link (and file name) filled in.
+  useEffect(() => {
+    if (!unlocked) return
+    const shared = takeSharedLink()
+    if (shared) setEditing({ link: shared.link, title: shared.title })
+  }, [unlocked])
   return (
     <div className="app">
       <Topbar {...topbar} right={unlocked && (
