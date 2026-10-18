@@ -11,6 +11,7 @@ import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
 import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/AppLockScreen'
 import { isMember, memberName, markFingerprint } from './lib/members'
+import { isDemo, leaveDemo } from './lib/demo'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES } from './lib/modules'
@@ -142,6 +143,12 @@ function Shell({ session }) {
   return (
     // Any tap or key press counts as activity for the vault's idle auto-lock, in every module.
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
+      {isDemo(session) && (
+        <div className="demo-bar" role="status">
+          <span>Demo account · nothing here is yours</span>
+          <button className="btn small" onClick={leaveDemo}>Back to my account</button>
+        </div>
+      )}
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
         : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
         : <BudgetModule topbar={topbar} email={session.user.email} vault={vault} />}

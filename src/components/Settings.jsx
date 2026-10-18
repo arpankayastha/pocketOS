@@ -13,6 +13,7 @@ import { attachDigits, isCard, loadUnlinked, parseDigits, setHidden } from '../l
 import { money } from '../lib/format'
 import { setThemePref, themePref } from '../lib/theme'
 import { backupCall, requestDriveCode } from '../lib/backup'
+import { DEMO_EMAIL, forgetDemoPassword, savedDemoPassword, switchToDemo } from '../lib/demo'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock, vault }) {
   const dialog = useDialog()
@@ -48,6 +49,23 @@ export default function Settings({ accounts, categories, refresh, households, ac
         </div>
       )}
       <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
+      {!member && email !== DEMO_EMAIL && (
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <h3>Demo account</h3>
+          <p className="muted small">A separate, empty login with full access, for showing the app without your real data. Sign back in with Google to return.</p>
+          <div className="line">
+            <span className="muted small">{savedDemoPassword() ? 'Password saved on this phone' : 'Asks for the demo password once'}</span>
+            <button className="btn small" onClick={async () => {
+              let pw = savedDemoPassword()
+              if (!pw) {
+                pw = await dialog.prompt({ title: 'Demo account', label: 'Demo password', inputType: 'password', confirmLabel: 'Switch' })
+                if (!pw) return
+              } else if (!await dialog.confirm({ title: 'Switch to the demo account?', message: 'You will be signed out of your own account. Sign back in with Google to return.', confirmLabel: 'Switch', danger: false })) return
+              try { await switchToDemo(pw.trim()) } catch (err) { forgetDemoPassword(); dialog.alert(err.message) }
+            }}>Switch to demo</button>
+          </div>
+        </div>
+      )}
       <div className="card" style={{ gridColumn: '1 / -1' }}>
         <h3>Account</h3>
         <div className="line">
