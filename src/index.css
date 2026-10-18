@@ -867,3 +867,6 @@ details.section[open] .chev { transform: rotate(90deg); }
   .emg-doc.print .emg-line, .emg-doc.print .emg-section h2 [lang="gu"] { color: #333; }
   .emg-doc.print li { break-inside: avoid; }
 }
+.emg-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; margin: 12px 0; }
+.emg-actions .btn { justify-content: center; min-height: 48px; }
+.emg-share .share-with { padding-top: 0; border-top: none; }

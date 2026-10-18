@@ -53,8 +53,8 @@ const BUDGET_TABS = [
 
 const VAULT_TABS = [
   { id: 'items', label: 'Passwords', icon: KeyIcon },
-  { id: 'security', label: 'Security', icon: ShieldIcon },
   { id: 'emergency', label: 'Emergency', icon: UmbrellaIcon },
+  { id: 'security', label: 'Security', icon: ShieldIcon },
 ]
 
 export default function App() {

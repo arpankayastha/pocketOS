@@ -168,11 +168,13 @@ export default function Emergency({ vault, member }) {
         {!readOnly && <button type="button" className="btn small" onClick={markReviewed}>It's up to date</button>}
       </div>
       <div className="card"><EmergencyDoc data={data} linked={linked} live={live} /></div>
-      {!readOnly && !member && sheet && <ShareWith item={sheet} share={{ households, members, onChange: (ids) => vault.shareItem(sheet.id, ids) }} />}
-      <div className="actions">
+      <div className="emg-actions">
         {!readOnly && <button type="button" className="btn" onClick={startEdit}><PencilIcon /> Edit</button>}
         <button type="button" className="btn primary" onClick={print}>Print / Save as PDF</button>
       </div>
+      {!readOnly && !member && sheet && (
+        <div className="card emg-share"><ShareWith item={sheet} share={{ households, members, onChange: (ids) => vault.shareItem(sheet.id, ids) }} /></div>
+      )}
     </section>
   )
 }
