@@ -26,7 +26,7 @@ export async function switchToDemo(password) {
   const { error } = await supabase.auth.signInWithPassword({ email: DEMO_EMAIL, password })
   if (error) {
     try { localStorage.removeItem(OWNER_KEY); sessionStorage.removeItem(ACTIVE_KEY) } catch { /* ignore */ }
-    throw new Error(/invalid/i.test(error.message) ? 'Wrong demo password.' : error.message)
+    throw new Error(/invalid/i.test(error.message) ? 'Wrong guest password.' : error.message)
   }
   try { localStorage.setItem(PW_KEY, password) } catch { /* ignore */ }
 }

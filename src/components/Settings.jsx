@@ -51,18 +51,18 @@ export default function Settings({ accounts, categories, refresh, households, ac
       <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
       {!member && !demo && (
         <div className="card" style={{ gridColumn: '1 / -1' }}>
-          <h3>Demo account</h3>
-          <p className="muted small">A separate, empty login with full access, for showing the app without your real data. Switch back from the Account card below, or just close and reopen the app.</p>
+          <h3>Guest view</h3>
+          <p className="muted small">A clean workspace with every feature and none of your data, for showing the app to others. Exit from the Account card below, or just close and reopen the app.</p>
           <div className="line">
-            <span className="muted small">{savedDemoPassword() ? 'Password saved on this phone' : 'Asks for the demo password once'}</span>
+            <span className="muted small">{savedDemoPassword() ? 'Ready on this phone' : 'Asks for the guest password once'}</span>
             <button className="btn small" onClick={async () => {
               let pw = savedDemoPassword()
               if (!pw) {
-                pw = await dialog.prompt({ title: 'Demo account', label: 'Demo password', inputType: 'password', confirmLabel: 'Switch' })
+                pw = await dialog.prompt({ title: 'Guest view', label: 'Guest password', inputType: 'password', confirmLabel: 'Switch' })
                 if (!pw) return
-              } else if (!await dialog.confirm({ title: 'Switch to the demo account?', message: 'Your own login stays on this phone. Switch back from Settings, or close and reopen the app.', confirmLabel: 'Switch', danger: false })) return
+              } else if (!await dialog.confirm({ title: 'Enter guest view?', message: 'Your own login stays on this phone. Exit from Settings, or just close and reopen the app.', confirmLabel: 'Enter', danger: false })) return
               try { await switchToDemo(pw.trim()) } catch (err) { forgetDemoPassword(); dialog.alert(err.message) }
-            }}>Switch to demo</button>
+            }}>Enter guest view</button>
           </div>
         </div>
       )}
@@ -75,7 +75,7 @@ export default function Settings({ accounts, categories, refresh, households, ac
             if (!await dialog.confirm({ title: 'Sign out?', message: member ? 'You can sign back in with your username and PIN.' : 'You can sign back in with Google or a passkey.', confirmLabel: 'Sign out', danger: false })) return
             if (member) appLock?.disable()
             supabase.auth.signOut()
-          }}>{demo ? 'Switch back' : 'Sign out'}</button>
+          }}>{demo ? 'Exit guest view' : 'Sign out'}</button>
         </div>
       </div>
     </section>
