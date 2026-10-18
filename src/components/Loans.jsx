@@ -48,7 +48,7 @@ export default function Loans({ activeHouseholdId }) {
   const list = show === 'open' ? open : closed
   const totals = open.reduce((t, l) => ({
     outstanding: t.outstanding + l.s.outstanding,
-    monthly: t.monthly + (l.s.gold ? l.s.monthlyInterest : l.s.emi || 0),
+    monthly: t.monthly + (l.s.gold ? 0 : l.s.emi || 0),
   }), { outstanding: 0, monthly: 0 })
   const current = withSummary.find((l) => l.id === openLoanId)
   const liveDeals = deals.filter((d) => !d.archived)
@@ -63,7 +63,7 @@ export default function Loans({ activeHouseholdId }) {
           {loans ? <div className="big-num neg">{money(totals.outstanding)}</div> : <div className="skel" style={{ width: '70%', height: 22 }} />}
         </div>
         <div className="card tile">
-          <div className="muted small">Every month</div>
+          <div className="muted small">EMIs every month</div>
           {loans ? <div className="big-num">{money(totals.monthly)}</div> : <div className="skel" style={{ width: '70%', height: 22 }} />}
         </div>
       </div>
@@ -134,9 +134,9 @@ function LoanCard({ loan, onOpen }) {
       </div>
       {s.gold ? (
         <div className="muted small due-foot">
-          <span>{money(s.monthlyInterest)} interest / month</span>
+          <span>{money(s.yearlyInterest)} interest a year</span>
           <span className={s.state === 'overdue' ? 'neg' : s.state === 'soon' ? 'warn' : ''}>
-            {s.daysToDue === null ? '' : s.daysToDue < 0 ? `overdue by ${-s.daysToDue} days` : `due in ${s.daysToDue} days`}
+            {loan.closed_on ? `closed ${fmtDate(loan.closed_on)}` : s.state === 'overdue' ? `overdue by ${-s.daysToDue} days` : s.daysToInterest <= 60 ? `interest due in ${s.daysToInterest} days` : `interest on ${fmtDate(s.nextInterestOn)}`}
           </span>
         </div>
       ) : s.incomplete ? <div className="muted small">Add the tenure or EMI to see the schedule.</div> : (
@@ -197,9 +197,10 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
 
         {s.gold ? (
           <div className="loan-stats">
-            <Stat label="Interest each month" value={money(s.monthlyInterest)} />
-            <Stat label={`Interest so far (${s.days} days)`} value={money(s.accrued)} />
-            <Stat label="Due date" value={loan.due_date ? fmtDate(loan.due_date) : '—'} tone={s.state === 'overdue' ? 'neg' : s.state === 'soon' ? 'warn' : ''} />
+            <Stat label="Interest each year" value={money(s.yearlyInterest)} />
+            <Stat label="Next interest due" value={s.nextInterestOn ? fmtDate(s.nextInterestOn) : '—'} tone={s.state === 'soon' ? 'warn' : ''} />
+            <Stat label={s.lastInterestOn ? `Built up since ${fmtDate(s.lastInterestOn)}` : 'Built up since you took it'} value={money(s.sinceLast)} />
+            <Stat label="Renewal / closing date" value={loan.due_date ? fmtDate(loan.due_date) : '—'} tone={s.state === 'overdue' ? 'neg' : ''} />
             <Stat label="Gold pledged" value={loan.grams ? `${loan.grams} g` : '—'} />
           </div>
         ) : s.incomplete ? <div className="alert error">Edit the loan and add its tenure or EMI to see the schedule.</div> : (
@@ -319,10 +320,10 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
           <label>Interest % a year<input type="number" inputMode="decimal" min="0" step="0.01" required value={f.rate} onChange={set('rate')} /></label>
         </div>
         <label>{f.interest_only ? 'Taken on' : 'First loan date'}<input type="date" required value={f.start_date} onChange={set('start_date')} /></label>
-        <label className="check"><input type="checkbox" checked={f.interest_only} onChange={set('interest_only')} /> Interest only — the amount is repaid at the end (gold loan style)</label>
+        <label className="check"><input type="checkbox" checked={f.interest_only} onChange={set('interest_only')} /> Interest only — interest paid once a year, the amount repaid at the end (gold loan)</label>
         {f.interest_only ? (
           <div className="row2">
-            <label>Due / renewal date<input type="date" value={f.due_date} onChange={set('due_date')} /></label>
+            <label>Renewal / closing date<input type="date" value={f.due_date} onChange={set('due_date')} /></label>
             <label>Gold pledged (g) <span className="muted">(optional)</span><input type="number" inputMode="decimal" min="0" step="0.01" value={f.grams} onChange={set('grams')} /></label>
           </div>
         ) : (

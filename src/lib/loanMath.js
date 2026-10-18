@@ -128,20 +128,31 @@ export function fyTable(rows, today) {
   return [...map.values()].map((e) => ({ ...e, planned: e.last > today }))
 }
 
-// Interest-only loans (gold): the principal is repaid at the end, interest runs by the day.
+// Interest-only loans (gold): the principal is repaid at the end and the interest is paid once a year, on the
+// loan's anniversary. Interest runs by the day, so `sinceLast` is what has built up since the last anniversary.
 export function goldSummary(loan, today) {
   const principal = Number(loan.principal)
   const rate = Number(loan.rate)
-  const end = loan.closed_on && loan.closed_on < today ? loan.closed_on : today
+  const closed = !!loan.closed_on
+  const end = closed && loan.closed_on < today ? loan.closed_on : today
   const days = Math.max(0, daysBetween(loan.start_date, end))
+  let n = 1
+  while (addMonths(loan.start_date, 12 * n) <= end && n < 100) n++
+  const lastInterestOn = addMonths(loan.start_date, 12 * (n - 1))
+  const nextInterestOn = addMonths(loan.start_date, 12 * n)
   const daysToDue = loan.due_date ? daysBetween(today, loan.due_date) : null
+  const daysToInterest = closed ? null : daysBetween(today, nextInterestOn)
   return {
-    outstanding: loan.closed_on ? 0 : principal,
-    monthlyInterest: principal * rate / 1200,
+    outstanding: closed ? 0 : principal,
+    yearlyInterest: principal * rate / 100,
+    sinceLast: principal * rate / 36500 * Math.max(0, daysBetween(lastInterestOn, end)),
     accrued: principal * rate / 36500 * days,
     days,
+    lastInterestOn: n > 1 ? lastInterestOn : null,
+    nextInterestOn: closed ? null : nextInterestOn,
+    daysToInterest,
     daysToDue,
-    state: loan.closed_on ? 'closed' : daysToDue === null ? 'ok' : daysToDue < 0 ? 'overdue' : daysToDue <= 15 ? 'soon' : 'ok',
+    state: closed ? 'closed' : daysToDue !== null && daysToDue < 0 ? 'overdue' : (daysToDue !== null && daysToDue <= 15) || daysToInterest <= 15 ? 'soon' : 'ok',
   }
 }
 
