@@ -13,7 +13,7 @@ import { attachDigits, isCard, loadUnlinked, parseDigits, setHidden } from '../l
 import { money } from '../lib/format'
 import { setThemePref, themePref } from '../lib/theme'
 import { backupCall, requestDriveCode } from '../lib/backup'
-import { forgetDemoPassword, leaveDemo, savedDemoPassword, switchToDemo } from '../lib/demo'
+import { leaveDemo, switchToDemo } from '../lib/demo'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, demo, member, appLock, vault }) {
   const dialog = useDialog()
@@ -54,15 +54,8 @@ export default function Settings({ accounts, categories, refresh, households, ac
           <h3>Guest view</h3>
           <p className="muted small">A clean workspace with every feature and none of your data, for showing the app to others. Exit from the Account card below, or just close and reopen the app.</p>
           <div className="line">
-            <span className="muted small">{savedDemoPassword() ? 'Ready on this phone' : 'Asks for the guest password once'}</span>
-            <button className="btn small" onClick={async () => {
-              let pw = savedDemoPassword()
-              if (!pw) {
-                pw = await dialog.prompt({ title: 'Guest view', label: 'Guest password', inputType: 'password', confirmLabel: 'Switch' })
-                if (!pw) return
-              } else if (!await dialog.confirm({ title: 'Enter guest view?', message: 'Your own login stays on this phone. Exit from Settings, or just close and reopen the app.', confirmLabel: 'Enter', danger: false })) return
-              try { await switchToDemo(pw.trim()) } catch (err) { forgetDemoPassword(); dialog.alert(err.message) }
-            }}>Enter guest view</button>
+            <span className="muted small">Your own login stays on this phone</span>
+            <button className="btn small" onClick={() => switchToDemo().catch((err) => dialog.alert(err.message))}>Enter guest view</button>
           </div>
         </div>
       )}
