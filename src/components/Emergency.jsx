@@ -134,7 +134,7 @@ export default function Emergency({ vault, member }) {
             {linkable(vault.items).map((i) => {
               const on = linkedIds.has(i.id)
               return <button type="button" key={i.id} className={`chip chip-btn ${on ? 'on' : ''}`} aria-pressed={on}
-                onClick={() => set('vaultIds', on ? draft.vaultIds.filter((x) => x !== i.id) : [...draft.vaultIds, i.id])}>{describe(i).title || i.title}{on && ' ✓'}</button>
+                onClick={() => set('vaultIds', on ? draft.vaultIds.filter((x) => x !== i.id) : [...draft.vaultIds, i.id])}>{(() => { const d = describe(i); return [d.title || i.title, d.meta].filter(Boolean).join(' · ') })()}{on && ' ✓'}</button>
             })}
             {linkable(vault.items).length === 0 && <span className="muted small">No bank accounts, policies or contacts in the Vault yet.</span>}
           </div>

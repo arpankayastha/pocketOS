@@ -33,14 +33,33 @@ export const linkable = (items) => (items || []).filter((i) => LINKABLE[i.type] 
 // Only the last 4 digits of an account number ever appear on the sheet.
 export const maskNumber = (n) => { const d = String(n || '').replace(/\s/g, ''); return d ? `•••• ${d.slice(-4)}` : '' }
 
-// What a linked Vault item shows on the sheet: a title and a few plain lines.
+// What a linked Vault item shows on the sheet: the item's own name first (two accounts at the same bank
+// are told apart by it), then a short subline, one right-hand reference (last 4 digits / policy number /
+// phone) and a few detail lines. Parts the name already says aren't repeated.
+const join = (...a) => a.filter(Boolean).join(' · ')
+const without = (name, parts) => parts.filter((p) => p && !String(name).toLowerCase().includes(String(p).toLowerCase()))
 export function describe(item) {
-  const join = (...a) => a.filter(Boolean).join(' · ')
-  if (item.type === 'bank') return { title: join(item.bankName, item.accountType), lines: [join(item.accountNumber && `A/c ${maskNumber(item.accountNumber)}`, item.ifsc && `IFSC ${item.ifsc}`), join(item.branchAddress, item.branchPhone)].filter(Boolean) }
-  if (item.type === 'health') return { title: join(item.company, item.insuranceType), lines: [join(item.policyNumber && `Policy ${item.policyNumber}`, item.memberName), join(item.sumInsured && `Sum insured ${item.sumInsured}`, item.expiry && `Renews ${item.expiry}`), join(item.companyPhone, item.tpa)].filter(Boolean) }
-  if (item.type === 'insurance') return { title: join(item.company, item.policyType), lines: [join(item.policyNumber && `Policy ${item.policyNumber}`, item.premium && `Premium ${item.premium}`), join(item.expiry && `Renews ${item.expiry}`), join(item.agentName, item.agentPhone)].filter(Boolean) }
-  if (item.type === 'contact') return { title: [item.firstName, item.lastName].filter(Boolean).join(' ') || item.title, lines: [join(item.phone, item.company)].filter(Boolean) }
-  return { title: item.title || '', lines: [] }
+  const name = (item.title || '').trim()
+  if (item.type === 'bank') {
+    const title = name || join(item.bankName, item.accountType)
+    return { kind: 'bank', title, sub: join(...without(title, [item.bankName, item.accountType])), meta: item.accountNumber ? maskNumber(item.accountNumber) : '',
+      lines: [join(item.ifsc && `IFSC ${item.ifsc}`, item.customerId && `Customer ID ${item.customerId}`), join(item.branchAddress, item.branchPhone)].filter(Boolean) }
+  }
+  if (item.type === 'health') {
+    const title = name || join(item.company, item.insuranceType)
+    return { kind: 'health', title, sub: join(...without(title, [item.company, item.insuranceType]), item.memberName), meta: item.policyNumber || '',
+      lines: [join(item.sumInsured && `Sum insured ${item.sumInsured}`, item.expiry && `Renews ${item.expiry}`), join(item.companyPhone, item.tpa)].filter(Boolean) }
+  }
+  if (item.type === 'insurance') {
+    const title = name || join(item.company, item.policyType)
+    return { kind: 'insurance', title, sub: join(...without(title, [item.company, item.policyType])), meta: item.policyNumber || '',
+      lines: [join(item.premium && `Premium ${item.premium}`, item.expiry && `Renews ${item.expiry}`), join(item.agentName, item.agentPhone)].filter(Boolean) }
+  }
+  if (item.type === 'contact') {
+    const title = [item.firstName, item.lastName].filter(Boolean).join(' ') || name
+    return { kind: 'contact', title, sub: join(...without(title, [item.company])), meta: item.phone || '', lines: [] }
+  }
+  return { kind: 'other', title: name, sub: '', meta: '', lines: [] }
 }
 
 // Plan commitments that look like a policy, a loan or an investment (these go in "Insurance & loans").
