@@ -1,9 +1,10 @@
 // Google Drive access for the Docs preview. A document's Drive link is turned into a file id, and the
 // file is fetched with a short-lived Google access token (read-only scope) straight from the phone to
 // Google — nothing goes through eChopdo's server, and nothing is stored: the file lives in memory
-// while the preview is open. Needs VITE_GOOGLE_CLIENT_ID (a Web OAuth client with this site as an
+// while the preview is open. Uses the Web OAuth client (override with VITE_GOOGLE_CLIENT_ID) with this site as an
 // authorized JavaScript origin and the Drive API enabled).
-export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+// The client ID is public by design (it ships in every page that uses Google sign-in), so it's the default here.
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '243462550397-r9ri19m26tuo13et7ovv0ru1r82i6tlh.apps.googleusercontent.com'
 export const previewAvailable = !!GOOGLE_CLIENT_ID
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
