@@ -28,7 +28,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png}'],
         globIgnores: ['download/**'],
         // The Android download page and Digital Asset Links are plain files, not the app.
-        navigateFallbackDenylist: [/^\/download/, /^\/\.well-known/],
+        navigateFallbackDenylist: [/^\/download/, /^\/\.well-known/, /^\/privacy/],
       },
     }),
   ],
