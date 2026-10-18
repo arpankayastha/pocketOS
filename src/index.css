@@ -878,3 +878,18 @@ details.section[open] .chev { transform: rotate(90deg); }
 .emg-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; margin: 12px 0; }
 .emg-actions .btn { justify-content: center; min-height: 48px; }
 .emg-share .share-with { padding-top: 0; border-top: none; }
+
+/* Loans */
+.loan-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.loan-stat { display: grid; gap: 2px; min-width: 0; }
+.loan-stat b { font-size: 15px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.loan-stat b.pos { color: var(--pos); } .loan-stat b.neg { color: var(--neg); } .loan-stat b.warn { color: var(--warn); }
+.loan-save { background: var(--accent-2); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.fy-table { display: grid; }
+.fy-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; align-items: baseline; }
+.fy-row.head { color: var(--muted); font-size: 12px; }
+.fy-row .amt { text-align: right; font-variant-numeric: tabular-nums; }
+.paper-list { display: grid; gap: 10px; }
+.paper { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.paper .done { text-decoration: line-through; color: var(--muted); }
+.paper input:not([type="checkbox"]) { min-width: 0; font-size: 13px; }

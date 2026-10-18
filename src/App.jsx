@@ -18,7 +18,7 @@ import { MODULES } from './lib/modules'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, ShieldIcon, LockIcon, UmbrellaIcon } from './lib/icons'
+import { BrandMark, HomeIcon, DuesIcon, LoansIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, ShieldIcon, LockIcon, UmbrellaIcon } from './lib/icons'
 
 // Tabs and modules load on demand (code-split), so the first screen only downloads the shell.
 // The Home tab and the chart chunk are preloaded as soon as the app starts (see preloadBudget).
@@ -27,6 +27,7 @@ const Dashboard = lazy(loadDashboard)
 const Transactions = lazy(() => import('./components/Transactions'))
 const Plan = lazy(() => import('./components/Plan'))
 const Dues = lazy(() => import('./components/Dues'))
+const Loans = lazy(() => import('./components/Loans'))
 const Hisab = lazy(() => import('./components/Hisab'))
 const Settings = lazy(() => import('./components/Settings'))
 const CaptureInbox = lazy(() => import('./components/CaptureInbox'))
@@ -49,6 +50,7 @@ const BUDGET_TABS = [
   { id: 'transactions', label: 'Entries', icon: ListIcon },
   { id: 'plan', label: 'Plan', icon: PlanIcon },
   { id: 'dues', label: 'Dues', icon: DuesIcon },
+  { id: 'loans', label: 'Loans', icon: LoansIcon },
   { id: 'hisab', label: 'Hisab', icon: BookIcon },
 ]
 
@@ -297,6 +299,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
+            {tab === 'loans' && <Loans key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} households={data.households} />}
             {tab === 'settings' && <Settings {...data} email={email} demo={demo} member={member} appLock={appLock} vault={vault} />}
           </Suspense>
         )}

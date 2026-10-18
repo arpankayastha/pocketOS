@@ -242,6 +242,9 @@ export function UserIcon() {
 export function DuesIcon() {
   return <svg {...base}><path d="M4 8h14l-3-3M20 16H6l3 3" /></svg>
 }
+export function LoansIcon() {
+  return <svg {...base}><path d="M3 10 12 4l9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18" /></svg>
+}
 export function BookIcon() {
   return <svg {...base}><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z" /><path d="M4 19V5M8 7h7M8 11h5" /></svg>
 }
