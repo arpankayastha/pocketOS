@@ -1223,3 +1223,42 @@ alter table public.transactions add column if not exists bill_original jsonb;
 -- A member login that only uses Hisab: their app shows just the Hisab tab (owner's "Only Hisab" checkbox).
 alter table public.household_members add column if not exists hisab_only boolean not null default false;
 grant update (hisab_only) on public.household_members to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Backup to Google Drive (Edge Function `backup`). One row per connected owner: the Google refresh token
+-- (scope drive.file only: the app sees just the files it created), the Drive folder, and the last result.
+-- Service role only — RLS on with no policy and no grants, so the API can never read it.
+-- A weekly pg_cron job (Sat 20:30 UTC = Sun 02:00 IST) calls the function with a shared secret kept in Vault
+-- (vault secret 'backup_cron_secret'; the function checks it through public.backup_cron_ok). See supabase/BACKUP.md.
+-- ---------------------------------------------------------------------------
+create table if not exists public.backup_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  refresh_token text not null,
+  folder_id text,
+  last_at timestamptz,
+  last_size integer,
+  last_file text,
+  last_status text,
+  created_at timestamptz not null default now()
+);
+alter table public.backup_settings enable row level security;
+revoke all on public.backup_settings from anon, authenticated;
+
+create or replace function public.backup_cron_ok(p_secret text) returns boolean
+language sql security definer set search_path = '' as $$
+  select exists (select 1 from vault.decrypted_secrets where name = 'backup_cron_secret' and decrypted_secret = p_secret)
+$$;
+revoke all on function public.backup_cron_ok(text) from public, anon, authenticated;
+grant execute on function public.backup_cron_ok(text) to service_role;
+
+create extension if not exists pg_cron;
+create extension if not exists pg_net with schema extensions;
+-- (applied once; re-running replaces it)
+select cron.unschedule('echopdo-weekly-backup') where exists (select 1 from cron.job where jobname = 'echopdo-weekly-backup');
+select cron.schedule('echopdo-weekly-backup', '30 20 * * 6', $job$
+  select net.http_post(
+    url := 'https://rpihmjnvcqnxfketcjit.supabase.co/functions/v1/backup',
+    headers := jsonb_build_object('Content-Type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'backup_cron_secret' limit 1)),
+    body := '{"action":"cron"}'::jsonb);
+$job$);

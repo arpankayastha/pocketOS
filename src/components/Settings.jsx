@@ -12,6 +12,7 @@ import { PALETTE, nextColor, householdColor } from '../lib/colors'
 import { attachDigits, isCard, loadUnlinked, parseDigits, setHidden } from '../lib/instruments'
 import { money } from '../lib/format'
 import { setThemePref, themePref } from '../lib/theme'
+import { backupCall, requestDriveCode } from '../lib/backup'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, member, appLock, vault }) {
   const dialog = useDialog()
@@ -27,6 +28,11 @@ export default function Settings({ accounts, categories, refresh, households, ac
       {vault?.status === 'unlocked' && (
         <div style={{ gridColumn: '1 / -1' }}>
           <SecurityCard vault={vault} member={member} />
+        </div>
+      )}
+      {!member && (
+        <div style={{ gridColumn: '1 / -1' }}>
+          <BackupCard />
         </div>
       )}
       <div style={{ gridColumn: '1 / -1' }}>
@@ -56,6 +62,57 @@ export default function Settings({ accounts, categories, refresh, households, ac
     </section>
   )
 }
+
+// Automatic weekly backup of everything to the owner's Google Drive (folder "eChopdo backups", newest 8 kept).
+function BackupCard() {
+  const dialog = useDialog()
+  const [st, setSt] = useState(null) // status from the function
+  const [busy, setBusy] = useState(null) // 'connect' | 'run' | 'disconnect'
+  const [msg, setMsg] = useState(null)
+  const [error, setError] = useState(null)
+  const load = useCallback(() => backupCall({ action: 'status' }).then(setSt).catch((e) => setError(e.message)), [])
+  useEffect(() => { load() }, [load])
+
+  async function act(kind, fn) {
+    setBusy(kind); setError(null); setMsg(null)
+    try { await fn(); await load() } catch (e) { setError(e.message); await load().catch(() => {}) }
+    setBusy(null)
+  }
+  const connect = () => act('connect', async () => {
+    const code = await requestDriveCode()
+    const r = await backupCall({ action: 'connect', code })
+    setMsg(`Connected. First backup saved (${sizeLabel(r.size)}).`)
+  })
+  const run = () => act('run', async () => { const r = await backupCall({ action: 'run' }); setMsg(`Backup saved (${sizeLabel(r.size)}).`) })
+  const disconnect = async () => {
+    if (!await dialog.confirm({ title: 'Stop backing up to Google Drive?', message: 'Your existing backup files stay in Google Drive. Automatic backups stop until you connect again.', confirmLabel: 'Disconnect', danger: true })) return
+    act('disconnect', () => backupCall({ action: 'disconnect' }))
+  }
+  const last = st?.last_at ? new Date(st.last_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : null
+
+  return (
+    <Collapsible id="backup" title="Backup to Google Drive"
+      summary={!st ? '' : st.connected ? (last ? `Last backup ${last}` : 'Connected') : 'Not connected'}>
+      <p className="muted small" style={{ marginTop: -6 }}>Every week eChopdo saves everything — Budget, Hisab, Vault, Emergency sheet, Will (the private parts stay encrypted) — as one file in a Google Drive folder called “eChopdo backups”. The newest 8 are kept. It can only see the files it makes there, never the rest of your Drive.</p>
+      {st?.connected ? (
+        <>
+          <div className="alert ok">{last ? `Last backup: ${last} · ${sizeLabel(st.last_size)}` : 'Connected. No backup yet.'}</div>
+          {st.last_status && st.last_status !== 'ok' && st.last_status !== 'connected' && <div className="alert error">{st.last_status}</div>}
+          <div className="actions" style={{ justifyContent: 'flex-start' }}>
+            <button className="btn primary" disabled={!!busy} onClick={run}>{busy === 'run' ? 'Backing up…' : 'Back up now'}</button>
+            <button className="btn ghost" disabled={!!busy} onClick={disconnect}>Disconnect</button>
+          </div>
+        </>
+      ) : (
+        <button className="btn primary" disabled={!!busy || !st} onClick={connect}>{busy === 'connect' ? 'Connecting…' : 'Connect Google Drive'}</button>
+      )}
+      {st && !st.configured && !st.connected && <div className="alert error">One setting is still missing in Supabase (the Google client secret), so this can't connect yet.</div>}
+      {msg && <div className="alert ok">{msg}</div>}
+      {error && <div className="alert error">{error}</div>}
+    </Collapsible>
+  )
+}
+const sizeLabel = (n) => (n ? (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`) : '')
 
 // Dark (default) / Light / System — per device, applied at once (src/lib/theme.js).
 const THEMES = [['dark', 'Dark'], ['light', 'Light'], ['system', 'System']]
