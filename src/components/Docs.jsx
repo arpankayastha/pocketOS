@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { driveFileId, previewAvailable } from '../lib/drive'
 import { CopyIcon, FileIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { copySecret } from '../lib/vaultTools'
 import { useDialog } from '../lib/dialog'
@@ -6,6 +7,8 @@ import { DOC_CATEGORIES, EVERYONE, daysUntil, docSearchText, docSubtitle, dueLab
 import { today } from '../lib/format'
 import { ShareTags, ShareWith, useHouseholds } from './VaultItems'
 import { supabase } from '../lib/supabase'
+
+const DocPreview = lazy(() => import('./DocPreview'))
 
 // Row/sharing info added by useVault, never encrypted into the item.
 const META = ['id', 'created_at', 'updated_at', 'corrupt', 'owner_id', 'household_ids', 'mine']
@@ -132,6 +135,8 @@ function Field({ label, value, onCopy, children }) {
 
 function DocView({ doc, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by, share }) {
   const days = daysUntil(doc.expiry)
+  const fileId = previewAvailable ? driveFileId(doc.link) : null
+  const [previewing, setPreviewing] = useState(false)
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <div className="card modal" onMouseDown={(e) => e.stopPropagation()}>
@@ -139,8 +144,9 @@ function DocView({ doc, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by,
           <span className="site-badge type" aria-hidden="true"><FileIcon /></span>
           <div className="grow"><h3>{doc.title}</h3><div className="muted small">{docSubtitle(doc)}</div></div>
         </div>
+        {fileId && <button type="button" className="btn primary" onClick={() => setPreviewing(true)}>Preview here</button>}
         {doc.link && (
-          <a className="btn primary" href={linkHref(doc.link)} target="_blank" rel="noopener noreferrer">Open in Google Drive</a>
+          <a className={`btn ${fileId ? '' : 'primary'}`} href={linkHref(doc.link)} target="_blank" rel="noopener noreferrer">Open in Google Drive</a>
         )}
         <Field label="Number" value={doc.number} onCopy={() => copy(doc.number, 'Number')} />
         {doc.expiry && <Field label="Expiry / renewal" value={`${doc.expiry} · ${dueLabel(days)}`} />}
@@ -154,6 +160,7 @@ function DocView({ doc, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by,
           {!readOnly && <button type="button" className="btn primary" onClick={onEdit}><PencilIcon /> Edit</button>}
         </div>
       </div>
+      {previewing && <Suspense fallback={null}><DocPreview id={fileId} link={doc.link} title={doc.title} onClose={() => setPreviewing(false)} /></Suspense>}
     </div>
   )
 }

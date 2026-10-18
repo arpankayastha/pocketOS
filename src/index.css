@@ -845,3 +845,8 @@ details.section[open] .chev { transform: rotate(90deg); }
 .docs-filters { display: flex; gap: 8px; margin: 0 0 12px; }
 .docs-filters select { flex: 1; min-width: 0; }
 .small.warn { color: var(--warn); }
+.doc-preview { display: flex; flex-direction: column; }
+.doc-body { flex: 1; min-height: 0; overflow: auto; background: var(--bg); border-radius: 10px; padding: 8px; }
+.doc-pages { display: grid; justify-items: center; gap: 8px; }
+.doc-page { max-width: 100%; height: auto; background: #fff; border-radius: 4px; }
+.doc-img { max-width: 100%; display: block; margin: 0 auto; border-radius: 4px; }
