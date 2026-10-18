@@ -40,12 +40,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="${webHost}" />
             </intent-filter>
-            <!-- Share a Google Drive link to eChopdo: opens the web app's Docs "Add document" form. -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
         </activity>
 
         <service

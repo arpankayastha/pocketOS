@@ -14,12 +14,10 @@ import { isMember, memberName, markFingerprint } from './lib/members'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES } from './lib/modules'
-import { peekSharedLink, takeSharedLink } from './lib/shareIntake'
-import { clearDriveCache } from './lib/drive'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon, FolderIcon, FileIcon } from './lib/icons'
+import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
 
 // Tabs and modules load on demand (code-split), so the first screen only downloads the shell.
 // The Home tab and the chart chunk are preloaded as soon as the app starts (see preloadBudget).
@@ -35,8 +33,6 @@ const VaultItems = lazy(() => import('./components/VaultItems'))
 const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
-const Docs = lazy(() => import('./components/Docs'))
-const DriveBrowser = lazy(() => import('./components/DriveBrowser'))
 const WillModule = lazy(() => import('./components/will/WillModule'))
 function preloadBudget() {
   loadDashboard()
@@ -55,10 +51,6 @@ const BUDGET_TABS = [
   { id: 'hisab', label: 'Hisab', icon: BookIcon },
 ]
 
-const DOCS_TABS = [
-  { id: 'drive', label: 'Drive', icon: FolderIcon },
-  { id: 'details', label: 'Notes', icon: FileIcon },
-]
 const VAULT_TABS = [
   { id: 'items', label: 'Passwords', icon: KeyIcon },
   { id: 'generator', label: 'Generator', icon: DiceIcon },
@@ -120,8 +112,6 @@ function Shell({ session }) {
   useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
   useOfferFingerprint(vault, dialog, setToast)
   useBackAction(module !== 'budget', () => setModule('budget'), 1)
-  // A Drive link shared into the app: once unlocked, land on Docs (its Add form opens with the link).
-  useEffect(() => { if (vault.status === 'unlocked' && peekSharedLink()) setModule('docs') }, [vault.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hidden Will: press and hold the logo, then confirm with a fingerprint (master password if
   // this device has no fingerprint set up).
@@ -153,7 +143,6 @@ function Shell({ session }) {
     // Any tap or key press counts as activity for the vault's idle auto-lock, in every module.
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
-        : module === 'docs' ? <DocsModule topbar={topbar} vault={vault} />
         : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
         : <BudgetModule topbar={topbar} email={session.user.email} vault={vault} />}
       {toast && <div className="toast" role="status">{toast}</div>}
@@ -192,7 +181,6 @@ function MemberShell({ session }) {
   useBackButton(() => { setToast('Press back again to close eChopdo'); setTimeout(() => setToast(null), 2000) })
   useOfferFingerprint(vault, dialog, setToast)
   useBackAction(module !== 'budget', () => setModule('budget'), 1)
-  useEffect(() => { if (vaultOn && peekSharedLink()) setModule('docs') }, [vaultOn])
 
   if (vault.status === 'loading' || !info) return <Splash />
   if (vault.status === 'locked') return <UnlockScreen vault={vault} onRecovered={() => {}} />
@@ -207,7 +195,6 @@ function MemberShell({ session }) {
   return (
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' && vaultOn ? <VaultModule topbar={topbar} vault={vault} member />
-        : module === 'docs' && vaultOn ? <DocsModule topbar={topbar} vault={vault} member />
         : <BudgetModule topbar={topbar} email={memberName(session)} member appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} startTab={info.hisab_only ? 'hisab' : info.start_tab || 'dashboard'} hisabOnly={!!info.hisab_only} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
@@ -303,7 +290,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
               <CaptureInbox householdId={data.activeHouseholdId} categories={data.categories} accounts={data.accounts}
                 onFiled={() => { setDataVersion((v) => v + 1); data.refresh() }} />
             )}
-            {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} docs={vault?.docs} />}
+            {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
@@ -339,54 +326,6 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
         <TransactionForm accounts={data.accounts} categories={data.categories} householdId={data.activeHouseholdId} presetKind={quickAddKind}
           onClose={() => setQuickAddKind(null)}
           onSaved={() => { setQuickAddKind(null); setDataVersion((v) => v + 1); data.refresh() }} />
-      )}
-    </div>
-  )
-}
-
-// Docs: links to the family's documents in Google Drive, with notes. Same vault lock and sharing as Vault.
-function DocsModule({ topbar, vault, member }) {
-  const [tab, setTab] = useState('drive')
-  useBackAction(tab !== 'drive', () => setTab('drive'), 2)
-  const [openDoc, setOpenDoc] = useState(null)
-  const [editing, setEditing] = useState(null) // document being edited, {} for a new one
-  const unlocked = vault.status === 'unlocked'
-  const [wasUnlocked, setWasUnlocked] = useState(unlocked)
-  if (wasUnlocked !== unlocked) {
-    setWasUnlocked(unlocked)
-    if (!unlocked) { setOpenDoc(null); setEditing(null); clearDriveCache() }
-  }
-  // A Drive link shared into the app opens the Add form with the link (and file name) filled in.
-  useEffect(() => {
-    if (!unlocked) return
-    const shared = takeSharedLink()
-    if (shared) { setTab('details'); setEditing({ link: shared.link, title: shared.title }) }
-  }, [unlocked])
-  return (
-    <div className="app">
-      <Topbar {...topbar} right={unlocked && (
-        <button className="btn icon lock-btn" aria-label="Lock" title="Lock" onClick={vault.lockNow}><LockIcon /></button>
-      )}>
-        {unlocked ? (
-          <nav className="tabs">
-            {DOCS_TABS.map((t) => (
-              <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}><t.icon /> {t.label}</button>
-            ))}
-          </nav>
-        ) : <div className="spacer" />}
-      </Topbar>
-      <main className="content fade-in">
-        <Suspense fallback={<ListSkeleton />}>
-          {!unlocked ? <VaultGate vault={vault} onRecovered={() => {}} onRecoveryCode={() => {}} />
-            : tab === 'drive' ? <DriveBrowser vault={vault} onAddDetails={(prefill) => { setTab('details'); setEditing(prefill) }} onOpenDetails={(d) => { setTab('details'); setOpenDoc(d) }} />
-            : <Docs vault={vault} member={member} open={openDoc} setOpen={setOpenDoc} editing={editing} setEditing={setEditing} />}
-        </Suspense>
-      </main>
-      {unlocked && <PillNav tabs={DOCS_TABS} tab={tab} setTab={setTab} withFab={tab === 'details'} />}
-      {unlocked && tab === 'details' && (
-        <div className="fab-wrap">
-          <button className="fab" aria-label="Add details" onClick={() => setEditing({})}><PlusIcon /></button>
-        </div>
       )}
     </div>
   )

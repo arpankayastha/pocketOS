@@ -79,15 +79,6 @@ class MainActivity : Activity() {
 
     private fun url(): Uri {
         val web = Uri.parse(BuildConfig.WEB_URL)
-        // A link shared from Google Drive: the web app reads these fields and opens Docs → Add document.
-        if (intent?.action == Intent.ACTION_SEND) {
-            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
-            if (!text.isNullOrBlank()) {
-                val b = Uri.parse("${BuildConfig.WEB_URL}/").buildUpon().appendQueryParameter("text", text.take(2000))
-                intent.getStringExtra(Intent.EXTRA_SUBJECT)?.takeIf { it.isNotBlank() }?.let { b.appendQueryParameter("title", it.take(200)) }
-                return b.build()
-            }
-        }
         return intent?.data?.takeIf { it.scheme == "https" && it.host == web.host } ?: Uri.parse("${BuildConfig.WEB_URL}/")
     }
 

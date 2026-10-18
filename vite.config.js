@@ -17,8 +17,6 @@ export default defineConfig({
         background_color: '#1e2330',
         display: 'standalone',
         start_url: '/',
-        // Share a Drive link to the installed PWA; the Android app sends the same fields (see shareIntake.js).
-        share_target: { action: '/', method: 'GET', params: { title: 'title', text: 'text', url: 'url' } },
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
