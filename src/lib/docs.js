@@ -21,12 +21,24 @@ export function dueLabel(days) {
   return days === 1 ? 'tomorrow' : `in ${days} days`
 }
 
-// Documents whose expiry / renewal is within the reminder window (or already passed in the last 30 days).
-export function dueSoon(docs, window = REMIND_DAYS) {
+// The date a reminder next falls on: the saved date, or for "every year" the next anniversary of it.
+export function dueDate(d) {
+  if (!d.expiry) return null
+  if (d.repeat !== 'yearly') return d.expiry
+  const [, m, day] = d.expiry.split('-')
+  let y = Number(today().slice(0, 4))
+  if (`${y}-${m}-${day}` < today()) y += 1
+  return `${y}-${m}-${day}`
+}
+
+export const REMIND_OPTIONS = [15, 30, 45, 60, 90]
+
+// Reminders inside their window (default 45 days ahead, or what the document asks for) or lapsed in the last 30 days.
+export function dueSoon(docs) {
   return (docs || [])
     .filter((d) => d.expiry && !d.corrupt)
-    .map((d) => ({ doc: d, days: daysUntil(d.expiry) }))
-    .filter((x) => x.days <= window && x.days >= -30)
+    .map((d) => ({ doc: d, days: daysUntil(dueDate(d)) }))
+    .filter((x) => x.days <= (Number(x.doc.remindDays) || REMIND_DAYS) && x.days >= -30)
     .sort((a, b) => a.days - b.days)
 }
 

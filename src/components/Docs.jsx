@@ -3,7 +3,7 @@ import { driveFileId, previewAvailable } from '../lib/drive'
 import { CopyIcon, FileIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { copySecret } from '../lib/vaultTools'
 import { useDialog } from '../lib/dialog'
-import { DOC_CATEGORIES, EVERYONE, daysUntil, docSearchText, docSubtitle, dueLabel, linkHref, REMIND_DAYS } from '../lib/docs'
+import { DOC_CATEGORIES, EVERYONE, REMIND_DAYS, REMIND_OPTIONS, daysUntil, docSearchText, docSubtitle, dueDate, dueLabel, dueSoon, linkHref } from '../lib/docs'
 import { today } from '../lib/format'
 import { ShareTags, ShareWith, useHouseholds } from './VaultItems'
 import { supabase } from '../lib/supabase'
@@ -45,6 +45,14 @@ export default function Docs({ vault, member, open: openRaw, setOpen, editing, s
     const m = members.find((x) => x.user_id === d.owner_id)
     return m ? households.find((h) => h.id === m.household_id) : null
   }
+  const reminders = useMemo(() => dueSoon(docs).filter((x) => !member || x.doc.mine), [docs, member])
+  // Done: a one-off reminder is cleared; a yearly one moves to next year.
+  async function markDone({ doc }) {
+    const data = {}
+    for (const [k, v] of Object.entries(doc)) if (!META.includes(k)) data[k] = v
+    if (doc.repeat === 'yearly') { const [y, m, d] = dueDate(doc).split('-'); data.expiry = `${Number(y) + 1}-${m}-${d}` } else delete data.expiry
+    await vault.saveItem(data, doc.id)
+  }
   async function copy(text, what) {
     try { await copySecret(text); setToast(`${what} copied`) } catch { setToast("Couldn't copy — your browser blocked clipboard access.") }
     setTimeout(() => setToast(null), 2200)
@@ -76,17 +84,34 @@ export default function Docs({ vault, member, open: openRaw, setOpen, editing, s
         </div>
       )}
 
+      {reminders.length > 0 && !query.trim() && (
+        <div className="card">
+          <h3>Reminders <span className="muted small">due soon</span></h3>
+          <div className="list">
+            {reminders.map((r) => (
+              <div className="txn" key={r.doc.id}>
+                <span className="grow vault-row" role="button" tabIndex={0} onClick={() => setOpen(r.doc)} onKeyDown={(e) => e.key === 'Enter' && setOpen(r.doc)}>
+                  <div className="ellipsis">{r.doc.title}</div>
+                  <div className={`small ${r.days < 0 ? 'neg' : 'warn'}`}>{dueLabel(r.days)}{r.doc.repeat === 'yearly' ? ' · every year' : ''}</div>
+                </span>
+                <button type="button" className="drive-add" onClick={() => markDone(r)}>Done</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card list">
         {shown.map((d) => {
-          const days = daysUntil(d.expiry)
-          const soon = days != null && days <= REMIND_DAYS
+          const days = daysUntil(dueDate(d))
+          const soon = days != null && days <= (Number(d.remindDays) || REMIND_DAYS)
           return (
             <div className="txn vault-row" key={d.id} role="button" tabIndex={0} onClick={() => setOpen(d)} onKeyDown={(e) => e.key === 'Enter' && setOpen(d)}>
               <span className="site-badge type" aria-hidden="true"><FileIcon /></span>
               <span className="grow">
                 <div className="ellipsis">{d.title || 'Untitled'}</div>
                 <div className="muted small ellipsis">{docSubtitle(d)}</div>
-                {soon && <div className={`small ${days < 0 ? 'neg' : 'warn'}`}>{d.expiry && `Renews/expires ${dueLabel(days)}`}</div>}
+                {soon && <div className={`small ${days < 0 ? 'neg' : 'warn'}`}>{`Reminder ${dueLabel(days)}`}</div>}
               </span>
               <ShareTags item={d} member={member} households={households} by={byHousehold(d)} />
             </div>
@@ -134,7 +159,7 @@ function Field({ label, value, onCopy, children }) {
 }
 
 function DocView({ doc, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by, share }) {
-  const days = daysUntil(doc.expiry)
+  const days = daysUntil(dueDate(doc))
   const fileId = previewAvailable ? driveFileId(doc.link) : null
   const [previewing, setPreviewing] = useState(false)
   return (
@@ -149,7 +174,7 @@ function DocView({ doc, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by,
           <a className={`btn ${fileId ? '' : 'primary'}`} href={linkHref(doc.link)} target="_blank" rel="noopener noreferrer">Open in Google Drive</a>
         )}
         <Field label="Number" value={doc.number} onCopy={() => copy(doc.number, 'Number')} />
-        {doc.expiry && <Field label="Expiry / renewal" value={`${doc.expiry} · ${dueLabel(days)}`} />}
+        {doc.expiry && <Field label="Reminder" value={`${dueDate(doc)} · ${dueLabel(days)}${doc.repeat === 'yearly' ? ' · every year' : ''} · ${Number(doc.remindDays) || REMIND_DAYS} days ahead`} />}
         {doc.notes && <Field label="Note / memory"><span className="notes">{doc.notes}</span></Field>}
         {share && <ShareWith item={doc} share={share} by={by} />}
         {readOnly && <div className="muted small">Shared by {sharedBy || 'the family admin'}</div>}
@@ -196,6 +221,7 @@ export function DocForm({ initial, people, categories, onClose, onSave }) {
     const data = { type: 'doc' }
     for (const [k, v] of Object.entries(form)) {
       if (META.includes(k) || v === '' || v == null) continue
+      if (!form.expiry && (k === 'remindDays' || k === 'repeat')) continue
       data[k] = typeof v === 'string' && k !== 'notes' ? v.trim() : v
     }
     try { await onSave(data) } catch (err) { setError(err.message); setBusy(false) }
@@ -231,8 +257,22 @@ export function DocForm({ initial, people, categories, onClose, onSave }) {
         </div>
         <div className="grid2">
           <label>Year<input type="number" inputMode="numeric" value={form.year} onChange={set('year')} /></label>
-          <label>Expiry / renewal date<input type="date" value={form.expiry} onChange={set('expiry')} /></label>
+          <label>Reminder date<input type="date" value={form.expiry} onChange={set('expiry')} /></label>
         </div>
+        {form.expiry && (
+          <div className="grid2">
+            <label>Remind me
+              <select value={form.remindDays || String(REMIND_DAYS)} onChange={set('remindDays')}>
+                {REMIND_OPTIONS.map((n) => <option key={n} value={n}>{n} days before</option>)}
+              </select>
+            </label>
+            <label>Repeats
+              <select value={form.repeat || ''} onChange={set('repeat')}>
+                <option value="">Once</option><option value="yearly">Every year</option>
+              </select>
+            </label>
+          </div>
+        )}
         <label>Number<input autoComplete="off" placeholder="Policy / reference number (optional)" value={form.number} onChange={set('number')} /></label>
         <label>Note / memory
           <textarea rows={4} placeholder="Anything to remember — who to call, claim status, where the paper copy is…" value={form.notes} onChange={set('notes')} />
