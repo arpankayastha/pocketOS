@@ -33,6 +33,7 @@ export function useVault(session, { householdId } = {}) {
   const [status, setStatus] = useState('loading') // loading | setup | locked | unlocked
   const [unlockers, setUnlockers] = useState([])
   const [items, setItems] = useState([])
+  const [emergency, setEmergency] = useState(null) // the emergency sheet (a vault item of type 'emergency')
   const [error, setError] = useState(null)
   const [lockedByUser, setLockedByUser] = useState(false) // skip the automatic fingerprint prompt right after "Lock"
   const rawKey = useRef(null)
@@ -46,6 +47,7 @@ export function useVault(session, { householdId } = {}) {
     cryptoKey.current = null
     clearVaultSession()
     setItems([])
+    setEmergency(null)
     setStatus((s) => (s === 'unlocked' ? 'locked' : s))
   }, [])
 
@@ -87,11 +89,9 @@ export function useVault(session, { householdId } = {}) {
       }
     }
     out.sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' }))
-    // The removed Docs module saved its records here (type 'doc' / 'driveroot'). One-time clean-up
-    // (the owner asked for them to be deleted): remove my own, and keep any I couldn't out of the list.
-    const stale = out.filter((i) => (i.type === 'doc' || i.type === 'driveroot') && i.mine).map((i) => i.id)
-    if (stale.length) await supabase.from('vault_items').delete().in('id', stale)
-    setItems(out.filter((i) => i.type !== 'doc' && i.type !== 'driveroot'))
+    // The emergency sheet is its own screen: kept out of the password list.
+    setItems(out.filter((i) => i.type !== 'emergency'))
+    setEmergency(out.find((i) => i.type === 'emergency' && i.mine) || out.find((i) => i.type === 'emergency') || null)
   }, [session.user.id])
 
   const openWithRawKey = useCallback(async (raw) => {
@@ -314,7 +314,7 @@ export function useVault(session, { householdId } = {}) {
   }, [status, lock])
 
   return {
-    status, error, lockedByUser, unlockers, fingerprintUnlockers, items, hasRecovery: unlockers.some((u) => u.kind === 'recovery'),
+    status, error, lockedByUser, unlockers, fingerprintUnlockers, items, emergency, hasRecovery: unlockers.some((u) => u.kind === 'recovery'),
     setup, unlockWithPassword, unlockWithRecovery, unlockWithFingerprint, checkPassword,
     addFingerprint, removeUnlocker, changePassword, regenerateRecovery,
     saveItem, updateItems, deleteItem, importItems, seal, unseal, lock, lockNow, touch, verifyUser,

@@ -19,7 +19,7 @@ const readOpen = () => { try { return new Set(JSON.parse(localStorage.getItem(OP
 // `open` (item being viewed) and `editing` (item being edited; {} = pick a type first) live in
 // VaultModule so the add button and the Security tab can open them; it clears them on lock.
 // Owner: households (+ which have a login) for the "Shared with" chips and "by …" labels.
-function useHouseholds(enabled) {
+export function useHouseholds(enabled) {
   const [data, setData] = useState({ households: [], members: [] })
   useEffect(() => {
     if (!enabled) return
@@ -263,7 +263,7 @@ function ShareTags({ item, member, households, by }) {
 }
 
 // Owner: tap households to share an item with them (they see it read-only in their vault).
-function ShareWith({ item, share, by }) {
+export function ShareWith({ item, share, by }) {
   const withLogin = share.households.filter((h) => share.members.some((m) => m.household_id === h.id))
   const [busy, setBusy] = useState(false)
   if (!withLogin.length) return null

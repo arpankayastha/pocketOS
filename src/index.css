@@ -840,3 +840,30 @@ details.section[open] .chev { transform: rotate(90deg); }
 
 .hh-check { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .hh-check input { width: 22px; height: 22px; flex: none; accent-color: var(--accent-bg); }
+
+/* Emergency sheet */
+.emg-doc h1 { margin: 0; font-size: 22px; } .emg-gu { color: var(--muted); font-size: 15px; margin-bottom: 6px; }
+.emg-section h2 { font-size: 15px; margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+.emg-section h2 [lang="gu"] { color: var(--muted); font-weight: 500; }
+.emg-section ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.emg-line { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.emg-text { white-space: pre-line; margin: 4px 0; }
+.emg-review { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.emg-edit { display: grid; gap: 12px; }
+.emg-edit h4 { margin: 0 0 4px; }
+.emg-person { display: grid; gap: 6px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+.check { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+#emergency-print { display: none; }
+@media print {
+  html:has(body.printing-emergency), body.printing-emergency { background: #fff !important; color-scheme: light; }
+  body.printing-emergency > #root { display: none !important; }
+  body.printing-emergency #emergency-print { display: block; }
+  @page { size: A4; margin: 16mm; }
+  .emg-doc.print { background: #fff; color: #111; font-family: 'Noto Serif Gujarati', serif; font-size: 11pt; line-height: 1.6; }
+  .emg-doc.print h1 { font-size: 22pt; text-align: center; }
+  .emg-doc.print .emg-gu { text-align: center; color: #444; font-size: 13pt; }
+  .emg-doc.print .emg-stamp { text-align: center; color: #555; font-size: 9pt; }
+  .emg-doc.print .emg-section h2 { font-size: 12pt; border-bottom: 1.5px solid #111; break-after: avoid; }
+  .emg-doc.print .emg-line, .emg-doc.print .emg-section h2 [lang="gu"] { color: #333; }
+  .emg-doc.print li { break-inside: avoid; }
+}
