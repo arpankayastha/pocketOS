@@ -98,6 +98,10 @@ export const FOLDER_MIME = 'application/vnd.google-apps.folder'
 export async function indexDrive(onProgress) {
   const tok = await accessToken()
   const out = new Map()
+  // My Drive's own folder, so "whole Drive" is browsable like any other folder.
+  const my = await (await api('files/root?fields=id,name', tok)).json()
+  out.set(my.id, { id: my.id, name: 'My Drive', mimeType: FOLDER_MIME, parents: [] })
+  out.rootId = my.id
   let pageToken = ''
   for (let page = 0; page < 40; page++) {
     const q = new URLSearchParams({

@@ -38,9 +38,9 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
     return m
   }, [vault.docs])
 
-  async function saveRoot(e) {
+  async function saveRoot(e, whole) {
     e.preventDefault()
-    const id = driveFolderId(link)
+    const id = whole ? 'root' : driveFolderId(link)
     if (!id) return setLinkError('That doesn’t look like a Drive folder link. In Drive: ⋮ on the folder → Share → Copy link.')
     setLinkError(null)
     await vault.saveItem({ type: 'driveroot', title: 'Drive folder', folderId: id }, vault.driveRoot?.id)
@@ -51,12 +51,13 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
     return (
       <form className="card" onSubmit={saveRoot}>
         <h3>Choose your documents folder</h3>
-        <p className="muted small">Paste the link of the Google Drive folder that holds your documents (the top one, with member / year folders inside). eChopdo only reads names and shows files — nothing is copied.</p>
+        <p className="muted small">Browse your whole Google Drive, or paste the link of one folder that holds your documents. eChopdo only reads names and shows files — nothing is copied.</p>
         <div className="field-row">
           <input className="grow" inputMode="url" autoCapitalize="none" placeholder="https://drive.google.com/drive/folders/…" value={link} onChange={(e) => setLink(e.target.value)} />
           <button className="btn primary" disabled={!link.trim()}>Save</button>
         </div>
         {linkError && <div className="alert error">{linkError}</div>}
+        <div className="actions"><button type="button" className="btn" onClick={(e) => saveRoot(e, true)}>Use my whole Drive instead</button></div>
       </form>
     )
   }
@@ -77,7 +78,8 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
     )
   }
 
-  const rootFolder = index.get(root.folderId)
+  const rootId = root.folderId === 'root' ? index.rootId : root.folderId
+  const rootFolder = index.get(rootId)
   if (!rootFolder) {
     return (
       <div className="card">
@@ -90,15 +92,15 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
     )
   }
 
-  const current = trail.length ? trail[trail.length - 1] : root.folderId
+  const current = trail.length ? trail[trail.length - 1] : rootId
   const q = query.trim().toLowerCase()
   const rows = q.length >= 2
-    ? subtreeOf(index, root.folderId).filter((f) => f.name.toLowerCase().includes(q)).slice(0, 100)
+    ? subtreeOf(index, rootId).filter((f) => f.name.toLowerCase().includes(q)).slice(0, 100)
     : childrenOf(index, current)
-  const crumbs = [{ id: root.folderId, name: rootFolder.name }, ...trail.map((id) => ({ id, name: index.get(id)?.name || '…' }))]
+  const crumbs = [{ id: rootId, name: rootFolder.name }, ...trail.map((id) => ({ id, name: index.get(id)?.name || '…' }))]
 
   function addDetails(f) {
-    const names = pathNames(index, f, root.folderId)
+    const names = pathNames(index, f, rootId)
     onAddDetails({ link: f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`, title: stripExt(f.name), category: guessCategory(f.name), ...guessFromPath(names) })
   }
 
@@ -119,10 +121,10 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
         {rows.map((f) => {
           const isFolder = f.mimeType === FOLDER_MIME
           const detail = known.get(f.id)
-          const where = q.length >= 2 ? pathNames(index, f, root.folderId).join(' › ') : ''
+          const where = q.length >= 2 ? pathNames(index, f, rootId).join(' › ') : ''
           return (
             <div className="txn vault-row" key={f.id} role="button" tabIndex={0}
-              onClick={() => (isFolder ? (setQuery(''), setTrail(q.length >= 2 ? [...pathIds(index, f, root.folderId), f.id] : [...trail, f.id])) : setPreviewing(f))}
+              onClick={() => (isFolder ? (setQuery(''), setTrail(q.length >= 2 ? [...pathIds(index, f, rootId), f.id] : [...trail, f.id])) : setPreviewing(f))}
               onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.click()}>
               <span className="site-badge type" aria-hidden="true">{isFolder ? <FolderIcon /> : <FileIcon />}</span>
               <span className="grow">
