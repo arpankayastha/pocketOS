@@ -35,13 +35,18 @@ function loadGis() {
   return gisPromise
 }
 
+// Remembered only as a yes/no on this device, so the next visit can reconnect quietly (no prompt).
+const CONNECTED_KEY = 'pocketos.driveConnected'
+export const wasDriveConnected = () => { try { return !!localStorage.getItem(CONNECTED_KEY) } catch { return false } }
+export const markDriveConnected = (on) => { try { on ? localStorage.setItem(CONNECTED_KEY, '1') : localStorage.removeItem(CONNECTED_KEY) } catch { /* ignore */ } }
+
 let token = null // { value, expires } — memory only, cleared on reload
 let cachedIndex = null // names of the Drive tree, memory only
 export const getCachedIndex = () => cachedIndex
 export const setCachedIndex = (i) => { cachedIndex = i }
 export const hasDriveToken = () => !!token && token.expires > Date.now() + 30_000
 export const clearDriveCache = () => { cachedIndex = null }
-export const clearDriveToken = () => { token = null; cachedIndex = null }
+export const clearDriveToken = () => { token = null; cachedIndex = null; markDriveConnected(false) }
 
 export async function accessToken(interactive = true) {
   if (token && token.expires > Date.now() + 30_000) return token.value
@@ -95,8 +100,8 @@ export const FOLDER_MIME = 'application/vnd.google-apps.folder'
 // Reads every file and folder the account can see (names, parents, type — never contents) in as few
 // calls as possible, so browsing and searching are instant afterwards. Held in memory only; call
 // again to refresh. Returns Map id → { id, name, mimeType, parents, modifiedTime, size, webViewLink }.
-export async function indexDrive(onProgress) {
-  const tok = await accessToken()
+export async function indexDrive(onProgress, { interactive = true } = {}) {
+  const tok = await accessToken(interactive)
   const out = new Map()
   // My Drive's own folder, so "whole Drive" is browsable like any other folder.
   const my = await (await api('files/root?fields=id,name', tok)).json()

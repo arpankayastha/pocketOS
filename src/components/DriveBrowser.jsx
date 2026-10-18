@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FolderIcon, FileIcon } from '../lib/icons'
-import { FOLDER_MIME, clearDriveToken, driveFolderId, driveFileId, getCachedIndex, hasDriveToken, indexDrive, pathNames, setCachedIndex, subtreeOf } from '../lib/drive'
+import { FOLDER_MIME, clearDriveToken, driveFolderId, driveFileId, getCachedIndex, indexDrive, markDriveConnected, wasDriveConnected, pathNames, setCachedIndex, subtreeOf } from '../lib/drive'
 import { guessCategory, guessFromPath } from '../lib/docs'
 
 const DocPreview = lazy(() => import('./DocPreview'))
@@ -23,15 +23,22 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState(null)
 
-  const load = useCallback(async () => {
+  // `silent`: reconnect without any prompt (Google remembers the permission); if it needs a tap, stay on the button.
+  const load = useCallback(async (silent = false) => {
     setState({ status: 'loading', count: 0 })
     try {
-      const idx = await indexDrive((count) => setState({ status: 'loading', count }))
+      const idx = await indexDrive((count) => setState({ status: 'loading', count }), { interactive: !silent })
+      markDriveConnected(true)
       setCachedIndex(idx); setIndex(idx); setState({ status: 'ready' })
-    } catch (err) { setState({ status: 'error', message: err.message }) }
+    } catch (err) { setState(silent ? { status: 'idle' } : { status: 'error', message: err.message }) }
   }, [])
-  // Already signed in to Google this session (token in memory): load without asking again.
-  useEffect(() => { if (root && !index && state.status === 'idle' && hasDriveToken()) load() }, [root, index, state.status, load])
+  // Connected before on this device: reconnect quietly as soon as the tab opens.
+  const triedSilent = useRef(false)
+  useEffect(() => {
+    if (!root || index || triedSilent.current || !wasDriveConnected()) return
+    triedSilent.current = true
+    load(true)
+  }, [root, index, load])
 
   // parent id → its children (folders first, then by name): one pass, reused by every list.
   const kids = useMemo(() => {
@@ -81,7 +88,7 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
           <>
             <p className="muted small">Sign in with Google to browse and preview your folder here. It is read-only, and the file names stay in memory only.</p>
             {state.status === 'error' && <div className="alert error">{state.message}</div>}
-            <button className="btn primary" onClick={load}>Connect Google Drive</button>
+            <button className="btn primary" onClick={() => load()}>Connect Google Drive</button>
           </>
         )}
         <div className="actions"><button className="btn link small" onClick={() => vault.deleteItem(root.id)}>Use a different folder</button></div>
@@ -119,7 +126,7 @@ export default function DriveBrowser({ vault, onAddDetails, onOpenDetails }) {
     <section>
       <div className="drive-bar">
         <input type="search" placeholder={`Search ${rootFolder.name}…`} value={query} onChange={(e) => setQuery(e.target.value)} />
-        <button className="btn icon" onClick={load} title="Read Drive again" aria-label="Refresh">↻</button>
+        <button className="btn icon" onClick={() => load()} title="Read Drive again" aria-label="Refresh">↻</button>
       </div>
       {q.length < 2 && (
         <div className="drive-crumbs no-swipe">
