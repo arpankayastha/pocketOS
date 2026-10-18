@@ -33,6 +33,7 @@ export function useVault(session, { householdId } = {}) {
   const [status, setStatus] = useState('loading') // loading | setup | locked | unlocked
   const [unlockers, setUnlockers] = useState([])
   const [items, setItems] = useState([])
+  const [driveRoot, setDriveRoot] = useState(null) // the Drive folder Docs browses (type 'driveroot')
   const [docs, setDocs] = useState([]) // Docs-module records (type 'doc') — same table, kept out of the password list
   const [error, setError] = useState(null)
   const [lockedByUser, setLockedByUser] = useState(false) // skip the automatic fingerprint prompt right after "Lock"
@@ -48,6 +49,7 @@ export function useVault(session, { householdId } = {}) {
     clearVaultSession()
     setItems([])
     setDocs([])
+    setDriveRoot(null)
     setStatus((s) => (s === 'unlocked' ? 'locked' : s))
   }, [])
 
@@ -89,8 +91,9 @@ export function useVault(session, { householdId } = {}) {
       }
     }
     out.sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' }))
-    setItems(out.filter((i) => i.type !== 'doc'))
+    setItems(out.filter((i) => i.type !== 'doc' && i.type !== 'driveroot'))
     setDocs(out.filter((i) => i.type === 'doc'))
+    setDriveRoot(out.find((i) => i.type === 'driveroot') || null)
   }, [session.user.id])
 
   const openWithRawKey = useCallback(async (raw) => {
@@ -313,7 +316,7 @@ export function useVault(session, { householdId } = {}) {
   }, [status, lock])
 
   return {
-    status, error, lockedByUser, unlockers, fingerprintUnlockers, items, docs, hasRecovery: unlockers.some((u) => u.kind === 'recovery'),
+    status, error, lockedByUser, unlockers, fingerprintUnlockers, items, docs, driveRoot, hasRecovery: unlockers.some((u) => u.kind === 'recovery'),
     setup, unlockWithPassword, unlockWithRecovery, unlockWithFingerprint, checkPassword,
     addFingerprint, removeUnlocker, changePassword, regenerateRecovery,
     saveItem, updateItems, deleteItem, importItems, seal, unseal, lock, lockNow, touch, verifyUser,

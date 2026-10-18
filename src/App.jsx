@@ -15,10 +15,11 @@ import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
 import { MODULES } from './lib/modules'
 import { peekSharedLink, takeSharedLink } from './lib/shareIntake'
+import { clearDriveCache } from './lib/drive'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon } from './lib/icons'
+import { BrandMark, HomeIcon, DuesIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, DiceIcon, ShieldIcon, LockIcon, FolderIcon, FileIcon } from './lib/icons'
 
 // Tabs and modules load on demand (code-split), so the first screen only downloads the shell.
 // The Home tab and the chart chunk are preloaded as soon as the app starts (see preloadBudget).
@@ -35,6 +36,7 @@ const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
 const Docs = lazy(() => import('./components/Docs'))
+const DriveBrowser = lazy(() => import('./components/DriveBrowser'))
 const WillModule = lazy(() => import('./components/will/WillModule'))
 function preloadBudget() {
   loadDashboard()
@@ -53,6 +55,10 @@ const BUDGET_TABS = [
   { id: 'hisab', label: 'Hisab', icon: BookIcon },
 ]
 
+const DOCS_TABS = [
+  { id: 'drive', label: 'Drive', icon: FolderIcon },
+  { id: 'details', label: 'Notes', icon: FileIcon },
+]
 const VAULT_TABS = [
   { id: 'items', label: 'Passwords', icon: KeyIcon },
   { id: 'generator', label: 'Generator', icon: DiceIcon },
@@ -340,34 +346,46 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
 
 // Docs: links to the family's documents in Google Drive, with notes. Same vault lock and sharing as Vault.
 function DocsModule({ topbar, vault, member }) {
+  const [tab, setTab] = useState('drive')
+  useBackAction(tab !== 'drive', () => setTab('drive'), 2)
   const [openDoc, setOpenDoc] = useState(null)
   const [editing, setEditing] = useState(null) // document being edited, {} for a new one
   const unlocked = vault.status === 'unlocked'
   const [wasUnlocked, setWasUnlocked] = useState(unlocked)
   if (wasUnlocked !== unlocked) {
     setWasUnlocked(unlocked)
-    if (!unlocked) { setOpenDoc(null); setEditing(null) }
+    if (!unlocked) { setOpenDoc(null); setEditing(null); clearDriveCache() }
   }
   // A Drive link shared into the app opens the Add form with the link (and file name) filled in.
   useEffect(() => {
     if (!unlocked) return
     const shared = takeSharedLink()
-    if (shared) setEditing({ link: shared.link, title: shared.title })
+    if (shared) { setTab('details'); setEditing({ link: shared.link, title: shared.title }) }
   }, [unlocked])
   return (
     <div className="app">
       <Topbar {...topbar} right={unlocked && (
         <button className="btn icon lock-btn" aria-label="Lock" title="Lock" onClick={vault.lockNow}><LockIcon /></button>
-      )}><div className="spacer" /></Topbar>
+      )}>
+        {unlocked ? (
+          <nav className="tabs">
+            {DOCS_TABS.map((t) => (
+              <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}><t.icon /> {t.label}</button>
+            ))}
+          </nav>
+        ) : <div className="spacer" />}
+      </Topbar>
       <main className="content fade-in">
         <Suspense fallback={<ListSkeleton />}>
-          {unlocked ? <Docs vault={vault} member={member} open={openDoc} setOpen={setOpenDoc} editing={editing} setEditing={setEditing} />
-            : <VaultGate vault={vault} onRecovered={() => {}} onRecoveryCode={() => {}} />}
+          {!unlocked ? <VaultGate vault={vault} onRecovered={() => {}} onRecoveryCode={() => {}} />
+            : tab === 'drive' ? <DriveBrowser vault={vault} onAddDetails={(prefill) => { setTab('details'); setEditing(prefill) }} onOpenDetails={(d) => { setTab('details'); setOpenDoc(d) }} />
+            : <Docs vault={vault} member={member} open={openDoc} setOpen={setOpenDoc} editing={editing} setEditing={setEditing} />}
         </Suspense>
       </main>
-      {unlocked && (
+      {unlocked && <PillNav tabs={DOCS_TABS} tab={tab} setTab={setTab} withFab={tab === 'details'} />}
+      {unlocked && tab === 'details' && (
         <div className="fab-wrap">
-          <button className="fab" aria-label="Add document" onClick={() => setEditing({})}><PlusIcon /></button>
+          <button className="fab" aria-label="Add details" onClick={() => setEditing({})}><PlusIcon /></button>
         </div>
       )}
     </div>

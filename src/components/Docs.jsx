@@ -165,7 +165,7 @@ function DocView({ doc, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by,
   )
 }
 
-function DocForm({ initial, people, categories, onClose, onSave }) {
+export function DocForm({ initial, people, categories, onClose, onSave }) {
   const dialog = useDialog()
   const [form, setForm] = useState(() => ({ title: '', category: 'Other', member: '', year: today().slice(0, 4), link: '', number: '', expiry: '', notes: '', ...initial }))
   const [busy, setBusy] = useState(false)

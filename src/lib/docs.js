@@ -38,3 +38,28 @@ export function docSearchText(d) {
 
 export const hasDriveLink = (d) => !!d.link
 export const linkHref = (v) => (/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? v : `https://${v}`)
+
+// Best-guess category from a file name; "Other" when nothing matches.
+const CATEGORY_WORDS = [
+  ['Insurance', /insur|policy|polic|lic\b|mediclaim|premium|claim|renewal/i],
+  ['Health', /health|medical|report|lab|blood|prescription|scan|x-?ray|vaccin|hospital|doctor|discharge/i],
+  ['Identity', /aadhaar|aadhar|pan\b|passport|voter|licen[cs]e|\bid\b|birth|marriage|certificate/i],
+  ['Property', /property|flat|house|plot|deed|agreement|sale|rent|society|maintenance/i],
+  ['Vehicle', /vehicle|car\b|bike|rc\b|puc|registration/i],
+  ['Tax', /tax|itr|form ?16|gst|26as/i],
+  ['Education', /marksheet|degree|school|college|fee|admission|result/i],
+  ['Salary', /salary|payslip|pay slip|slip|appointment|offer letter|pf\b/i],
+  ['Appliances', /warranty|invoice|bill|appliance|manual|purchase/i],
+  ['Loans', /loan|emi|statement|sanction|mortgage/i],
+]
+export function guessCategory(name) {
+  const hit = CATEGORY_WORDS.find(([, re]) => re.test(name || ''))
+  return hit ? hit[0] : 'Other'
+}
+
+// Member and year from the folders above a file ("Member" / "2025" in either order).
+export function guessFromPath(names) {
+  const year = names.find((n) => /^(19|20)\d{2}$/.test(n.trim()))
+  const member = names.find((n) => n !== year && !/^(19|20)\d{2}/.test(n.trim()))
+  return { year: year?.trim() || '', member: member?.trim() || '' }
+}

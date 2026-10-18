@@ -850,3 +850,6 @@ details.section[open] .chev { transform: rotate(90deg); }
 .doc-pages { display: grid; justify-items: center; gap: 8px; }
 .doc-page { max-width: 100%; height: auto; background: #fff; border-radius: 4px; }
 .doc-img { max-width: 100%; display: block; margin: 0 auto; border-radius: 4px; }
+.drive-crumbs { display: flex; gap: 2px; overflow-x: auto; margin: -4px 0 10px; padding-bottom: 4px; scrollbar-width: none; }
+.drive-crumbs button { flex: none; border: none; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 6px 6px; min-height: 36px; cursor: pointer; white-space: nowrap; }
+.drive-crumbs button.on { color: var(--text); font-weight: 600; }
