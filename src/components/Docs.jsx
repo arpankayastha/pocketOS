@@ -179,6 +179,16 @@ function DocForm({ initial, people, categories, onClose, onSave }) {
     if (v) setForm((f) => ({ ...f, [key]: v }))
   }
 
+  async function pasteLink() {
+    try {
+      const text = (await navigator.clipboard.readText()).trim()
+      const link = text.match(/https?:\/\/[^\s<>"']+/i)?.[0]
+      if (!link) return setError('Nothing that looks like a link on the clipboard. Copy the link in Drive first.')
+      setError(null)
+      setForm((f) => ({ ...f, link }))
+    } catch { setError("Couldn't read the clipboard. Long-press the link box and paste instead.") }
+  }
+
   async function submit(e) {
     e.preventDefault()
     if (!form.title.trim()) return setError('Give the document a name.')
@@ -196,7 +206,14 @@ function DocForm({ initial, people, categories, onClose, onSave }) {
       <form className="card modal" onSubmit={submit} onMouseDown={(e) => e.stopPropagation()}>
         <h3>{initial.id ? 'Edit document' : 'Add document'}</h3>
         <label>Name<input autoFocus={!initial.id} placeholder="e.g. Health policy 2026" value={form.title} onChange={set('title')} /></label>
-        <label>Google Drive link<input type="text" inputMode="url" autoCapitalize="none" placeholder="Paste the share link (optional)" value={form.link} onChange={set('link')} /></label>
+        <div className="form-field">
+          <label htmlFor="doc-link">Google Drive link</label>
+          <div className="field-row">
+            <input id="doc-link" className="grow" type="text" inputMode="url" autoCapitalize="none" placeholder="Paste the share link (optional)" value={form.link} onChange={set('link')} />
+            <button type="button" className="btn small" onClick={pasteLink}>Paste</button>
+          </div>
+          <span className="muted small">In Drive: ⋮ on the file → Share → Copy link, then tap Paste.</span>
+        </div>
         <div className="grid2">
           <label>Category
             <select value={form.category} onChange={(e) => pick('category', 'category', e)}>
