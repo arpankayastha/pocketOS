@@ -893,3 +893,6 @@ details.section[open] .chev { transform: rotate(90deg); }
 .paper { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .paper .done { text-decoration: line-through; color: var(--muted); }
 .paper input:not([type="checkbox"]) { min-width: 0; font-size: 13px; }
+.deal-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.deal-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-title .pill { flex: none; margin-left: 0; }

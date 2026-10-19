@@ -362,7 +362,7 @@ function DealCard({ deal, dues, loans, onOpen }) {
       <div className="due-top">
         <span className="due-avatar">{deal.kind === 'sell' ? '₹' : '🏠'}</span>
         <div className="grow">
-          <div className="due-name">{deal.name}<span className="pill">{deal.kind === 'sell' ? 'selling' : 'buying'}</span></div>
+          <div className="deal-title"><span className="deal-name">{deal.name}</span><span className="pill">{deal.kind === 'sell' ? 'selling' : 'buying'}</span></div>
           <div className="muted small">{deal.price ? `Price ${money(deal.price)}` : 'No price set'}{deal.archived ? ' · archived' : ''}</div>
         </div>
       </div>
