@@ -34,6 +34,12 @@ const b = prepaySavings(loan, 1000000, '2026-04-20')
 assert.ok(a.monthsSaved > 20 && a.interestSaved > 500000, JSON.stringify(a))
 assert.ok(b.interestSaved > a.interestSaved && b.monthsSaved > a.monthsSaved)
 
+// A loan that has not started yet: a prepayment today still counts (from the first EMI).
+const future = { ...loan, start_date: '2026-12-05' }
+const f = prepaySavings(future, 1000000, '2026-10-19')
+assert.ok(f.interestSaved > 1000000 && f.monthsSaved > 12, JSON.stringify(f))
+assert.equal(summary(future, '2026-10-19').outstanding, 5000000)
+
 // A recorded prepayment and the what-if agree.
 const withEvent = { ...loan, events: [{ id: 'x', type: 'prepay', date: '2026-04-20', amount: 500000 }] }
 assert.equal(schedule(withEvent).length, rows.length - a.monthsSaved)

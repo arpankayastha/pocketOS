@@ -56,7 +56,7 @@ export function schedule(loan, extra = []) {
     const date = addMonths(loan.start_date, n)
     const prev = addMonths(loan.start_date, n - 1)
     let prepay = 0
-    for (const p of prepays) if (p.date > prev && p.date <= date) prepay += Number(p.amount)
+    for (const p of prepays) if ((n === 1 || p.date > prev) && p.date <= date) prepay += Number(p.amount) // before the first EMI: counts from the start
     prepay = Math.min(prepay, bal)
     bal -= prepay
     let rate = Number(loan.rate)
