@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { sessionTotal, customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, inr, timeLabel, rs } from '../../lib/shop'
 import { ActionGrid, ActionSheet, Chips, SessionBreakdown, Sheet, SheetActions, SumRow, inOut } from './ui'
-import { CashIcon, XIcon } from '../../lib/icons'
+import { CashIcon, MinusIcon, XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
 import CustomerFields from './CustomerFields'
 import { useDialog } from '../../lib/dialog'
@@ -118,13 +118,18 @@ export default function Cash({ shop, householdId, toast, admin }) {
       )}
       {open?.deposit && (
         <ActionSheet title={open.deposit.name} sub={`${open.deposit.phone ? `${open.deposit.phone} · ` : ''}${rs(open.deposit.balance)} left`} onClose={() => setOpen(null)}>
-          <div className="muted small">Used from the End & collect sheet on their next visit. Carries over to next month until used.</div>
+          <div className="gx-details">{depositEntries(shop.deposits, open.deposit.key).map((d) => (
+            <div key={d.id}><span>{DEP_KIND[d.kind] || d.kind} · {whenAt(d.created_at)}{d.kind !== 'use' && d.mode ? ` · ${d.mode}` : ''}{d.entered_by ? ` · by ${d.entered_by}` : ''}{d.note ? ` · ${d.note}` : ''}</span>
+              <b className={d.kind === 'add' ? 'pos' : ''}>{d.kind === 'add' ? '+' : '−'}{rs(d.amount)}</b></div>
+          ))}</div>
           <ActionGrid items={[
             { label: `Return ${rs(open.deposit.balance)}`, icon: <CashIcon />, onClick: () => { setSheet({ refund: open.deposit }); setOpen(null) } },
+            { label: 'Deduct', icon: <MinusIcon />, onClick: () => { setSheet({ deduct: open.deposit }); setOpen(null) } },
             admin && { label: 'Clear deposit', icon: <XIcon />, onClick: () => clearDeposit(open.deposit), danger: true },
           ]} />
         </ActionSheet>
       )}
+      {sheet?.deduct && <DeductSheet row={sheet.deduct} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.refund && <RefundSheet row={sheet.refund} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet === 'deposit' && <DepositSheet settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.dues && <DuesSheet row={sheet.dues} settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
@@ -181,14 +186,20 @@ function CashSheet({ kind, categories, plan, householdId, onClose, onDone }) {
 // Customer deposits: paid ahead, used on later visits — kept from month to month until used (owner, 13 Oct;
 // they used to lapse at month end).
 // Used from the End sheet on the Floor; what's left can be given back (Return, owner 19 Oct).
+const whenAt = (t) => `${new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} ${timeLabel(t)}`
+// Every entry of one customer's deposit, newest first (owner, 19 Oct: "date and time it was added").
+const depositEntries = (deposits, key) => (deposits || []).filter((d) => customerKey(d.customer_name, d.customer_phone) === key).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+const DEP_KIND = { add: 'Added', use: 'Used', refund: 'Returned' }
+
 function Deposits({ shop, onAdd, onOpen, order }) {
   const rows = depositBalances(shop.deposits || [])
+  const lastAdd = (key) => depositEntries(shop.deposits, key).find((d) => d.kind === 'add')
   return (
     <div className="card" style={{ order }}>
       <div className="card-head"><h3>Deposits</h3><button className="btn small" onClick={onAdd}>+ Deposit</button></div>
       {rows.length === 0 ? <div className="muted small">No deposits with money left. A deposit stays until it's used, even into next month.</div> : rows.map((r) => (
         <div key={r.key} className="line gx-tap" role="button" tabIndex={0} onClick={() => onOpen(r)}>
-          <div className="grow"><div className="gx-ellipsis">{r.name}</div>{r.phone && <div className="muted small">{r.phone}</div>}</div>
+          <div className="grow"><div className="gx-ellipsis">{r.name}</div><div className="muted small">{[r.phone, lastAdd(r.key) && `added ${whenAt(lastAdd(r.key).created_at)}`].filter(Boolean).join(' · ')}</div></div>
           <b className="pos">{rs(r.balance)}</b>
         </div>
       ))}
@@ -218,6 +229,32 @@ function DepositSheet({ settings, householdId, onClose, onDone }) {
       <Chips options={[['cash', 'Cash'], ['online', 'Online / scanner']]} value={mode} onChange={setMode} />
       {mode === 'online' && <UpiQrButton settings={settings} amount={Number(amount)} note={`Deposit · ${name.trim() || 'customer'}`} />}
       <SheetActions onClose={onClose} busy={busy} disabled={!name.trim() || !Number(amount)} label="Save deposit" />
+    </Sheet>
+  )
+}
+
+// Owner, 19 Oct ("manual option"): take any amount off a deposit by hand, with a reason (F&B at the counter, a
+// correction) — saved as a 'use' with the reason as its note; no money moves.
+function DeductSheet({ row, householdId, onClose, onDone }) {
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const value = Math.min(Number(amount) || 0, row.balance)
+  async function save() {
+    if (!value || !note.trim()) return
+    setBusy(true)
+    const { error } = await supabase.from('shop_deposits').insert({ household_id: householdId, customer_name: row.name, customer_phone: row.phone || null, kind: 'use', amount: value, note: note.trim() })
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    onDone(`${rs(value)} taken off ${row.name}’s deposit · ${rs(row.balance - value)} left`)
+  }
+  return (
+    <Sheet title={`Deduct from deposit · ${row.name}`} sub={`${rs(row.balance)} left · no money moves, the balance just goes down`} onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <label>Amount (₹)<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder={`up to ${rs(row.balance)}`} /></label>
+      <label>Reason<input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. cold drink, correction" /></label>
+      <SheetActions onClose={onClose} busy={busy} disabled={!value || !note.trim()} label={`Deduct ${rs(value)}`} />
     </Sheet>
   )
 }

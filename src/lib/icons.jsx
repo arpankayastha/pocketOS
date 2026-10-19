@@ -275,6 +275,9 @@ export function QrIcon() {
 export function PhoneIcon() {
   return <svg {...base}><path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2Z" /></svg>
 }
+export function MinusIcon() {
+  return <svg {...base}><circle cx="12" cy="12" r="9" /><path d="M8 12h8" /></svg>
+}
 export function XIcon() {
   return <svg {...base}><path d="M6 6l12 12M18 6 6 18" /></svg>
 }

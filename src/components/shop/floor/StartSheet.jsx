@@ -22,7 +22,10 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   const [fnbOther, setFnbOther] = useState('') // owner: type any F&B amount, not only the chips
   const [names, setNames] = useState({}) // PS5: a name for each extra controller (owner, 14 Oct), keyed by controller
   const online = booking && booking.source !== 'counter' // online bookings are paid in full by UPI
-  const [pay, setPay] = useState(online ? 'booked' : 'end')
+  // Owner, 19 Oct: a + Book advance is the customer's deposit — take it at Start, so it isn't left in Deposits
+  // while the full bill is collected again at the end.
+  const advance = booking && !online ? Number(booking.paid) || 0 : 0
+  const [pay, setPay] = useState(online ? 'booked' : advance > 0 ? 'deposit' : 'end')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const multi = (system.seats || 1) > 1
@@ -35,7 +38,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   const owes = key.length > 2 ? duesByCustomer(dues).find((d) => d.key === key) : null
   // Owner, 14 Oct: regulars play on dues (pay days later) or from their deposit.
   const { any: anyDep, own: ownDep, dep, friend, picker: depPicker } = useDepositPick(deposits, name, phone)
-  const [part, setPart] = useState('') // owner, 15 Oct: type how much goes to dues / comes from the deposit; the rest at the end
+  const [part, setPart] = useState(advance > 0 ? String(Math.round(advance)) : '') // owner, 15 Oct: type how much goes to dues / comes from the deposit; the rest at the end
   const partOf = (max) => (part === '' ? max : Math.min(max, Number(part) || 0))
   const fromDep = pay === 'deposit' && dep ? partOf(Math.min(dep.balance, total)) : 0
   const dueNow = pay === 'due' ? partOf(total) : 0
@@ -93,7 +96,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       <input className="gx-other" inputMode="numeric" value={fnbOther} placeholder="Other amount ₹"
         onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 5); setFnbOther(v); setFnb(Number(v) || 0) }} />
       <div className="caps muted">Payment</div>
-      {booking && !online && Number(booking.paid) > 0 && <div className="small muted">{rs(booking.paid)} advance was taken when booking — it's offered at the end as {booking.customer_name}’s deposit.</div>}
+      {advance > 0 && <div className="small muted">{rs(advance)} advance was taken when booking (their deposit) — it's taken off this bill below.</div>}
       <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online'], ['due', 'Due · pays later'], ...(anyDep ? [['deposit', depLabel(ownDep)]] : [])]} value={pay} onChange={(v) => { setPay(v); setPart('') }} />
       {pay === 'deposit' && depPicker}
       {(pay === 'due' || (pay === 'deposit' && dep)) && <label>{pay === 'due' ? 'Amount into dues' : 'Amount from deposit'} (₹)<input inputMode="numeric" value={part} onChange={(e) => setPart(e.target.value.replace(/\D/g, ''))} placeholder={`${rs(pay === 'due' ? total : Math.min(dep.balance, total))} · all`} /></label>}
