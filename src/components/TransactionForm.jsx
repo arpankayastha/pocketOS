@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { today } from '../lib/format'
+import AmountInput from './AmountInput'
 
 export default function TransactionForm({ accounts, categories, initial, presetKind, householdId, onClose, onSaved }) {
   const [form, setForm] = useState(() => initial ? {
@@ -59,7 +60,7 @@ export default function TransactionForm({ accounts, categories, initial, presetK
           </div>
         )}
         <label>Amount
-          <input type="number" inputMode="decimal" step="0.01" min="0.01" required autoFocus value={form.amount} onChange={set('amount')} />
+          <AmountInput step="0.01" min="0.01" required autoFocus value={form.amount} onChange={set('amount')} />
         </label>
         <div className="row2">
           <label>Category

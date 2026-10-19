@@ -10,6 +10,8 @@ import { MonthPicker } from './Transactions'
 import { supabase } from '../lib/supabase'
 import { instrumentLabel } from '../lib/instruments'
 import { SkeletonRows } from './Skeleton'
+import AmountInput from './AmountInput'
+import { groupExpr } from '../lib/amount'
 
 const dayHead = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 const shortDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -455,7 +457,7 @@ function EntrySheet({ book, books, accounts = [], categories, onCategoryAdded, e
             <button type="button" className={dir === 'in' ? 'on income' : ''} onClick={() => { setDir('in'); setCategory('') }}>Received</button>
           </div>
           <div className={`hb-display ${dir === 'out' ? 'neg' : 'pos'}`} aria-live="polite">
-            <span className="hb-expr"><span>{expr ? `₹${expr}` : <span className="muted">₹0</span>}</span></span>
+            <span className="hb-expr"><span>{expr ? `₹${groupExpr(expr)}` : <span className="muted">₹0</span>}</span></span>
             {hasOps && amount !== null && <span className="hb-result">= {money(amount)}</span>}
           </div>
           {entry && <button type="button" className="btn icon" aria-label="Delete entry" onClick={remove}><TrashIcon /></button>}
@@ -595,7 +597,7 @@ function BookForm({ book, householdId, onClose, onSaved, onDeleted }) {
         <h3>{book ? 'Edit book' : 'New occasion book'}</h3>
         <label>Name<input required autoFocus={!book} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali 2026, Cousin's wedding" /></label>
         <label>Target amount <span className="muted">(optional)</span>
-          <input type="number" inputMode="decimal" min="1" step="1" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="How much you plan to spend" />
+          <AmountInput min="1" step="1" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="How much you plan to spend" />
         </label>
         {error && <div className="alert error">{error}</div>}
         <div className="actions">

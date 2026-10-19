@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { today } from '../lib/format'
 import { loadTransfer, saveTransfer } from '../lib/transfers'
+import AmountInput from './AmountInput'
 
 // Move money from the active household to another one. Creates an expense here and an
 // income there (both "Home transfer"), linked so edits and deletes apply to both.
@@ -60,7 +61,7 @@ export default function TransferForm({ households, fromHouseholdId, transferId, 
         {loading ? <div className="muted">Loading…</div> : (
           <>
             <label>Amount
-              <input type="number" inputMode="decimal" step="0.01" min="0.01" required autoFocus={!transferId} value={form.amount} onChange={set('amount')} />
+              <AmountInput step="0.01" min="0.01" required autoFocus={!transferId} value={form.amount} onChange={set('amount')} />
             </label>
             <div className="row2">
               <label>From

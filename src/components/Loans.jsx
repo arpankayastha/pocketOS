@@ -9,6 +9,7 @@ import { loadDues } from '../lib/dues'
 import { useDialog } from '../lib/dialog'
 import { LoansIcon, TrashIcon } from '../lib/icons'
 import { SkeletonRows } from './Skeleton'
+import AmountInput from './AmountInput'
 
 const money = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}` // loan amounts read better in whole rupees
 const fmtDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -219,7 +220,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
             {s.stuck && <div className="alert error">The EMI does not cover the monthly interest, so the loan never ends. Check the rate and EMI.</div>}
 
             <h4>If I prepay</h4>
-            <label>Amount<input type="number" inputMode="decimal" min="1" value={what} onChange={(e) => setWhat(e.target.value)} placeholder="e.g. 2,00,000" /></label>
+            <label>Amount<AmountInput min="1" value={what} onChange={(e) => setWhat(e.target.value)} placeholder="e.g. 2,00,000" /></label>
             {savings && (
               <div className="loan-save">
                 Saves <b className="pos">{money(savings.interestSaved)}</b> of interest and <b>{months(savings.monthsSaved)}</b>; the loan then ends {fmtDate(savings.newPayoff)}.
@@ -260,7 +261,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
                 <div className="row2">
                   <label>Date<input type="date" required value={ev.date} onChange={(e) => setEv({ ...ev, date: e.target.value, ...(ev.type === 'interest' && !ev.touched ? { amount: String(Math.round(interestUntil(loan, e.target.value))) } : {}) })} /></label>
                   {ev.type !== 'rate'
-                    ? <label>{ev.type === 'interest' ? 'Interest paid' : 'Amount'}<input type="number" inputMode="decimal" min="1" step="0.01" required value={ev.amount} onChange={(e) => setEv({ ...ev, amount: e.target.value, touched: true })} /></label>
+                    ? <label>{ev.type === 'interest' ? 'Interest paid' : 'Amount'}<AmountInput min="1" step="0.01" required value={ev.amount} onChange={(e) => setEv({ ...ev, amount: e.target.value, touched: true })} /></label>
                     : <label>New rate %<input type="number" inputMode="decimal" min="0" step="0.01" required value={ev.rate} onChange={(e) => setEv({ ...ev, rate: e.target.value })} /></label>}
                 </div>
                 <div className="actions"><div className="spacer" /><button type="button" className="btn" onClick={() => setEv(null)}>Cancel</button><button className="btn primary" disabled={busy}>Add</button></div>
@@ -317,7 +318,7 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
         </div>
         <label>Lender <span className="muted">(optional)</span><input value={f.lender} onChange={set('lender')} placeholder="Bank or company" /></label>
         <div className="row2">
-          <label>Amount borrowed<input type="number" inputMode="decimal" min="1" step="0.01" required value={f.principal} onChange={set('principal')} /></label>
+          <label>Amount borrowed<AmountInput min="1" step="0.01" required value={f.principal} onChange={set('principal')} /></label>
           <label>Interest % a year<input type="number" inputMode="decimal" min="0" step="0.01" required value={f.rate} onChange={set('rate')} /></label>
         </div>
         <label>{f.interest_only ? 'Taken on' : 'First loan date'}<input type="date" required value={f.start_date} onChange={set('start_date')} /></label>
@@ -331,7 +332,7 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
           <>
             <div className="row2">
               <label>Tenure (months)<input type="number" inputMode="numeric" min="1" value={f.tenure_months} onChange={set('tenure_months')} placeholder="e.g. 240" /></label>
-              <label>EMI <span className="muted">(optional)</span><input type="number" inputMode="decimal" min="0" step="0.01" value={f.emi} onChange={set('emi')} placeholder={hint ? `≈ ${Math.round(hint)}` : 'worked out'} /></label>
+              <label>EMI <span className="muted">(optional)</span><AmountInput min="0" step="0.01" value={f.emi} onChange={set('emi')} placeholder={hint ? `≈ ${Math.round(hint)}` : 'worked out'} /></label>
             </div>
             <p className="muted small">The EMI is worked out from the amount, rate and tenure unless you type the exact one from your bank.</p>
           </>
@@ -421,7 +422,7 @@ function DealSheet({ deal, householdId, books, dues, loans, onClose, onSaved }) 
         </div>
         <div className="row2">
           <label>Name<input required value={f.name} onChange={set('name')} placeholder="e.g. New flat" autoFocus={!deal} /></label>
-          <label>Price <span className="muted">(optional)</span><input type="number" inputMode="decimal" min="0" step="0.01" value={f.price} onChange={set('price')} /></label>
+          <label>Price <span className="muted">(optional)</span><AmountInput min="0" step="0.01" value={f.price} onChange={set('price')} /></label>
         </div>
         <label>Expenses book
           <select value={f.book_id} onChange={set('book_id')}><option value="">None</option>{books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>

@@ -8,6 +8,7 @@ import { TrashIcon } from '../lib/icons'
 import { SkeletonRows } from './Skeleton'
 import { useDialog } from '../lib/dialog'
 import { addEntry } from '../lib/dues'
+import AmountInput from './AmountInput'
 
 export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [month, setMonth] = useState(() => shiftMonth(currentMonth(), 1))
@@ -215,7 +216,7 @@ function ItemForm({ categories, accounts, activeHouseholdId, onSaved }) {
       </div>
       <div className="row2">
         <label>Expected amount
-          <input type="number" inputMode="decimal" step="0.01" min="0" required value={form.expected_amount} onChange={set('expected_amount')} />
+          <AmountInput step="0.01" min="0" required value={form.expected_amount} onChange={set('expected_amount')} />
         </label>
         <label>Due day <span className="muted">(optional)</span>
           <input type="number" inputMode="numeric" min="1" max="31" placeholder="e.g. 1" value={form.day_of_month} onChange={set('day_of_month')} />
@@ -265,7 +266,7 @@ function LogForm({ item, month, onDone }) {
 
   return (
     <form className="inline-form" onSubmit={save}>
-      <input type="number" inputMode="decimal" step="0.01" min="0" required value={amount} onChange={(e) => setAmount(e.target.value)} />
+      <AmountInput step="0.01" min="0" required value={amount} onChange={(e) => setAmount(e.target.value)} />
       <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
       <button className="btn primary small" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
       {error && <div className="alert error">{error}</div>}

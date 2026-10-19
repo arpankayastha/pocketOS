@@ -4,6 +4,7 @@ import { loadDues, addEntry, updateEntry, deleteEntry, saveDue, deleteDue, entry
 import { useDialog } from '../lib/dialog'
 import { PencilIcon, TrashIcon, DuesIcon } from '../lib/icons'
 import { SkeletonRows } from './Skeleton'
+import AmountInput from './AmountInput'
 
 const fmtDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'}`
@@ -213,7 +214,7 @@ function EntryForm({ due, accounts, direction, label, entry, onClose, onSaved })
       <form className="card modal" onSubmit={save} onMouseDown={(e) => e.stopPropagation()}>
         <h3 className={`kind-title ${dir === 'out' ? 'expense' : 'income'}`}>{title} · {due.person}</h3>
         <label>Amount
-          <input type="number" inputMode="decimal" step="0.01" min="0.01" required autoFocus={!entry} value={form.amount} onChange={set('amount')} />
+          <AmountInput step="0.01" min="0.01" required autoFocus={!entry} value={form.amount} onChange={set('amount')} />
         </label>
         <div className="row2">
           <label>Date<input type="date" required value={form.date} onChange={set('date')} /></label>
@@ -303,7 +304,7 @@ function DueForm({ due, households, household, onClose, onSaved, onDeleted }) {
         {!due && (
           <>
             <div className="row2">
-              <label>Amount<input type="number" inputMode="decimal" step="0.01" min="0.01" required value={form.amount} onChange={set('amount')} /></label>
+              <label>Amount<AmountInput step="0.01" min="0.01" required value={form.amount} onChange={set('amount')} /></label>
               <label>Since<input type="date" required value={form.date} onChange={set('date')} /></label>
             </div>
             <label className="check"><input type="checkbox" checked={form.toBudget} onChange={set('toBudget')} /> This money moved now — add it to Budget too</label>
@@ -313,7 +314,7 @@ function DueForm({ due, households, household, onClose, onSaved, onDeleted }) {
         <label className="check"><input type="checkbox" checked={form.emiOn} onChange={set('emiOn')} /> Repaid in monthly EMIs (shows in Plan)</label>
         {form.emiOn && (
           <div className="row2">
-            <label>EMI amount<input type="number" inputMode="decimal" step="0.01" min="0.01" required value={form.emiAmount} onChange={set('emiAmount')} /></label>
+            <label>EMI amount<AmountInput step="0.01" min="0.01" required value={form.emiAmount} onChange={set('emiAmount')} /></label>
             <label>Day of month <span className="muted">(optional)</span><input type="number" inputMode="numeric" min="1" max="31" value={form.emiDay} onChange={set('emiDay')} placeholder="e.g. 10" /></label>
           </div>
         )}
