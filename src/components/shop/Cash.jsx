@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { sessionTotal, customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, inr, timeLabel, rs } from '../../lib/shop'
 import { ActionGrid, ActionSheet, Chips, SessionBreakdown, Sheet, SheetActions, SumRow, inOut } from './ui'
-import { CashIcon, MinusIcon, XIcon } from '../../lib/icons'
+import { CashIcon, XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
 import CustomerFields from './CustomerFields'
 import { useDialog } from '../../lib/dialog'
@@ -61,12 +61,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
     const err = results.find((x) => x.error)?.error
     if (err) toast(err.message); else { setOpen(null); toast(`${r.name}’s dues cleared`); shop.reload() }
   }
-  async function clearDeposit(r) {
-    if (!await dialog.confirm({ title: `Clear ${r.name}’s deposit?`, message: `All of their deposit entries are deleted (${rs(r.balance)} left now).`, confirmLabel: 'Clear deposit', danger: true })) return
-    const ids = (shop.deposits || []).filter((d) => customerKey(d.customer_name, d.customer_phone) === r.key).map((d) => d.id)
-    const { error } = await supabase.from('shop_deposits').delete().in('id', ids)
-    if (error) toast(error.message); else { setOpen(null); toast('Deposit cleared'); shop.reload() }
-  }
+
   const entries = [
     ...shop.sessions.filter((s) => s.status === 'closed' || s.status === 'running').map((s) => ({ // owner, 14 Oct: every entry, paid or not
       id: s.id, table: 'shop_sessions', at: s.ended_at || s.started_at, title: `${s.system_name} · ${s.customer_name} · ${durLabel(s.minutes)}`,
@@ -119,17 +114,16 @@ export default function Cash({ shop, householdId, toast, admin }) {
       {open?.deposit && (
         <ActionSheet title={open.deposit.name} sub={`${open.deposit.phone ? `${open.deposit.phone} · ` : ''}${rs(open.deposit.balance)} left`} onClose={() => setOpen(null)}>
           <div className="gx-details">{depositEntries(shop.deposits, open.deposit.key).map((d) => (
-            <div key={d.id}><span>{DEP_KIND[d.kind] || d.kind} · {whenAt(d.created_at)}{d.kind !== 'use' && d.mode ? ` · ${d.mode}` : ''}{d.entered_by ? ` · by ${d.entered_by}` : ''}{d.note ? ` · ${d.note}` : ''}</span>
+            <div key={d.id}><span>{d.kind === 'use' && (d.note || '').startsWith('Deleted') ? 'Deleted' : DEP_KIND[d.kind] || d.kind} · {whenAt(d.created_at)}{d.kind !== 'use' && d.mode ? ` · ${d.mode}` : ''}{d.entered_by ? ` · by ${d.entered_by}` : ''}{d.note && !d.note.startsWith('Deleted') ? ` · ${d.note}` : ''}</span>
               <b className={d.kind === 'add' ? 'pos' : ''}>{d.kind === 'add' ? '+' : '−'}{rs(d.amount)}</b></div>
           ))}</div>
           <ActionGrid items={[
             { label: `Return ${rs(open.deposit.balance)}`, icon: <CashIcon />, onClick: () => { setSheet({ refund: open.deposit }); setOpen(null) } },
-            { label: 'Deduct', icon: <MinusIcon />, onClick: () => { setSheet({ deduct: open.deposit }); setOpen(null) } },
-            admin && { label: 'Clear deposit', icon: <XIcon />, onClick: () => clearDeposit(open.deposit), danger: true },
+            { label: 'Delete', icon: <XIcon />, onClick: () => { setSheet({ deduct: open.deposit }); setOpen(null) }, danger: true },
           ]} />
         </ActionSheet>
       )}
-      {sheet?.deduct && <DeductSheet row={sheet.deduct} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
+      {sheet?.deduct && <DeleteDepositSheet row={sheet.deduct} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.refund && <RefundSheet row={sheet.refund} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet === 'deposit' && <DepositSheet settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.dues && <DuesSheet row={sheet.dues} settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
@@ -233,28 +227,28 @@ function DepositSheet({ settings, householdId, onClose, onDone }) {
   )
 }
 
-// Owner, 19 Oct ("manual option"): take any amount off a deposit by hand, with a reason (F&B at the counter, a
-// correction) — saved as a 'use' with the reason as its note; no money moves.
-function DeductSheet({ row, householdId, onClose, onDone }) {
-  const [amount, setAmount] = useState('')
-  const [note, setNote] = useState('')
+// Owner, 19 Oct: Delete = money added to a deposit by mistake comes off it (just an amount + a red confirm; no
+// cash / online, no money moves). Saved as a 'use' with the note "Deleted (added by mistake)".
+function DeleteDepositSheet({ row, householdId, onClose, onDone }) {
+  const dialog = useDialog()
+  const [amount, setAmount] = useState(String(Math.round(row.balance)))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const value = Math.min(Number(amount) || 0, row.balance)
   async function save() {
-    if (!value || !note.trim()) return
+    if (!value) return
+    if (!await dialog.confirm({ title: `Delete ${rs(value)} from ${row.name}’s deposit?`, message: `Only for money added by mistake. ${rs(row.balance - value)} will be left. No cash or online money moves.`, confirmLabel: `Delete ${rs(value)}`, danger: true })) return
     setBusy(true)
-    const { error } = await supabase.from('shop_deposits').insert({ household_id: householdId, customer_name: row.name, customer_phone: row.phone || null, kind: 'use', amount: value, note: note.trim() })
+    const { error } = await supabase.from('shop_deposits').insert({ household_id: householdId, customer_name: row.name, customer_phone: row.phone || null, kind: 'use', amount: value, note: 'Deleted (added by mistake)' })
     setBusy(false)
     if (error) { setError(error.message); return }
-    onDone(`${rs(value)} taken off ${row.name}’s deposit · ${rs(row.balance - value)} left`)
+    onDone(`${rs(value)} deleted from ${row.name}’s deposit · ${rs(row.balance - value)} left`)
   }
   return (
-    <Sheet title={`Deduct from deposit · ${row.name}`} sub={`${rs(row.balance)} left · no money moves, the balance just goes down`} onClose={onClose} onSubmit={save}>
+    <Sheet title={`Delete from deposit · ${row.name}`} sub={`${rs(row.balance)} in their deposit · for money added by mistake`} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
-      <label>Amount (₹)<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder={`up to ${rs(row.balance)}`} /></label>
-      <label>Reason<input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. cold drink, correction" /></label>
-      <SheetActions onClose={onClose} busy={busy} disabled={!value || !note.trim()} label={`Deduct ${rs(value)}`} />
+      <label>Amount to delete (₹)<input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
+      <SheetActions onClose={onClose} busy={busy} disabled={!value} label={`Delete ${rs(value)}`} />
     </Sheet>
   )
 }
