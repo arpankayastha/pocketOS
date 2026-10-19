@@ -82,9 +82,12 @@ export function dayTotals({ sessions, cash, advances, deposits = [], duesPaid = 
   for (const b of advances) { if (b.advance_mode === 'online') t.online += Number(b.advance_paid); else t.cash += Number(b.advance_paid) }
   const to = addDays(from, 1)
   for (const d of deposits) {
-    if (d.kind !== 'add' || new Date(d.created_at) < from || new Date(d.created_at) >= to) continue
-    if (d.mode === 'online') t.online += Number(d.amount); else t.cash += Number(d.amount)
-    t.deposits = (t.deposits || 0) + Number(d.amount)
+    if ((d.kind !== 'add' && d.kind !== 'refund') || new Date(d.created_at) < from || new Date(d.created_at) >= to) continue
+    // A deposit returned (owner, 19 Oct) is money out that day, from the drawer or online.
+    const v = (d.kind === 'refund' ? -1 : 1) * Number(d.amount)
+    if (d.mode === 'online') t.online += v; else t.cash += v
+    if (d.kind === 'refund') t.refunds = (t.refunds || 0) + Number(d.amount)
+    else t.deposits = (t.deposits || 0) + Number(d.amount)
   }
   for (const p of duesPaid) {
     if (new Date(p.created_at) < from || new Date(p.created_at) >= to) continue

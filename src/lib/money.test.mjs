@@ -143,4 +143,14 @@ assert.equal(t.minutes, 240)
 assert.equal(t.fnb, 20)
 assert.equal(t.drawer, 500 + 140 + 30 - 120)
 
+// A deposit returned (₹100 in, ₹50 used, ₹50 back) lowers the balance and is money out that day.
+const back = [
+  { customer_name: 'Test Three', customer_phone: '9800000003', kind: 'add', amount: 100, mode: 'cash', created_at: at(10) },
+  { customer_name: 'Test Three', customer_phone: '9800000003', kind: 'use', amount: 50, created_at: at(11) },
+  { customer_name: 'Test Three', customer_phone: '9800000003', kind: 'refund', amount: 50, mode: 'cash', created_at: at(12) },
+]
+assert.equal(balanceFor(back, 'Test Three', '9800000003'), undefined)        // nothing left
+const t2 = dayTotals({ sessions: [], cash: [], advances: [], deposits: back }, day)
+assert.equal(t2.cash, 50); assert.equal(t2.deposits, 100); assert.equal(t2.refunds, 50)
+
 console.log('money rules: all good')

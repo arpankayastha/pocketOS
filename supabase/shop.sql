@@ -1258,3 +1258,54 @@ begin
 end $$;
 revoke all on function public.shop_health(uuid, date) from public, anon;
 grant execute on function public.shop_health(uuid, date) to authenticated;
+-- Deposit returned (owner, 19 Oct: "puts in ₹100, uses ₹50, asks for ₹50 back when leaving"): shop_deposits kind
+-- 'refund' (+ mode cash / online, optional note). It lowers the balance like a use and is money out that day:
+-- the drawer (dayTotals) and the Cashbook's Floor takings are net of it.
+alter table public.shop_deposits drop constraint if exists shop_deposits_kind_check;
+alter table public.shop_deposits add constraint shop_deposits_kind_check check (kind = any (array['add', 'use', 'refund']));
+alter table public.shop_deposits add column if not exists note text;
+
+create or replace function private.sync_floor_takings(p_household uuid, p_day date)
+returns void language plpgsql security definer set search_path to '' as $$
+declare
+  v_owner uuid; v_book uuid; v_cash numeric; v_online numeric; v_n int; v_back numeric; v_cash_acct uuid; v_bank_acct uuid; m text; amt numeric;
+begin
+  if p_household is null or p_day is null then return; end if;
+  select user_id into v_owner from public.households where id = p_household;
+  select id into v_book from public.hisab_books where household_id = p_household and kind = 'daily' order by created_at limit 1;
+  if v_book is null then
+    insert into public.hisab_books (user_id, household_id, name, kind) values (v_owner, p_household, 'Shop', 'daily') returning id into v_book;
+  end if;
+  select coalesce(sum(paid_cash), 0), coalesce(sum(paid_online), 0), count(*) into v_cash, v_online, v_n
+    from public.shop_sessions
+    where household_id = p_household and status <> 'cancelled' and (started_at at time zone 'Asia/Kolkata')::date = p_day;
+  -- deposits paid in add, deposits returned take away
+  select v_cash + coalesce(sum(case when kind = 'add' then amount else -amount end) filter (where mode = 'cash'), 0),
+         v_online + coalesce(sum(case when kind = 'add' then amount else -amount end) filter (where mode = 'online'), 0),
+         coalesce(sum(amount) filter (where kind = 'refund'), 0)
+    into v_cash, v_online, v_back
+    from public.shop_deposits
+    where household_id = p_household and kind in ('add', 'refund') and (created_at at time zone 'Asia/Kolkata')::date = p_day;
+  select v_cash + coalesce(sum(amount) filter (where mode = 'cash'), 0), v_online + coalesce(sum(amount) filter (where mode = 'online'), 0)
+    into v_cash, v_online
+    from public.shop_dues_paid
+    where household_id = p_household and (created_at at time zone 'Asia/Kolkata')::date = p_day;
+  select id into v_cash_acct from public.accounts where household_id = p_household and type = 'cash' order by created_at limit 1;
+  select id into v_bank_acct from public.accounts where household_id = p_household and type = 'bank' order by created_at limit 1;
+  foreach m in array array['cash', 'online'] loop
+    amt := case m when 'cash' then v_cash else v_online end;
+    if amt > 0 then
+      insert into public.hisab_entries (user_id, household_id, book_id, direction, amount, occurred_on, category, source, note, account_id, shop_takings)
+      values (v_owner, p_household, v_book, 'in', amt, p_day, 'Floor takings', case m when 'cash' then 'Cash' else 'UPI' end,
+              format('Floor takings · %s session%s%s', v_n, case when v_n = 1 then '' else 's' end,
+                case when v_back > 0 then format(' · ₹%s deposit returned', round(v_back)) else '' end),
+              case m when 'cash' then v_cash_acct else v_bank_acct end, m)
+      on conflict (household_id, occurred_on, shop_takings) where shop_takings is not null
+      do update set amount = excluded.amount, note = excluded.note, book_id = excluded.book_id;
+    else
+      delete from public.hisab_entries where household_id = p_household and occurred_on = p_day and shop_takings = m;
+    end if;
+  end loop;
+end $$;
+-- shop_health's Cashbook check counts deposits returned the same way (migration health_counts_deposit_refunds:
+-- deposits 'add' minus 'refund' by created_at day).
