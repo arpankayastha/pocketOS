@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { interestUntil, pmt, addMonths, fyOf, schedule, summary, prepaySavings, fyTable, goldSummary, summaryOf, daysBetween } from './loanMath.js'
+import { emiInMonth, matchEmiPayment, interestUntil, pmt, addMonths, fyOf, schedule, summary, prepaySavings, fyTable, goldSummary, summaryOf, daysBetween } from './loanMath.js'
 
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`)
 
@@ -82,6 +82,24 @@ assert.equal(gp.state, 'ok')
 assert.equal(goldSummary({ ...gold, due_date: '2026-12-31' }, '2027-01-05').state, 'overdue') // renewal passed
 assert.equal(goldSummary({ ...gold, closed_on: '2026-09-01' }, '2026-12-01').state, 'closed')
 assert.equal(summaryOf(gold, '2026-07-01').gold, true)
+
+// The EMI shows in the month its date falls in.
+const home = { principal: 6500000, rate: 7.55, tenure_months: 324, emi: null, start_date: '2026-12-05', events: [], interest_only: false }
+assert.equal(emiInMonth(home, '2026-12'), null) // nothing is due in the month the loan starts
+assert.equal(emiInMonth(home, '2027-01').date, '2027-01-05')
+near(emiInMonth(home, '2027-01').emi, pmt(6500000, 7.55, 324), 0.01, 'EMI amount')
+assert.equal(emiInMonth(home, '2053-12').date, '2053-12-05')
+assert.equal(emiInMonth(home, '2054-01'), null) // paid off
+assert.equal(emiInMonth({ ...home, closed_on: '2027-03-01' }, '2027-01'), null)
+assert.equal(emiInMonth({ ...home, interest_only: true }, '2027-01'), null)
+// A prepayment shortens the loan: the last EMI moves earlier.
+const early = { ...home, events: [{ id: 'p', type: 'prepay', date: '2027-02-01', amount: 2000000 }] }
+assert.equal(emiInMonth(early, '2053-12'), null)
+// Matching the logged payment.
+const cands = [{ key: 'a', amount: 1200 }, { key: 'b', amount: 47064.4 }, { key: 'c', amount: 47064 }]
+assert.equal(matchEmiPayment(47064, cands).key, 'b')
+assert.equal(matchEmiPayment(47064, cands, new Set(['b'])).key, 'c')
+assert.equal(matchEmiPayment(47064, [{ key: 'z', amount: 47100 }]), null)
 
 // Missing terms → incomplete, not a crash.
 assert.equal(summary({ ...loan, tenure_months: null, emi: null }, '2026-01-01').incomplete, true)

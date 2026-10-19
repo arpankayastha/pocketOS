@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import { monthEnd, monthStart } from './format'
 import { loadCardBills } from './cards'
 import { isCard } from './instruments'
+import { emiInMonth, loadLoans, matchEmiPayment } from './loans'
 
 // One month of money for a household, shared by Plan and the Dashboard:
 // - Plan items with the amount that counts this month: the logged actual, else (card bills) the
@@ -10,6 +11,8 @@ import { isCard } from './instruments'
 //     planned income + Hisab Daily money received − Plan commitments − Hisab Daily spends not on a card
 //     − one-off Budget expenses not on a card.
 //   Hisab spends linked to a commitment (recurring_item_id) are that commitment's payment, not extra.
+//   Loan EMIs (Loans tab) are commitments too, worked out from each loan's schedule for the month their date falls in
+//   (no Plan row to keep in step); a logged spend of the same amount that month counts as its payment, not extra.
 //   Only the Daily book counts: occasion books (a house, a wedding…) are usually paid from savings and keep
 //   their own totals (the user's call). Card spends don't count here; they're in the card's bill, in the
 //   month it's due (that bill includes occasion spends on the card — it still has to be paid). Budget entries on
@@ -17,7 +20,7 @@ import { isCard } from './instruments'
 export async function loadMonthMoney(householdId, month, accounts) {
   const cards = accounts.filter((a) => isCard(a) && a.statement_day)
   const cardIds = new Set(accounts.filter(isCard).map((a) => a.id))
-  const [ri, tx, hz, bills, daily] = await Promise.all([
+  const [ri, tx, hz, bills, daily, loans] = await Promise.all([
     supabase.from('recurring_items').select('*').eq('household_id', householdId).eq('active', true).order('created_at'),
     supabase.from('transactions').select('id, kind, amount, occurred_on, account_id, recurring_item_id, transfer_id, note')
       .eq('household_id', householdId).gte('occurred_on', monthStart(month)).lte('occurred_on', monthEnd(month)).limit(5000),
@@ -25,6 +28,7 @@ export async function loadMonthMoney(householdId, month, accounts) {
       .eq('household_id', householdId).gte('occurred_on', monthStart(month)).lte('occurred_on', monthEnd(month)).limit(5000),
     loadCardBills(householdId, cards, [month]),
     supabase.from('hisab_books').select('id').eq('household_id', householdId).eq('kind', 'daily'),
+    loadLoans(householdId),
   ])
   const err = ri.error || tx.error || hz.error || daily.error
   if (err) throw err
@@ -43,13 +47,32 @@ export async function loadMonthMoney(householdId, month, accounts) {
     return { ...it, actual, bill, amount, onCard, counted: onCard ? 0 : amount }
   })
 
+  // Loan EMIs due this month. The payment is a logged spend of (almost) the same amount that isn't linked to anything.
+  const usedKeys = new Set()
+  const matched = { hisab: new Set(), tx: new Set() }
+  const hisabCands = (hz.data || []).filter((e) => e.direction === 'out' && !e.recurring_item_id).map((e) => ({ key: `h${e.id}`, amount: e.amount, id: e.id, from: 'hisab', account_id: e.account_id }))
+  const txCands = txs.filter((t) => t.kind === 'expense' && !t.recurring_item_id && !t.transfer_id).map((t) => ({ key: `t${t.id}`, amount: t.amount, id: t.id, from: 'tx', account_id: t.account_id }))
+  for (const loan of loans) {
+    const due = emiInMonth(loan, month)
+    if (!due) continue
+    const hit = matchEmiPayment(due.emi, [...txCands, ...hisabCands], usedKeys)
+    if (hit) { usedKeys.add(hit.key); matched[hit.from].add(hit.id) }
+    const amount = hit ? Number(hit.amount) : due.emi
+    const onCard = !!hit && hit.from === 'hisab' && cardIds.has(hit.account_id)
+    items.push({
+      id: `loan:${loan.id}`, name: `${loan.name} EMI`, kind: 'expense', category_id: null, account_id: null, expected_amount: due.emi,
+      day_of_month: Number(due.date.slice(8)), active: true, auto_loan: true, loan_id: loan.id, loanDue: due.date,
+      actual: hit ? { ...hit, fromHisab: hit.from === 'hisab' } : null, bill: null, amount, onCard, counted: onCard ? 0 : amount,
+    })
+  }
+
   const income = items.filter((i) => i.kind === 'income').reduce((s, i) => s + i.counted, 0)
   const commitments = items.filter((i) => i.kind === 'expense').reduce((s, i) => s + i.counted, 0)
   const offCard = (accountId) => !accountId || !cardIds.has(accountId)
   const dailyIds = new Set((daily.data || []).map((b) => b.id))
-  const hisabOut = (hz.data || []).filter((e) => e.direction === 'out' && dailyIds.has(e.book_id) && offCard(e.account_id) && !e.recurring_item_id)
+  const hisabOut = (hz.data || []).filter((e) => e.direction === 'out' && dailyIds.has(e.book_id) && offCard(e.account_id) && !e.recurring_item_id && !matched.hisab.has(e.id))
   const spends = hisabOut.reduce((s, e) => s + Number(e.amount), 0)
-  const oneOffRows = txs.filter((t) => t.kind === 'expense' && !t.recurring_item_id && !t.transfer_id && offCard(t.account_id))
+  const oneOffRows = txs.filter((t) => t.kind === 'expense' && !t.recurring_item_id && !t.transfer_id && offCard(t.account_id) && !matched.tx.has(t.id))
   const oneOffs = oneOffRows.reduce((s, t) => s + Number(t.amount), 0)
   // Money received into the Daily book (a transfer in, cash in, a refund to the bank) adds to what's
   // left (the user's call). Not received on a card (card credits already reduce that card's bill), and not

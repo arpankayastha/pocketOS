@@ -79,7 +79,9 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
           const actual = it.actual
           const cat = categories.find((c) => c.id === it.category_id)
           const bill = it.bill
-          const sub = it.auto_card
+          const sub = it.auto_loan
+            ? `Loan EMI · due ${shortDate(it.loanDue)}${actual ? ` · paid${actual.fromHisab ? ' (Hisab)' : ''}` : ''}`
+            : it.auto_card
             ? (bill?.statement
               ? `${bill.open ? `${bill.count} spend${bill.count === 1 ? '' : 's'} so far · closes ${shortDate(bill.statement)}` : `Statement ${shortDate(bill.statement)} · ${bill.count} spend${bill.count === 1 ? '' : 's'}`} · due ${shortDate(bill.due)}`
               : 'No bill due this month')
@@ -89,16 +91,16 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
               <div className={`txn ${it.auto_card ? 'plan-card' : ''}`} onClick={it.auto_card && bill?.count ? () => setOpen(open === it.id ? null : it.id) : undefined}>
                 <span className="dot" style={{ background: it.auto_card ? (accounts.find((a) => a.id === it.account_id)?.color || '#8b5cf6') : cat?.color || '#94a3b8' }} />
                 <div className="grow">
-                  <div>{it.auto_card ? '💳 ' : ''}{it.name}</div>
+                  <div>{it.auto_card ? '💳 ' : it.auto_loan ? '🏠 ' : ''}{it.name}</div>
                   <div className="muted small">{sub}</div>
                 </div>
                 <div className={`amt ${it.kind === 'income' ? 'pos' : 'neg'} ${actual ? '' : 'expected'}`}>
                   {it.kind === 'income' ? '+' : '−'}{money(it.amount)}
                 </div>
-                {actual ? <span className="chip">{it.kind === 'income' ? 'Received' : 'Paid'}</span> : (
+                {actual ? <span className="chip">{it.kind === 'income' ? 'Received' : 'Paid'}</span> : it.auto_loan ? null : (
                   <button type="button" className="btn small ghost" onClick={(e) => { e.stopPropagation(); setLogging(logging === it.id ? null : it.id) }}>Log</button>
                 )}
-                {!it.auto_card && <button type="button" className="btn icon" title="Remove" onClick={(e) => { e.stopPropagation(); removeItem(it) }}><TrashIcon /></button>}
+                {!it.auto_card && !it.auto_loan && <button type="button" className="btn icon" title="Remove" onClick={(e) => { e.stopPropagation(); removeItem(it) }}><TrashIcon /></button>}
               </div>
               {open === it.id && bill && (
                 <div className="plan-spends">
@@ -135,8 +137,8 @@ function LeftSheet({ m, accName, onClose }) {
         {lines('income').map((i) => <Row key={i.id} label={i.name} value={i.counted} tone="pos" note={i.actual ? 'received' : 'expected'} />)}
         {m.received > 0 && <Row label="Received (Hisab Daily)" value={m.received} tone="pos" />}
         <div className="left-sec">Plan this month</div>
-        {lines('expense').map((i) => <Row key={i.id} label={`${i.auto_card ? '💳 ' : ''}${i.name}`} value={-i.counted}
-          note={i.onCard ? 'on a card bill' : i.actual ? 'paid' : i.auto_card ? 'card bill' : 'expected'} />)}
+        {lines('expense').map((i) => <Row key={i.id} label={`${i.auto_card ? '💳 ' : i.auto_loan ? '🏠 ' : ''}${i.name}`} value={-i.counted}
+          note={i.onCard ? 'on a card bill' : i.actual ? 'paid' : i.auto_card ? 'card bill' : i.auto_loan ? 'loan EMI' : 'expected'} />)}
         <div className="left-sec">Spent from bank / cash (Hisab Daily)</div>
         {Object.entries(m.byAccount).map(([id, v]) => <Row key={id} label={id === 'none' ? 'Not linked to an account' : accName(id) || 'Account'} value={-v} />)}
         {!Object.keys(m.byAccount).length && <div className="muted small">Nothing yet</div>}

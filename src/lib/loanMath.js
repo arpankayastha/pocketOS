@@ -163,4 +163,18 @@ export function goldSummary(loan, today) {
   }
 }
 
+// The EMI that falls in `month` ('YYYY-MM'), or null: { date, emi } — used by Plan, so an EMI appears in the month
+// its date falls in. Loans that are interest-only, closed, or already paid off have none.
+export function emiInMonth(loan, month) {
+  if (loan.interest_only || loan.closed_on) return null
+  const row = schedule(loan).find((r) => r.date.slice(0, 7) === month && !r.stuck)
+  return row ? { date: row.date, emi: row.emi, prepay: row.prepay } : null
+}
+
+// Which already-logged spend paid this EMI: an unlinked outgoing entry of (almost) the same amount that month.
+// `candidates` = [{ key, amount }]; the first within ₹1 wins, and keys in `used` are skipped.
+export function matchEmiPayment(emi, candidates, used = new Set()) {
+  return candidates.find((c) => !used.has(c.key) && Math.abs(Number(c.amount) - emi) <= 1) || null
+}
+
 export const summaryOf = (loan, today) => (loan.interest_only ? { gold: true, ...goldSummary(loan, today) } : summary(loan, today))
