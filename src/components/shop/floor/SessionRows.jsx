@@ -29,7 +29,7 @@ export function RunRow({ sys, seat, s, now, onOpen, onStart }) {
 }
 
 // Everything for one customer, in one sheet: the bill so far, how it was paid, and the actions.
-export function SessionSheet({ system, seat, s, now, onClose, onAction, onPause, onStart, onCancel }) {
+export function SessionSheet({ system, seat, s, now, bank = [], bankOn = false, onClose, onAction, onPause, onStart, onCancel }) {
   const left = minutesLeft(s, now)
   const bill = sessionTotal(s), paid = sessionPaid(s), owed = Number(s.owed || 0), due = Math.max(0, bill - paid - owed)
   const how = [Number(s.paid_cash) && 'cash', Number(s.paid_online) && 'online', Number(s.paid_deposit || 0) && 'deposit'].filter(Boolean).join(' + ')
@@ -43,6 +43,9 @@ export function SessionSheet({ system, seat, s, now, onClose, onAction, onPause,
         <div><span>Paid{how ? ` · ${how}` : ''}</span><b className={paid ? 'pos' : ''}>{rs(paid)}</b></div>
         <div><span>{owed ? 'To collect · in dues' : 'To collect'}</span><b className={due + owed ? 'neg' : ''}>{rs(due + owed)}</b></div>
       </div>
+      {/* Owner, 19 Oct: the shop phone saw this online money in the bank's SMS. */}
+      {bank.length > 0 && <div className="small pos">✓ Seen in bank · {bank.map((x) => `${rs(x.amount)}${x.payer ? ` from ${x.payer}` : ''}`).join(', ')}</div>}
+      {bankOn && !bank.length && Number(s.paid_online) > 0 && <div className="small muted">Online {rs(s.paid_online)} · not seen in the bank SMS yet</div>}
       <ActionGrid items={[
         due + owed > 0 && { label: `Collect ${rs(due + owed)}`, icon: <CashIcon />, onClick: () => onAction('collect') },
         { label: '+ F&B', icon: <CupIcon />, onClick: () => onAction('fnb') },

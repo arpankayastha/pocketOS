@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0d0e" />
+  <meta name="robots" content="noindex" />
+  <title>GRANDXGAMER shop phone app</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --bg: #0f0d0e; --card: #191516; --card-2: #221d1f; --line: #332b2e; --text: #f2eeee; --muted: #a99ea1; --accent: #ec6a64; --accent-bg: #b13a3e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 Inter, system-ui, sans-serif; }
+    main { max-width: 560px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 16px 48px; }
+    .brand { display: flex; align-items: center; gap: 12px; font: 26px Anton, Impact, sans-serif; letter-spacing: .5px; color: var(--accent); }
+    .brand img { width: 52px; height: 52px; border-radius: 14px; }
+    h1 { font-size: 24px; line-height: 1.25; margin: 22px 0 6px; }
+    p { color: var(--muted); margin: 0 0 12px; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; border-radius: 14px; background: var(--accent-bg);
+      color: #fff; font-weight: 700; font-size: 17px; text-decoration: none; margin: 18px 0 6px; }
+    .meta { font-size: 12px; color: var(--muted); text-align: center; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-top: 18px; }
+    .card h2 { font-size: 16px; margin: 0 0 10px; }
+    ol { margin: 0; padding-left: 22px; } li { margin: 6px 0; } li b { color: var(--text); }
+    .muted { color: var(--muted); }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="brand"><img src="/icons/icon-192.png" alt="" />GRANDXGAMER</div>
+  <h1>Shop phone app (Android)</h1>
+  <p>For the café's phone that gets the bank's SMS. It reads every “money received” SMS and sends only the amount, time, payer and UPI ref to the shop, which matches it to a booking or a customer. It also opens the GRANDXGAMER app full screen.</p>
+  <a class="btn" id="dl" href="/download/grandxgamer.apk" download>⬇ Download the app</a>
+  <div class="meta" id="meta">Android 8 or newer</div>
+
+  <div class="card">
+    <h2>1 · Install</h2>
+    <ol class="muted">
+      <li>Tap <b>Download</b>, then open the file. If Android asks, allow <b>Install unknown apps</b> for Chrome (once).</li>
+      <li>If Play Protect says <b>“App blocked to protect your device”</b> (it blocks any app from outside the Play Store that can read SMS): open the <b>Play Store</b> → your profile picture → <b>Play Protect</b> → ⚙ → turn off <b>Scan apps with Play Protect</b>, install, then turn it back on.</li>
+      <li>If it only warns “unknown developer”, tap <b>More details → Install anyway</b>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>2 · Pair with the shop</h2>
+    <ol class="muted">
+      <li>On the owner's login: GRANDXGAMER → <b>⚙ → Bank SMS phone → Pair the shop phone</b>. An 8-character code appears.</li>
+      <li>On the shop phone open the app → <b>Bank SMS settings</b> (or tap <b>Pair this phone</b> if the code is on this phone) and type the code.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>3 · Allow the bank SMS</h2>
+    <ol class="muted">
+      <li>Tap <b>Turn on bank SMS</b> → Allow.</li>
+      <li>If Android blocks it (“restricted setting”): App info → <b>⋮ → Allow restricted settings</b>, confirm, come back and tap <b>Try again</b>.</li>
+      <li>It looks back 7 days once, then reads each new SMS as it arrives. <b>SMS log</b> shows what it read and why.</li>
+      <li>Turn on <b>automatic updates</b> on the same screen — new versions then install by themselves.</li>
+    </ol>
+  </div>
+
+  <p class="muted" style="margin-top:18px">Keep the phone on and online at the shop. Payments read while it's offline are sent when it reconnects. Money going out is never sent.</p>
+</main>
+<script>
+  fetch('/download/version.json', { cache: 'no-store' }).then((r) => r.json()).then((v) => {
+    document.getElementById('meta').textContent = `Version ${v.versionName} · ${(v.size / 1048576).toFixed(1)} MB · ${v.date} · Android 8 or newer`
+    document.getElementById('dl').href = `/download/grandxgamer.apk?v=${v.versionCode}`
+  }).catch(() => {})
+</script>
+</body>
+</html>

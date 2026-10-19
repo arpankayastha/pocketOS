@@ -148,7 +148,7 @@ export default function Floor({ shop, householdId, toast }) {
       {!playingList.length && <div className="card muted small gx-empty">Nobody playing right now.</div>}
       {playingList.map((x) => <RunRow key={x.s.id} {...x} now={now} onOpen={() => openSession(x)} onStart={() => startWaiting(x.s)} />)}
       </>)}
-      {sheet?.kind === 'session' && <SessionSheet system={sheet.system} seat={sheet.seat} s={sheet.session} now={now} onClose={close}
+      {sheet?.kind === 'session' && <SessionSheet system={sheet.system} seat={sheet.seat} s={sheet.session} now={now} bank={(shop.paymentsIn || []).filter((x) => x.match_kind === 'session' && x.match_id === sheet.session.id)} bankOn={(shop.paymentsIn || []).length > 0} onClose={close}
         onAction={(kind) => setSheet({ ...sheet, kind })} onPause={(on) => pause([sheet.session], on)} onStart={() => startWaiting(sheet.session)} onCancel={() => cancelWaiting(sheet.session)} />}
       {sheet?.kind === 'controllers' && <ControllersSheet systems={multi} holders={holders} off={off} onSet={setOff} onClose={close} />}
       {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} deposits={shop.deposits} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}

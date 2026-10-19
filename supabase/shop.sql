@@ -1309,3 +1309,67 @@ begin
 end $$;
 -- shop_health's Cashbook check counts deposits returned the same way (migration health_counts_deposit_refunds:
 -- deposits 'add' minus 'refund' by created_at day).
+-- Bank SMS on the shop phone (owner, 19 Oct): the GRANDXGAMER Android app on the café's phone reads the bank's
+-- "money received" SMS and sends only amount, time, UPI ref, payer, bank (never the SMS text) to the Edge Function
+-- `bank-sms`, which saves a shop_payments_in row and matches it (private.match_payment_in): a waiting online
+-- booking / event advance / tournament fee of that amount is marked received, else a session whose online part is
+-- that amount is linked ("✓ seen in bank"); otherwise it waits on Cash → UPI received for staff to link.
+
+-- Phones paired from ⚙ → Bank SMS phone (admin): an 8-character code (hash, 10 min) → a device token (hash).
+create table if not exists public.shop_bank_phones (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  name text not null default 'Shop phone',
+  pair_code_hash text,
+  pair_expires timestamptz,
+  token_hash text unique,
+  paired_at timestamptz,
+  last_seen_at timestamptz,
+  app_version text,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table public.shop_bank_phones enable row level security;
+create policy "admin reads" on public.shop_bank_phones for select to authenticated using (household_id in (select private.my_admin_household_ids()));
+create policy "admin adds" on public.shop_bank_phones for insert to authenticated
+  with check (household_id in (select private.my_admin_household_ids()) and token_hash is null);
+create policy "admin removes" on public.shop_bank_phones for delete to authenticated using (household_id in (select private.my_admin_household_ids()));
+
+create table if not exists public.shop_payments_in (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  phone_id uuid references public.shop_bank_phones(id) on delete set null,
+  amount numeric(10,2) not null check (amount > 0),
+  received_at timestamptz not null,
+  ref text, payer text, bank text, account_hint text,
+  status text not null default 'new' check (status in ('new', 'matched', 'ignored')),
+  match_kind text check (match_kind in ('booking', 'event', 'entry', 'session')),
+  match_id uuid,
+  match_label text,
+  matched_by text,               -- 'auto' or the staff name who linked it
+  push_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists shop_payments_in_ref on public.shop_payments_in (household_id, ref) where ref is not null;
+create index if not exists shop_payments_in_day on public.shop_payments_in (household_id, received_at desc);
+create index if not exists shop_payments_in_match on public.shop_payments_in (match_kind, match_id);
+alter table public.shop_payments_in enable row level security;
+create policy "shop reads" on public.shop_payments_in for select to authenticated using (household_id in (select private.my_household_ids()));
+create policy "staff links" on public.shop_payments_in for update to authenticated
+  using (household_id in (select private.my_household_ids())) with check (household_id in (select private.my_household_ids()));
+create policy "admin deletes" on public.shop_payments_in for delete to authenticated using (household_id in (select private.my_admin_household_ids()));
+alter publication supabase_realtime add table public.shop_payments_in;
+create index if not exists shop_payments_in_phone on public.shop_payments_in (phone_id);
+create index if not exists shop_bank_phones_household on public.shop_bank_phones (household_id);
+
+-- private.match_payment_in(id) (migration bank_sms_match_fn2): requests waiting for this money (online bookings
+-- grouped by group_id with their summed amount, event advances with payment_ok false, tournament fees requested;
+-- made from 6 h before to 10 min after the SMS) — a UPI ref the customer typed whose last 6 digits match the SMS
+-- wins, else only when exactly one fits → booking(s) confirmed / payment_ok / entry confirmed. With no request
+-- candidate at all: one not-yet-linked session started 8 h before–3 h after whose paid_online = the amount.
+-- Sets status 'matched', match_kind / match_id / match_label, matched_by 'auto'. (Written without temp tables:
+-- a version with TRUNCATE was refused by the migration runner.)
+-- public.bank_sms_capture(household, phone, {amount, at, ref, payer, bank, account_hint}) (service role only,
+-- called by the Edge Function bank-sms): dedupes by ref, else same amount + payer within 3 min; inserts and matches.
+-- push_due() (migration push_bank_payments) also sends "₹X received from <payer>" with "✓ <match>" or
+-- "Not matched — link it in Cash → UPI received" (shop_payments_in.push_at).

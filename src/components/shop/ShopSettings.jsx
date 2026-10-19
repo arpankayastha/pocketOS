@@ -7,6 +7,7 @@ import { Chips, Sheet, SheetActions } from './ui'
 import { uploadShopImage } from '../../lib/media'
 import Passkeys from '../Passkeys'
 import { PinSettings } from '../PinLock'
+import { newPairCode, pairCodeHash, pairIntentUrl } from '../../lib/bankPhone'
 import { disablePush, enablePush, isIos, isStandalone, pushState, testPush } from '../../lib/push'
 
 // Shop ⚙: systems and the rate card (admin), then the per-login cards everyone has.
@@ -20,6 +21,7 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
       <div className="gx-col">
       {admin && <HomePage shop={shop} householdId={householdId} toast={toast} />}
       {admin && <OnlineBooking shop={shop} householdId={householdId} toast={toast} />}
+      {admin && <BankPhone householdId={householdId} toast={toast} />}
       <PaymentAlerts toast={toast} />
       {admin && <Payments shop={shop} householdId={householdId} toast={toast} />}
       {admin && <LoginPassword toast={toast} />}
@@ -250,6 +252,50 @@ function PaymentAlerts({ toast }) {
         : state === 'unsupported' ? <div className="small muted">This browser can’t show lock-screen alerts. Use Chrome on Android.</div>
         : state === 'blocked' ? <div className="small neg">Notifications are blocked for this site. Allow them in the browser's site settings, then come back.</div>
         : <button className="btn small primary" disabled={busy || state === null} onClick={() => turn(true)}>{busy ? 'Turning on…' : 'Turn on lock-screen alerts'}</button>}
+    </Collapsible>
+  )
+}
+
+// Owner, 19 Oct: the café's Android phone gets the bank's SMS — the GRANDXGAMER app on it reads "money received"
+// and the shop matches each payment to a booking / session (supabase/functions/bank-sms). Pair it here once.
+function BankPhone({ householdId, toast }) {
+  const dialog = useDialog()
+  const [phones, setPhones] = useState(null)
+  const [code, setCode] = useState(null)
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('shop_bank_phones').select('id, name, paired_at, last_seen_at, app_version, pair_expires, token_hash').eq('household_id', householdId).order('created_at')
+    setPhones(data || [])
+  }, [householdId])
+  useEffect(() => { load() }, [load])
+  async function pair() {
+    const c = newPairCode()
+    const { error } = await supabase.from('shop_bank_phones').insert({ household_id: householdId, pair_code_hash: await pairCodeHash(c), pair_expires: new Date(Date.now() + 10 * 60_000).toISOString() })
+    if (error) { toast(error.message); return }
+    setCode(c); load()
+  }
+  async function remove(p) {
+    if (!await dialog.confirm({ title: `Remove ${p.name}?`, message: 'It stops sending bank payments. Payments already read stay.', confirmLabel: 'Remove', danger: true })) return
+    const { error } = await supabase.from('shop_bank_phones').delete().eq('id', p.id)
+    if (error) toast(error.message); else load()
+  }
+  const paired = (phones || []).filter((p) => p.paired_at)
+  const ago = (t) => { const m = Math.round((Date.now() - new Date(t)) / 60_000); return m < 2 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago` }
+  return (
+    <Collapsible id="gx-bankphone" title="Bank SMS phone" summary={paired.length ? `${paired.length} phone${paired.length === 1 ? '' : 's'} reading bank SMS` : 'Not set up'}>
+      <p className="muted small" style={{ marginTop: 0 }}>The café phone that gets the bank's SMS reads every "money received" and the shop matches it: online bookings and event advances are marked received by themselves, counter payments show ✓ seen in bank, the rest wait in Cash → UPI received. Only the amount, time, payer and UPI ref are sent — never the SMS.</p>
+      {paired.map((p) => (
+        <div key={p.id} className="line">
+          <div className="grow"><b>{p.name}</b><div className="muted small">{p.last_seen_at ? `seen ${ago(p.last_seen_at)}` : 'paired'}{p.app_version ? ` · app ${p.app_version}` : ''}</div></div>
+          <button type="button" className="btn small ghost" onClick={() => remove(p)}>Remove</button>
+        </div>
+      ))}
+      {code ? (
+        <div className="gx-box" style={{ textAlign: 'center' }}>
+          <div className="muted small">On the shop phone: install the app, open it and type this code (10 minutes)</div>
+          <div className="mono" style={{ fontSize: 28, fontWeight: 700, letterSpacing: 3, margin: '8px 0' }}>{code.slice(0, 4)}-{code.slice(4)}</div>
+          <div className="gx-btns"><a className="btn small" href={pairIntentUrl(code)}>Pair this phone</a><a className="btn small ghost" href="/download/" target="_blank" rel="noreferrer">Download the app</a></div>
+        </div>
+      ) : <button type="button" className="btn small" onClick={pair}>{paired.length ? '+ Pair another phone' : 'Pair the shop phone'}</button>}
     </Collapsible>
   )
 }

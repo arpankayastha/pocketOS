@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- GRANDXGAMER: near-black with the brick-red mark (same tokens as src/index.css). -->
 <resources>
-    <color name="bg">#1e2330</color>
-    <color name="card">#262c3a</color>
-    <color name="card2">#2f3646</color>
-    <color name="line">#3a4254</color>
-    <color name="text">#e7eaf0</color>
-    <color name="muted">#a1a9b9</color>
-    <color name="accent">#9aa7e6</color>
-    <color name="accent2">#343c5c</color>
+    <color name="bg">#0f0d0e</color>
+    <color name="card">#191516</color>
+    <color name="card2">#221d1f</color>
+    <color name="line">#332b2e</color>
+    <color name="text">#f2eeee</color>
+    <color name="muted">#a99ea1</color>
+    <color name="accent">#ec6a64</color>
+    <color name="accent2">#b13a3e</color>
     <color name="pos">#7cc29b</color>
-    <color name="neg">#e09393</color>
-    <color name="icon_bg">#262c3a</color>
+    <color name="neg">#ec8a7a</color>
+    <color name="icon_bg">#0f0d0e</color>
 </resources>

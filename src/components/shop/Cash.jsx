@@ -62,10 +62,11 @@ export default function Cash({ shop, householdId, toast, admin }) {
     if (err) toast(err.message); else { setOpen(null); toast(`${r.name}’s dues cleared`); shop.reload() }
   }
 
+  const bankSeen = new Set((shop.paymentsIn || []).filter((x) => x.match_kind === 'session').map((x) => x.match_id))
   const entries = [
     ...shop.sessions.filter((s) => s.status === 'closed' || s.status === 'running').map((s) => ({ // owner, 14 Oct: every entry, paid or not
       id: s.id, table: 'shop_sessions', at: s.ended_at || s.started_at, title: `${s.system_name} · ${s.customer_name} · ${durLabel(s.minutes)}`,
-      sub: payLabel(s), time: inOut(s), session: s, amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
+      sub: payLabel(s) + (bankSeen.has(s.id) ? ' · ✓ bank' : ''), time: inOut(s), session: s, amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
     })),
     ...shop.advances.map((b) => ({ id: b.id, at: b.created_at, title: `Event advance · ${b.customer_name}`, sub: b.advance_mode === 'online' ? 'Online' : 'Cash', amount: Number(b.advance_paid), sign: 1, by: b.entered_by })),
     ...shop.cash.map((c) => ({ id: c.id, table: 'shop_cash', at: c.at, title: [c.category, c.note].filter(Boolean).join(' · ') || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0, by: c.entered_by })),
@@ -85,6 +86,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
       {admin && <PlanClaims rows={plan} order={6} />}
       <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} onOpen={(r) => setOpen({ dues: r })} order={4} />
       <Deposits shop={shop} onAdd={() => setSheet('deposit')} onOpen={(r) => setOpen({ deposit: r })} order={5} />
+      <UpiReceived shop={shop} toast={toast} order={4} />
       </div>
       <div className="gx-col">
       <div className="card" style={{ order: 3 }}>
@@ -143,6 +145,67 @@ function payLabel(s) {
   return Number(s.paid_online) ? 'Online' : 'Cash'
 }
 
+
+// UPI received (owner, 19 Oct): every "money received" SMS the shop phone read (bank-sms). Auto-matched ones show
+// what they paid for; the rest — and anything to fix — are linked here by tap: a counter session paid online, an
+// online booking / event advance / tournament fee to confirm, or "Not a shop payment".
+function UpiReceived({ shop, toast, order }) {
+  const dialog = useDialog()
+  const [open, setOpen] = useState(null)
+  const rows = shop.paymentsIn || []
+  if (!rows.length) return null
+  const today = rows.filter((x) => new Date(x.received_at) >= dayStart())
+  const total = today.filter((x) => x.status !== 'ignored').reduce((a, x) => a + Number(x.amount), 0)
+  const linked = new Set(rows.filter((x) => x.match_kind === 'session').map((x) => x.match_id))
+  const candidates = !open ? [] : [
+    ...(shop.bookings || []).filter((b) => b.status === 'requested' && b.source === 'online').map((b) => ({ kind: 'booking', id: b.id, label: `${b.customer_name} · online booking ${timeLabel(b.starts_at)}`, amount: Number(b.amount), group: b.group_id })),
+    ...(shop.eventChecks || []).map((b) => ({ kind: 'event', id: b.id, label: `${b.customer_name} · event advance`, amount: Number(b.advance_paid) })),
+    ...(shop.entryChecks || []).filter((x) => Number(x.fee)).map((x) => ({ kind: 'entry', id: x.id, label: `${x.name} · tournament entry`, amount: Number(x.fee) })),
+    ...shop.sessions.filter((x) => Number(x.paid_online) > 0 && !linked.has(x.id)).map((x) => ({ kind: 'session', id: x.id, label: `${x.system_name} · ${x.customer_name}`, amount: Number(x.paid_online) })),
+  ].sort((a, b) => Math.abs(a.amount - Number(open.amount)) - Math.abs(b.amount - Number(open.amount)))
+  async function link(c) {
+    const { error } = await supabase.from('shop_payments_in').update({ status: 'matched', match_kind: c.kind, match_id: c.id, match_label: c.label, matched_by: 'staff' }).eq('id', open.id)
+    if (error) { toast(error.message); return }
+    // Linking a request also confirms it, like tapping Received.
+    if (c.kind === 'booking') await supabase.from('shop_bookings').update({ status: 'confirmed' }).eq('status', 'requested').or(c.group ? `id.eq.${c.id},group_id.eq.${c.group}` : `id.eq.${c.id}`)
+    if (c.kind === 'event') await supabase.from('shop_event_bookings').update({ payment_ok: true }).eq('id', c.id)
+    if (c.kind === 'entry') await supabase.from('shop_entries').update({ status: 'confirmed' }).eq('id', c.id)
+    toast(`${rs(open.amount)} linked to ${c.label}`); setOpen(null); shop.reload()
+  }
+  async function setStatus(status) {
+    if (status === 'ignored' && !await dialog.confirm({ title: 'Not a shop payment?', message: `${rs(open.amount)}${open.payer ? ` from ${open.payer}` : ''} is left out of the shop's checks.`, confirmLabel: 'Not a shop payment' })) return
+    const { error } = await supabase.from('shop_payments_in').update({ status, match_kind: null, match_id: null, match_label: null, matched_by: null }).eq('id', open.id)
+    if (error) toast(error.message); else { setOpen(null); shop.reload() }
+  }
+  return (
+    <div className="card" style={{ order }}>
+      <div className="card-head"><h3>UPI received</h3><b className="pos">{rs(total)}</b></div>
+      {rows.map((x) => (
+        <div key={x.id} className="line gx-tap" role="button" tabIndex={0} onClick={() => setOpen(x)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(x) }}>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="gx-ellipsis">{x.payer || 'UPI'} <span className="muted small">· {new Date(x.received_at) >= dayStart() ? timeLabel(x.received_at) : dayLabel(x.received_at)}</span></div>
+            <div className={`small gx-ellipsis ${x.status === 'new' ? 'neg' : 'muted'}`}>{x.status === 'matched' ? `✓ ${x.match_label}` : x.status === 'ignored' ? 'Not a shop payment' : 'Not matched — tap to link'}</div>
+          </div>
+          <b className={x.status === 'ignored' ? 'muted' : 'pos'}>{rs(x.amount)}</b>
+        </div>
+      ))}
+      {open && (
+        <ActionSheet title={`${rs(open.amount)}${open.payer ? ` · ${open.payer}` : ''}`} sub={`${dayLabel(open.received_at)} ${timeLabel(open.received_at)}${open.bank ? ` · ${open.bank}` : ''}${open.ref ? ` · ref ${open.ref}` : ''}`} onClose={() => setOpen(null)}>
+          {open.status === 'matched' ? <div className="muted small">✓ {open.match_label}{open.matched_by === 'auto' ? ' · matched by itself' : ' · linked by staff'}</div> : <>
+            <div className="caps muted">Link to</div>
+            <div className="gx-details">{candidates.length === 0 ? <div><span className="muted">Nothing waiting for online money right now.</span></div> : candidates.slice(0, 12).map((c) => (
+              <div key={c.kind + c.id} className="gx-tap" role="button" tabIndex={0} onClick={() => link(c)}><span>{c.label}</span><b className={Math.abs(c.amount - Number(open.amount)) < 0.5 ? 'pos' : ''}>{rs(c.amount)}</b></div>
+            ))}</div>
+          </>}
+          <ActionGrid items={[
+            open.status !== 'new' && { label: 'Unlink', icon: <XIcon />, onClick: () => setStatus('new') },
+            open.status !== 'ignored' && { label: 'Not a shop payment', icon: <XIcon />, onClick: () => setStatus('ignored'), danger: true },
+          ]} />
+        </ActionSheet>
+      )}
+    </div>
+  )
+}
 
 // Cash out = a Cashbook entry too (Shop book, its category, paid from the drawer, "paid by" whoever saved it),
 // and it can be claimed against a Plan item (owner: "while marking an expense I should claim it against the plan").

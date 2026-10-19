@@ -28,12 +28,12 @@ export function useShopId(memberHouseholdId) {
 }
 
 export function useShop(householdId) {
-  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null, bookings: [], eventChecks: [], entryChecks: [], dues: [], duesPaid: [] })
+  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null, bookings: [], eventChecks: [], entryChecks: [], dues: [], duesPaid: [], paymentsIn: [] })
 
   const reload = useCallback(async () => {
     if (!householdId) return
     const from = dayStart().toISOString()
-    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid] = await Promise.all([
+    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid, payIn] = await Promise.all([
       supabase.from('shop_systems').select('*').eq('household_id', householdId).eq('active', true).order('sort').order('name'),
       supabase.from('shop_rates').select('*').eq('household_id', householdId).order('kind').order('minutes'),
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).neq('status', 'cancelled').order('started_at', { ascending: false }),
@@ -52,6 +52,8 @@ export function useShop(householdId) {
       // Customer dues still open (any day) and dues paid back today.
       supabase.from('shop_sessions').select('id, customer_name, customer_phone, system_name, started_at, owed, entered_by, handled_by, note, gaming_amount, extend_amount, fnb_before, fnb_while').eq('household_id', householdId).gt('owed', 0).neq('status', 'cancelled').order('started_at'),
       supabase.from('shop_dues_paid').select('*').eq('household_id', householdId).gte('created_at', from).order('created_at', { ascending: false }),
+      // Money read from the bank's SMS on the shop phone (owner, 19 Oct): today's, plus older ones not linked yet.
+      supabase.from('shop_payments_in').select('*').eq('household_id', householdId).or(`received_at.gte.${from},status.eq.new`).order('received_at', { ascending: false }).limit(300),
     ])
     const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid].find((r) => r.error)?.error
     if (err) { setState((s) => ({ ...s, loading: false, error: err.message })); return }
@@ -60,7 +62,7 @@ export function useShop(householdId) {
       sessions: [...todays.data, ...running.data], cash: cash.data,
       advances: adv.data.filter((b) => b.status !== 'cancelled' && b.payment_ok !== false), shifts: shifts.data,
       deposits: deps.data, settings: settings.data, bookings: bookings.data,
-      eventChecks: evChecks.data, entryChecks: entChecks.data, dues: dues.data, duesPaid: duesPaid.data,
+      eventChecks: evChecks.data, entryChecks: entChecks.data, dues: dues.data, duesPaid: duesPaid.data, paymentsIn: payIn.data || [],
     })
   }, [householdId])
 
@@ -74,6 +76,7 @@ export function useShop(householdId) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_event_bookings', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_entries', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_dues_paid', filter: `household_id=eq.${householdId}` }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_payments_in', filter: `household_id=eq.${householdId}` }, reload)
       .subscribe()
     const onVisible = () => { if (document.visibilityState === 'visible') reload() }
     document.addEventListener('visibilitychange', onVisible)

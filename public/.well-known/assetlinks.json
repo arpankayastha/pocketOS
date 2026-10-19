@@ -2,7 +2,7 @@
   "relation": ["delegate_permission/common.handle_all_urls"],
   "target": {
     "namespace": "android_app",
-    "package_name": "app.echopdo",
-    "sha256_cert_fingerprints": ["7E:EF:CC:41:E4:07:5E:FA:8B:61:C9:9A:75:B1:82:8D:D4:1D:5B:EB:32:18:EB:0C:62:B4:05:7F:A9:CD:96:6E"]
+    "package_name": "app.grandxgamer",
+    "sha256_cert_fingerprints": ["B8:63:66:7C:26:46:C7:D1:09:EF:CA:E3:AF:A6:89:77:94:5A:DD:16:14:F5:48:B7:40:0F:9A:08:90:5E:E7:31"]
   }
 }]
