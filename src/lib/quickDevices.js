@@ -25,3 +25,18 @@ export function phoneSettingsUrl() {
   const fallback = encodeURIComponent(`${location.origin}/download/`)
   return `intent://pair#Intent;scheme=echopdo;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`
 }
+
+// A phone that pairs again (reinstall, cleared data) leaves its old row behind with a dead token. Of the paired rows
+// with the same household and phone name, only the newest pairing is kept; these are the ids of the older ones.
+// (Two different phones of the same model in one household would look like one — pair the second under another
+// household or accept re-pairing the older one.)
+export function supersededIds(devices) {
+  const newest = new Map()
+  for (const d of devices) {
+    if (!d.paired_at) continue
+    const k = `${d.household_id}|${d.name || ''}`
+    const cur = newest.get(k)
+    if (!cur || d.paired_at > cur.paired_at) newest.set(k, d)
+  }
+  return devices.filter((d) => d.paired_at && newest.get(`${d.household_id}|${d.name || ''}`).id !== d.id).map((d) => d.id)
+}

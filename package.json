@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test:cards": "node src/lib/cardCycle.test.mjs",
-    "test:loans": "node src/lib/loanMath.test.mjs && node src/lib/amount.test.mjs"
+    "test:loans": "node src/lib/loanMath.test.mjs && node src/lib/amount.test.mjs && node src/lib/quickDevices.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

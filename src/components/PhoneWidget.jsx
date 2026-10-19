@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useDialog } from '../lib/dialog'
 import { householdColor } from '../lib/colors'
 import { TrashIcon } from '../lib/icons'
-import { newPairCode, pairCodeHash, pairIntentUrl, phoneSettingsUrl } from '../lib/quickDevices'
+import { newPairCode, pairCodeHash, pairIntentUrl, phoneSettingsUrl, supersededIds } from '../lib/quickDevices'
 
 // Settings → Phone widget: pair the eChopdo Android app (home-screen quick add) with a
 // household, choose what its quick-add form saves by default, and unpair phones.
@@ -19,8 +19,11 @@ export default function PhoneWidget({ Collapsible, households, activeHouseholdId
     const { data, error } = await supabase.from('quick_devices')
       .select('id, household_id, name, default_target, auto_capture, paired_at, last_used_at, pair_expires, created_at').order('created_at')
     if (error) return setError(error.message)
-    setDevices(data)
-  }, [])
+    // A phone that paired again leaves an old row with a dead token: drop it, keep the newest pairing.
+    const stale = member ? [] : supersededIds(data)
+    if (stale.length) await supabase.from('quick_devices').delete().in('id', stale)
+    setDevices(data.filter((d) => !stale.includes(d.id)))
+  }, [member])
   useEffect(() => { load() }, [load])
   useEffect(() => { setPairHousehold(activeHouseholdId) }, [activeHouseholdId])
 
