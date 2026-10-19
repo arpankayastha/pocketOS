@@ -19,4 +19,12 @@ class CalcTest {
         assert(Calc.money(125000.0) in listOf("₹1,25,000", "₹125,000"))
         assertEquals("₹12.50", Calc.money(12.5))
     }
+
+    @Test fun groupsNumbersInTheCalculatorLine() {
+        assertEquals("65,000+1,200.5", Calc.groupExpr("65000+1200.5"))
+        assertEquals("25,00,000×2", Calc.groupExpr("2500000×2"))
+        assertEquals("1,23,45,678", Calc.groupExpr("12345678"))
+        assertEquals("999−100", Calc.groupExpr("999−100"))
+        assertEquals("", Calc.groupExpr(""))
+    }
 }

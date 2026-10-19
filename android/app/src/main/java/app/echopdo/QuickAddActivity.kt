@@ -279,7 +279,7 @@ class QuickAddActivity : Activity() {
         val v = Calc.evaluate(expr)
         amountView.text = Calc.money(v ?: 0.0)
         amountView.setTextColor(if (direction == "in") C.pos else C.neg)
-        exprView.text = if (Regex("[+−×]").containsMatchIn(expr)) expr else ""
+        exprView.text = if (Regex("[+−×]").containsMatchIn(expr)) Calc.groupExpr(expr) else ""
         exprView.visibility = if (exprView.text.isEmpty()) View.GONE else View.VISIBLE
     }
 

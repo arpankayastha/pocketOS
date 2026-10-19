@@ -28,4 +28,17 @@ object Calc {
         f.minimumFractionDigits = if (whole) 0 else 2
         return "₹" + f.format(v)
     }
+
+    // "65000+1200.5" → "65,000+1,200.5": every number in a calculator line grouped the Indian way (lakh, crore), so zeros can be counted.
+    fun groupExpr(expr: String): String = Regex("""(\d+)(\.\d*)?""").replace(expr) { m -> indian(m.groupValues[1]) + m.groupValues[2] }
+
+    private fun indian(digits: String): String {
+        val d = digits.trimStart('0').ifEmpty { "0" }
+        if (d.length <= 3) return d
+        var rest = d.dropLast(3)
+        val parts = mutableListOf<String>()
+        while (rest.length > 2) { parts.add(0, rest.takeLast(2)); rest = rest.dropLast(2) }
+        if (rest.isNotEmpty()) parts.add(0, rest)
+        return parts.joinToString(",") + "," + d.takeLast(3)
+    }
 }
