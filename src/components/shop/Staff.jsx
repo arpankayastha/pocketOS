@@ -59,6 +59,7 @@ export default function Staff({ householdId, toast }) {
   const removed = shifts.filter((s) => !s.user_id)
   const monthSwipe = useSwipe({ onLeft: () => setMonth((m) => Math.min(0, m + 1)), onRight: () => setMonth((m) => m - 1) })
   const totalPay = rows.reduce((a, r) => a + r.pay, 0) // after deductions and bonuses
+  const totalPaid = rows.reduce((a, r) => a + r.paid, 0), totalLeft = rows.reduce((a, r) => a + r.left, 0)
 
   async function remove(m) {
     if (!await dialog.confirm({ title: `Remove ${m.display_name || m.username}?`, message: 'Their login stops working. Their shifts stay in the records with their name.', confirmLabel: 'Remove', danger: true })) return
@@ -99,7 +100,12 @@ export default function Staff({ householdId, toast }) {
       <Chips options={[[0, 'This month'], [-1, 'Last month']]} value={month < -1 ? null : month} onChange={setMonth} />
       <div className="card">
         <div className="muted small">Staff pay · {start.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</div>
-        <div className="gx-big">{rs(totalPay)}</div>
+        {/* Owner (21 Oct): show what's paid and what's still to pay, not only the total. */}
+        <div className="gx-skpis" style={{ margin: '8px 0' }}>
+          <div><span>Earned</span><b>{rs(totalPay)}</b></div>
+          <div><span>Paid</span><b className="pos">{rs(totalPaid)}</b></div>
+          <div><span>Left to pay</span><b className={totalLeft ? 'neg' : ''}>{rs(totalLeft)}</b></div>
+        </div>
         <div className="muted small">{hoursLabel(rows.reduce((a, r) => a + r.minutes, 0))} · {rows.length} staff · swipe for other months</div>
       </div>
       </div>
@@ -123,7 +129,7 @@ export default function Staff({ householdId, toast }) {
             <div className="gx-name">{m.display_name || m.username}{m.designation && <span className="muted small"> · {m.designation}</span>}</div>
             <div className={`small ${m.on ? 'pos' : 'muted'}`}>{m.on ? `On duty since ${timeLabel(m.on.clock_in)}` : `Off duty · ${m.days} day${m.days === 1 ? '' : 's'} this month`}</div>
           </div>
-          <div className="gx-left"><b>{rs(m.pay)}</b><span>{m.paid ? (m.left ? `${rs(m.left)} left` : 'paid') : hoursLabel(m.minutes)}</span></div>
+          <div className="gx-left"><b>{rs(m.pay)}</b><span>{!m.pay ? hoursLabel(m.minutes) : !m.left ? 'paid' : m.paid ? `${rs(m.left)} left` : `not paid · ${hoursLabel(m.minutes)}`}</span></div>
         </div>
       ))}
       </div>
