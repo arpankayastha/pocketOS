@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>pocketOS — small apps by Arpan Kayastha</title>
-  <meta name="description" content="pocketOS is Arpan Kayastha's own OS of small apps that stay in your pocket and make everyday life easier.">
+  <meta name="description" content="pocketOS is Arpan Kayastha's own OS of small apps that stay in your pocket and make everyday life easier: eChopdo, a family money and records app, and GRANDXGAMER, a gaming café app.">
   <meta name="author" content="Arpan Kayastha">
   <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#161a24" media="(prefers-color-scheme: dark)">
@@ -36,16 +36,19 @@
     <header class="hero">
       <div class="brand"><img src="/favicon.svg" alt="" width="40" height="40"><span>pocket<b>OS</b></span></div>
       <h1>Small apps that stay in your pocket and make life easy.</h1>
-      <p class="lede">pocketOS is my own OS of small apps. Each one solves a real problem for my family or friends, runs on the phone, and does one thing well.</p>
+      <p class="lede">pocketOS is my own OS of small apps. Each one starts from a real problem someone around me has, and ends as something they open every day on their phone.</p>
     </header>
 
     <section class="me" aria-labelledby="me-title">
       <img class="avatar" src="/arpan.jpg" alt="Arpan Kayastha" width="72" height="72">
       <div>
         <h2 id="me-title">Arpan Kayastha</h2>
-        <p class="role">Senior full stack software engineer · Gandhinagar, Gujarat</p>
-        <p>7+ years building production systems — fintech, esports and e-commerce platforms — currently at Alchemy Technologies. I design APIs, real-time and event-driven backends, and the React frontends on top, with Node.js, TypeScript, GraphQL, PostgreSQL and AWS.</p>
-        <p>pocketOS is the other side: small apps I build quickly with AI for my own family and friends, from the database up to a native Android companion.</p>
+        <p class="role">Head of Applied Engineering · Senior full stack engineer</p>
+        <p class="where">Gandhinagar, Gujarat · currently at Alchemy Technologies</p>
+        <p>For 7+ years I've built production systems for fintech, esports and e-commerce. The part I enjoy most comes before the code: sitting with the people who have the problem, working out what they actually need, then building it end to end — data model, APIs, the screens people touch, deployment, and the team that keeps it running.</p>
+        <ul class="chips" aria-label="What I work on">
+          <li>Full stack</li><li>DevOps &amp; cloud</li><li>Team building</li><li>Fintech</li><li>Real-time systems</li><li>AI-assisted building</li>
+        </ul>
         <nav class="links" aria-label="Find me">
           <a href="https://arpankayastha.vercel.app/">Portfolio</a>
           <a href="https://github.com/arpankayastha">GitHub</a>
@@ -53,6 +56,15 @@
           <a href="mailto:arpan31.ak@gmail.com">Email</a>
         </nav>
       </div>
+    </section>
+
+    <section aria-labelledby="how-title">
+      <h2 id="how-title" class="section-title">How a pocketOS app gets made</h2>
+      <ol class="how">
+        <li><b>Listen</b><span>Start with what someone still tracks by hand: a notebook, an Excel sheet, a pile of SMS.</span></li>
+        <li><b>Build end to end</b><span>Database, security, web app, and an Android companion when the phone can do the boring part. Built fast, with AI as a pair programmer.</span></li>
+        <li><b>Run it</b><span>Ship small changes from real feedback, keep it backed up, and stop adding once it does the job.</span></li>
+      </ol>
     </section>
 
     <section aria-labelledby="apps-title">
@@ -70,19 +82,25 @@
   <script>
     const STATUS = { live: 'Live', private: 'Private · sign-in only', building: 'Building', idea: 'Idea' };
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const list = (items, cls) => (items && items.length ? `<ul class="${cls}">${items.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '');
     const card = (a) => `
-      <a class="app" href="${esc(a.url)}" rel="noopener">
-        <img class="icon" src="${esc(a.icon)}" alt="" width="56" height="56" loading="lazy">
-        <div class="body">
-          <div class="top"><h3>${esc(a.name)}</h3><span class="status ${esc(a.status)}">${esc(STATUS[a.status] || a.status)}</span></div>
-          <p>${esc(a.about)}</p>
-          <div class="meta">${(a.tags || []).map((t) => `<span>${esc(t)}</span>`).join('')}<span class="url">${esc(a.url.replace(/^https?:\/\//, ''))} →</span></div>
+      <article class="app">
+        <div class="head">
+          ${a.icon ? `<img class="icon" src="${esc(a.icon)}" alt="" width="56" height="56" loading="lazy">` : ''}
+          <div class="title">
+            <div class="top"><h3>${esc(a.name)}</h3><span class="status ${esc(a.status)}">${esc(STATUS[a.status] || a.status)}</span></div>
+            <p class="about">${esc(a.about)}</p>
+          </div>
         </div>
-      </a>`;
+        ${a.problem ? `<p class="problem"><b>The problem</b>${esc(a.problem)}</p>` : ''}
+        ${list(a.features, 'features')}
+        ${list([...(a.platforms || []), ...(a.stack || [])], 'tags')}
+        <a class="open" href="${esc(a.url)}" rel="noopener">${a.status === 'private' ? 'Sign in' : 'Open'} · ${esc(a.url.replace(/^https?:\/\//, ''))} →</a>
+      </article>`;
     document.getElementById('apps').innerHTML = window.APPS.map(card).join('') + `
       <div class="app more">
-        <div class="icon plus" aria-hidden="true">+</div>
-        <div class="body"><h3>More coming</h3><p>The next small app is whatever my family still tracks by hand.</p></div>
+        <div class="head"><div class="icon plus" aria-hidden="true">+</div>
+        <div class="title"><h3>More coming</h3><p class="about">The next small app is whatever my family and friends still track by hand.</p></div></div>
       </div>`;
     document.getElementById('year').textContent = new Date().getFullYear();
   </script>

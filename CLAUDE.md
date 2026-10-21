@@ -14,7 +14,7 @@ pocketOS is Arpan's own OS of small apps that stay in your pocket and make life 
 
 ## The page
 - Plain static files, no build step: `index.html`, `styles.css`, `apps.js`, `favicon.svg`, `og.png` (1200×630 share image), `icons/`.
-- **Adding an app = one line in `apps.js`** (`name`, `icon`, `url`, `status`: live / private / building / idea, `tags`, `about`), plus its icon in `icons/`.
+- **Adding an app = one line in `apps.js`** (`name`, `url`, `status`: live / private / building / idea, `about`; optional `icon`, `problem`, `features`, `platforms`, `stack`), plus its icon in `icons/`.
 - Light and dark follow the system (`prefers-color-scheme`, tokens on `:root`). Check at 384 px wide (no sideways scroll) and at laptop width.
 - Meta tags (title, description, Open Graph, Twitter card, canonical) use absolute `https://arpan-pocketos.vercel.app/` URLs — update them if the domain changes.
 
