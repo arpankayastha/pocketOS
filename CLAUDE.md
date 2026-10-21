@@ -5,7 +5,7 @@ pocketOS is Arpan's own OS of small apps that stay in your pocket and make life 
 ## Branches — three separate projects in one repo
 | Branch | What | Vercel project | Live |
 |---|---|---|---|
-| `main` | this landing page (static HTML) | `pocketOS` | https://pocketos.vercel.app |
+| `main` | this landing page (static HTML) | `arpan-pocketos` | https://arpan-pocketos.vercel.app |
 | `echopdo` | eChopdo, the family app (React + Supabase + Android) | `echopdo` | https://echopdo.vercel.app |
 | `grandxgamer` | the GRANDXGAMER gaming café app | its own | https://grandxgamer.vercel.app |
 
@@ -16,7 +16,7 @@ pocketOS is Arpan's own OS of small apps that stay in your pocket and make life 
 - Plain static files, no build step: `index.html`, `styles.css`, `apps.js`, `favicon.svg`, `og.png` (1200×630 share image), `icons/`.
 - **Adding an app = one line in `apps.js`** (`name`, `icon`, `url`, `status`: live / private / building / idea, `tags`, `about`), plus its icon in `icons/`.
 - Light and dark follow the system (`prefers-color-scheme`, tokens on `:root`). Check at 384 px wide (no sideways scroll) and at laptop width.
-- Meta tags (title, description, Open Graph, Twitter card, canonical) use absolute `https://pocketos.vercel.app/` URLs — update them if the domain changes.
+- Meta tags (title, description, Open Graph, Twitter card, canonical) use absolute `https://arpan-pocketos.vercel.app/` URLs — update them if the domain changes.
 
 ## Rules
 - Describe apps in general terms only. **Never put family or customer names, phone numbers, addresses, keys or passwords on the page or in the repo.**
