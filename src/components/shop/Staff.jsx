@@ -166,7 +166,7 @@ export default function Staff({ householdId, toast }) {
             {m.own.length === 0 ? <div className="muted small">No shifts this month.</div> : (
               <div className="gx-details">{m.own.map((x) => (
                 <button key={x.id} type="button" className="line gx-linebtn" onClick={() => go(() => setSheet({ kind: 'shift', shift: x, name: m.display_name || m.username }))}>
-                  <span>{dayLabel(x.clock_in)} · {timeLabel(x.clock_in)} – {x.clock_out ? timeLabel(x.clock_out) : 'now'}{x.auto_out ? ' · auto log-out' : ''}</span>
+                  <span>{dayLabel(x.clock_in)} · {timeLabel(x.clock_in)} – {x.clock_out ? timeLabel(x.clock_out) : 'now'}{x.auto_out ? ' · auto log-out' : ''}{x.edits?.length ? ' · edited' : ''}</span>
                   <b>{durLabel(mins(x))} · {rs((mins(x) / 60) * (Number(m.hourly_rate) || 0))} ›</b>
                 </button>
               ))}</div>
@@ -339,9 +339,28 @@ function ShiftEditor({ shift, name, onClose, onDone }) {
       {error && <div className="alert error">{error}</div>}
       <label>Logged in<input type="datetime-local" value={inAt} onChange={(e) => setInAt(e.target.value)} required /></label>
       <label>Logged out<input type="datetime-local" value={outAt} onChange={(e) => setOutAt(e.target.value)} /></label>
+      {shift.edits?.length > 0 && <ShiftHistory edits={shift.edits} />}
       <SheetActions onClose={onClose} busy={busy} label="Save" />
       <button type="button" className="btn link" style={{ justifySelf: 'start', color: 'var(--neg)' }} onClick={del}>Delete this shift</button>
     </Sheet>
+  )
+}
+
+// Owner (21 Oct): every change to a shift's times shows when, by whom and what it was before
+// (shop_shifts.edits, written by the trigger shop_shifts_edit_log).
+const shiftAt = (iso) => (iso ? `${dayLabel(iso)} ${timeLabel(iso)}` : 'not logged out')
+function ShiftHistory({ edits }) {
+  return (
+    <>
+      <div className="caps muted">Edit history</div>
+      <div className="gx-details">{[...edits].reverse().map((e, i) => (
+        <div key={i} style={{ display: 'grid', gap: 2 }}>
+          <span className="small muted">{shiftAt(e.at)} · by {e.by || 'admin'}</span>
+          {e.from_in !== e.to_in && <span className="small">Logged in: <s className="muted">{shiftAt(e.from_in)}</s> → <b>{shiftAt(e.to_in)}</b></span>}
+          {e.from_out !== e.to_out && <span className="small">Logged out: <s className="muted">{shiftAt(e.from_out)}</s> → <b>{shiftAt(e.to_out)}</b></span>}
+        </div>
+      ))}</div>
+    </>
   )
 }
 

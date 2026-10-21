@@ -1392,3 +1392,19 @@ $$;
 -- Owner (21 Oct): "less hours is okay, not higher" — migration shift_max_6h_check: no shift longer than 6 h,
 -- also when the admin edits one (ShiftEditor says "A shift can be at most 6 hours.").
 alter table public.shop_shifts add constraint shop_shifts_max_6h check (clock_out is null or clock_out - clock_in <= interval '6 hours');
+-- Shift edit history (owner, 21 Oct: "edit karne pe history me dikhna chahiye kab edit kiya aur older kya tha"),
+-- migration shift_edit_history: shop_shifts.edits [{from_in, from_out, to_in, to_out, at, by}], appended by the
+-- trigger below whenever someone other than the staff member changes the times (admin edit, Log out now).
+alter table public.shop_shifts add column if not exists edits jsonb not null default '[]';
+create or replace function private.shift_edit_log() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if (new.clock_in is distinct from old.clock_in or new.clock_out is distinct from old.clock_out)
+     and auth.uid() is not null and auth.uid() is distinct from old.user_id then
+    new.edits := coalesce(old.edits, '[]'::jsonb) || jsonb_build_object(
+      'from_in', old.clock_in, 'from_out', old.clock_out, 'to_in', new.clock_in, 'to_out', new.clock_out,
+      'at', now(), 'by', private.who_name(auth.uid()));
+  end if;
+  return new;
+end $$;
+revoke execute on function private.shift_edit_log() from public, anon, authenticated;
+create or replace trigger shop_shifts_edit_log before update on public.shop_shifts for each row execute function private.shift_edit_log();
