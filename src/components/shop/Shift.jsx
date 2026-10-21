@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { addDays, dayLabel, dayStart, dayTotals, duesByCustomer, durLabel, hoursLabel, minutesLeft, rs, sessionTotal, timeLabel, useNow } from '../../lib/shop'
 
+// Owner (21 Oct): a shift nobody logs out of ends by itself 6 hours after Log in (pg_cron shift-auto-logout).
+const AUTO_OUT_MIN = 6 * 60
+
 // Staff home (owner, 12 Oct: "too spacious — compact, with the details their role needs"): a one-line shift bar
 // (Log in / Log out, rpc shop_clock; the admin pays from these hours), then what needs doing now — systems
 // playing / free, time running out, payments to check, today's bookings — today's money and the customers
@@ -40,7 +43,7 @@ export default function Shift({ householdId, userId, toast, shop, onOpen }) {
     load()
   }
 
-  const mins = (s) => ((s.clock_out ? new Date(s.clock_out) : new Date(now)) - new Date(s.clock_in)) / 60_000
+  const mins = (s) => s.clock_out ? (new Date(s.clock_out) - new Date(s.clock_in)) / 60_000 : Math.min(AUTO_OUT_MIN, (now - new Date(s.clock_in)) / 60_000)
   const week = (shifts || []).reduce((a, s) => a + mins(s), 0)
 
   const [me, setMe] = useState(null)
@@ -72,7 +75,7 @@ export default function Shift({ householdId, userId, toast, shop, onOpen }) {
       <div className={`card gx-shiftbar ${open ? 'on' : ''}`}>
         <div className="grow">
           <div className="gx-shiftbar-who">{myName || 'Shift'}{me?.designation ? <span className="muted small"> · {me.designation}</span> : null}</div>
-          <div className="small muted">{open ? <>On duty since {timeLabel(open.clock_in)} · <b className="pos">{durLabel(mins(open))}</b></> : 'Off duty'}</div>
+          <div className="small muted">{open ? <>On duty since {timeLabel(open.clock_in)} · <b className="pos">{durLabel(mins(open))}</b> · auto log-out {timeLabel(new Date(new Date(open.clock_in).getTime() + AUTO_OUT_MIN * 60_000))}</> : 'Off duty'}</div>
         </div>
         {open
           ? <button className="btn danger" disabled={busy || !shifts} onClick={() => clock('out')}>Log out</button>
@@ -114,7 +117,7 @@ export default function Shift({ householdId, userId, toast, shop, onOpen }) {
         <summary><b>My hours · last 7 days</b><span className="muted small">{hoursLabel(week)}</span></summary>
         {shifts === null ? <div className="muted small">Loading…</div> : shifts.length === 0 ? <div className="muted small">No shifts yet.</div> : shifts.map((s) => (
           <div key={s.id} className="line">
-            <div><div>{dayLabel(s.clock_in)}</div><div className="muted small">{timeLabel(s.clock_in)} – {s.clock_out ? timeLabel(s.clock_out) : 'now'}</div></div>
+            <div><div>{dayLabel(s.clock_in)}</div><div className="muted small">{timeLabel(s.clock_in)} – {s.clock_out ? timeLabel(s.clock_out) : 'now'}{s.auto_out ? ' · auto log-out' : ''}</div></div>
             <b>{durLabel(mins(s))}</b>
           </div>
         ))}

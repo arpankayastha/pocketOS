@@ -166,7 +166,7 @@ export default function Staff({ householdId, toast }) {
             {m.own.length === 0 ? <div className="muted small">No shifts this month.</div> : (
               <div className="gx-details">{m.own.map((x) => (
                 <button key={x.id} type="button" className="line gx-linebtn" onClick={() => go(() => setSheet({ kind: 'shift', shift: x, name: m.display_name || m.username }))}>
-                  <span>{dayLabel(x.clock_in)} · {timeLabel(x.clock_in)} – {x.clock_out ? timeLabel(x.clock_out) : 'now'}</span>
+                  <span>{dayLabel(x.clock_in)} · {timeLabel(x.clock_in)} – {x.clock_out ? timeLabel(x.clock_out) : 'now'}{x.auto_out ? ' · auto log-out' : ''}</span>
                   <b>{durLabel(mins(x))} · {rs((mins(x) / 60) * (Number(m.hourly_rate) || 0))} ›</b>
                 </button>
               ))}</div>
@@ -334,7 +334,7 @@ function ShiftEditor({ shift, name, onClose, onDone }) {
     if (error) setError(error.message); else onDone('Shift deleted')
   }
   return (
-    <Sheet title={`Shift · ${name}`} sub={shift.edited_by ? 'Edited by the admin before' : 'From their Log in / Log out'} onClose={onClose} onSubmit={save}>
+    <Sheet title={`Shift · ${name}`} sub={shift.edited_by ? 'Edited by the admin before' : shift.auto_out ? 'They didn’t log out — logged out automatically after 6 hours' : 'From their Log in / Log out'} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
       <label>Logged in<input type="datetime-local" value={inAt} onChange={(e) => setInAt(e.target.value)} required /></label>
       <label>Logged out<input type="datetime-local" value={outAt} onChange={(e) => setOutAt(e.target.value)} /></label>

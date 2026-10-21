@@ -1373,3 +1373,19 @@ create index if not exists shop_bank_phones_household on public.shop_bank_phones
 -- called by the Edge Function bank-sms): dedupes by ref, else same amount + payer within 3 min; inserts and matches.
 -- push_due() (migration push_bank_payments) also sends "₹X received from <payer>" with "✓ <match>" or
 -- "Not matched — link it in Cash → UPI received" (shop_payments_in.push_at).
+
+-- Shift auto log-out (owner, 21 Oct: Mohit stayed logged in overnight; "6 hours k bad automatically log out"),
+-- migration shift_auto_logout_6h: shop_shifts.auto_out; private.auto_clock_out() ends every shift still open
+-- 6 hours after Log in at clock_in + 6 h (auto_out = true); pg_cron 'shift-auto-logout' runs it every 5 min and
+-- shop_clock calls it first, so the next person's Log in is never blocked by a forgotten shift.
+alter table public.shop_shifts add column if not exists auto_out boolean not null default false;
+create or replace function private.auto_clock_out() returns integer
+language sql security definer set search_path = '' as $$
+  with done as (
+    update public.shop_shifts set clock_out = clock_in + interval '6 hours', auto_out = true
+    where clock_out is null and clock_in <= now() - interval '6 hours' returning 1)
+  select count(*)::int from done
+$$;
+-- shop_clock: `perform private.auto_clock_out();` after the household check; 'out' with no open shift says
+-- "You were logged out automatically after 6 hours."
+-- select cron.schedule('shift-auto-logout', '*/5 * * * *', $$select private.auto_clock_out()$$);
