@@ -321,6 +321,7 @@ function ShiftEditor({ shift, name, onClose, onDone }) {
   const [error, setError] = useState(null)
   async function save() {
     if (outAt && new Date(outAt) < new Date(inAt)) { setError('Log out is before log in.'); return }
+    if (outAt && new Date(outAt) - new Date(inAt) > 6 * 3_600_000) { setError('A shift can be at most 6 hours.'); return }
     setBusy(true)
     const uid = (await supabase.auth.getUser()).data.user?.id
     const { error } = await supabase.from('shop_shifts').update({ clock_in: new Date(inAt).toISOString(), clock_out: outAt ? new Date(outAt).toISOString() : null, edited_by: uid }).eq('id', shift.id)

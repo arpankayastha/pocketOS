@@ -1389,3 +1389,6 @@ $$;
 -- shop_clock: `perform private.auto_clock_out();` after the household check; 'out' with no open shift says
 -- "You were logged out automatically after 6 hours."
 -- select cron.schedule('shift-auto-logout', '*/5 * * * *', $$select private.auto_clock_out()$$);
+-- Owner (21 Oct): "less hours is okay, not higher" — migration shift_max_6h_check: no shift longer than 6 h,
+-- also when the admin edits one (ShiftEditor says "A shift can be at most 6 hours.").
+alter table public.shop_shifts add constraint shop_shifts_max_6h check (clock_out is null or clock_out - clock_in <= interval '6 hours');
