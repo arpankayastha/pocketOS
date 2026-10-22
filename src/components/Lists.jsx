@@ -80,8 +80,6 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
 
   return (
     <section className="ls-home fade-in">
-      <h1 className="ls-title">Lists</h1>
-      <p className="muted ls-subtitle">Everyday checklists and occasions, shared with the family</p>
       <div className="ls-seg">{TABS.map(([id, label]) => <button key={id} type="button" className={tab === id ? 'on' : ''} onClick={() => setTabKeep(id)}>{label}</button>)}</div>
       {error && <div className="alert error">{error}</div>}
       {!lists && !error && <div className="ls-empty">Loading…</div>}
@@ -107,7 +105,7 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
           {tab === 'archive' ? 'Nothing archived yet.' : tab === 'occasions' ? 'No occasions yet. Tap + to plan one.' : 'No lists yet. Tap + to start Groceries.'}
         </div>
       )}
-      {tab !== 'archive' && <p className="muted small ls-note">Every list stays; tick things off and they go to “Got it”. No new list each day.</p>}
+      {tab === 'active' && <p className="muted small ls-note">Every list stays; tick things off and they go to “Got it”. No new list each day.</p>}
       {newOpen && homeId && <NewSheet homeId={homeId} households={households} member={member} initialKind={tab === 'occasions' ? 'occasion' : 'list'}
         onClose={() => setNewOpen(false)} onCreated={(l) => { setNewOpen(false); setLists((cur) => [...(cur || []), l]); setOpenId(l.id); load() }} />}
       {reuse && <ReuseSheet list={reuse} onClose={() => setReuse(null)} onDone={(l) => { setReuse(null); setLists((cur) => [...cur, l]); setTabKeep(l.kind === 'occasion' ? 'occasions' : 'active'); setOpenId(l.id); load() }} dialog={dialog} />}
