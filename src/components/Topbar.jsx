@@ -5,7 +5,7 @@ import { householdColor } from '../lib/colors'
 
 // Shared header: brand, module switcher, then the module's own tabs (`children`, desktop
 // only; phones use the bottom nav) and actions (`right`).
-export default function Topbar({ module, setModule, onSecret, member, children, right }) {
+export default function Topbar({ module, setModule, onSecret, modules = MODULES, children, right }) {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4)
@@ -17,7 +17,7 @@ export default function Topbar({ module, setModule, onSecret, member, children, 
   return (
     <header className={`topbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="brand" {...useLongPress(onSecret)}><BrandMark size={28} /><span className="brand-text">eChopdo</span></div>
-      {member ? <div className="brand-member">eChopdo</div> : <ModuleSwitch module={module} setModule={setModule} />}
+      <ModuleSwitch module={module} setModule={setModule} modules={modules} />
       {children}
       <div className="topbar-right">{right}</div>
     </header>
@@ -26,7 +26,7 @@ export default function Topbar({ module, setModule, onSecret, member, children, 
 
 // Segmented pill with a highlight that slides to (and resizes with) the active module.
 // On phones only the active module shows its label, so the buttons change width as you switch.
-function ModuleSwitch({ module, setModule }) {
+function ModuleSwitch({ module, setModule, modules }) {
   const navRef = useRef(null)
   const [thumb, setThumb] = useState(null) // { left, width } of the active button
 
@@ -46,7 +46,7 @@ function ModuleSwitch({ module, setModule }) {
   return (
     <nav className="module-switch" aria-label="Module" ref={navRef}>
       {thumb && <span className="module-thumb" aria-hidden="true" style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }} />}
-      {(module === HIDDEN_WILL.id ? [...MODULES, HIDDEN_WILL] : MODULES).map((m) => (
+      {(module === HIDDEN_WILL.id ? [...modules, HIDDEN_WILL] : modules).map((m) => (
         <button key={m.id} className={m.id === module ? 'on' : ''} aria-current={m.id === module ? 'page' : undefined} onClick={() => setModule(m.id)}>
           <m.icon /><span className="module-label">{m.label}</span>
         </button>

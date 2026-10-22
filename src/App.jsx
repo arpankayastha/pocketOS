@@ -16,7 +16,7 @@ import { useSwipe } from './lib/useSwipe'
 import { demoIsStale, demoOwnerEmail, isDemo, leaveDemo } from './lib/demo'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
-import { MODULES } from './lib/modules'
+import { MODULES, memberModules } from './lib/modules'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
@@ -37,6 +37,7 @@ const VaultItems = lazy(() => import('./components/VaultItems'))
 const Emergency = lazy(() => import('./components/Emergency'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
+const Lists = lazy(() => import('./components/Lists'))
 const WillModule = lazy(() => import('./components/will/WillModule'))
 function preloadBudget() {
   loadDashboard()
@@ -150,6 +151,7 @@ function Shell({ session }) {
     // Any tap or key press counts as activity for the vault's idle auto-lock, in every module.
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
+        : module === 'lists' ? <ListsModule topbar={topbar} />
         : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
         : <BudgetModule topbar={topbar} email={isDemo(session) ? demoOwnerEmail() : session.user.email} vault={vault} demo={isDemo(session)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
@@ -198,10 +200,11 @@ function MemberShell({ session }) {
     }
     if (appLock.locked) return <MemberLockScreen appLock={appLock} session={session} />
   }
-  const topbar = { module, setModule, member: !vaultOn }
+  const topbar = { module, setModule, modules: memberModules(vaultOn) }
   return (
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' && vaultOn ? <VaultModule topbar={topbar} vault={vault} member />
+        : module === 'lists' ? <ListsModule topbar={topbar} member homeHouseholdId={info.household_id} />
         : <BudgetModule topbar={topbar} email={memberName(session)} member appLock={vaultOn ? null : appLock} vault={vaultOn ? vault : null} startTab={info.hisab_only ? 'hisab' : info.start_tab || 'dashboard'} hisabOnly={!!info.hisab_only} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
@@ -357,6 +360,22 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
           onClose={() => setQuickAddKind(null)}
           onSaved={() => { setQuickAddKind(null); setDataVersion((v) => v + 1); data.refresh() }} />
       )}
+    </div>
+  )
+}
+
+// Lists: shared checklists and occasions (see components/Lists.jsx). The + makes a new list or occasion.
+function ListsModule({ topbar, member, homeHouseholdId }) {
+  const [openId, setOpenId] = useState(null)
+  const [newOpen, setNewOpen] = useState(false)
+  const homeId = homeHouseholdId || (() => { try { return localStorage.getItem('pocketos.activeHouseholdId') } catch { return null } })()
+  return (
+    <div className="app">
+      <Topbar {...topbar}><div className="spacer" /></Topbar>
+      <main className="content fade-in"><Suspense fallback={<ListSkeleton />}>
+        <Lists homeHouseholdId={homeId} member={member} openId={openId} setOpenId={setOpenId} newOpen={newOpen} setNewOpen={setNewOpen} />
+      </Suspense></main>
+      {!openId && <div className="fab-wrap"><button className="fab" aria-label="New list or occasion" onClick={() => setNewOpen(true)}><PlusIcon /></button></div>}
     </div>
   )
 }

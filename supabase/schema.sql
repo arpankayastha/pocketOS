@@ -1321,3 +1321,71 @@ create index if not exists property_deals_user_id_idx on public.property_deals (
 create index if not exists property_deals_book_id_idx on public.property_deals (book_id);
 create index if not exists property_deals_due_id_idx on public.property_deals (due_id);
 create index if not exists property_deals_loan_id_idx on public.property_deals (loan_id);
+
+-- ===== Lists module (Oct 2026): shared checklists from groceries to occasions =====
+-- lists: kind 'list' (everyday) or 'occasion' (date, tasks / samagri / people / money). shared_with = households whose
+-- logins may see AND tick (visibility, like the Vault's sharing, but members can edit). list_items: one row per item;
+-- tab = items | tasks | samagri | people. Ticked items are "cleared" rather than deleted, so history ("often bought") stays.
+create table if not exists public.lists (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  name text not null,
+  icon text not null default '📝',
+  kind text not null default 'list' check (kind in ('list','occasion')),
+  sections jsonb not null default '[]'::jsonb,
+  shared_with uuid[] not null default '{}',
+  event_date date,
+  event_time text,
+  place text,
+  tabs text[] not null default '{}',
+  book_id uuid references public.hisab_books(id) on delete set null,
+  auto_clear_days int,
+  is_template boolean not null default false,
+  archived boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.list_items (
+  id uuid primary key default gen_random_uuid(),
+  list_id uuid not null references public.lists(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  household_id uuid not null references public.households(id) on delete cascade,
+  tab text not null default 'items' check (tab in ('items','tasks','samagri','people')),
+  name text not null,
+  qty text,
+  note text,
+  section text,
+  assignee text,
+  due_date date,
+  rsvp text check (rsvp in ('yes','maybe','no')),
+  repeat_weekly boolean not null default false,
+  done boolean not null default false,
+  done_at timestamptz,
+  cleared boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create or replace function private.can_see_list(p uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.lists l where l.id = p
+    and (l.household_id in (select private.my_household_ids()) or l.shared_with && array(select private.my_household_ids())))
+$$;
+revoke execute on function private.can_see_list(uuid) from public, anon;
+grant execute on function private.can_see_list(uuid) to authenticated;
+alter table public.lists enable row level security;
+alter table public.list_items enable row level security;
+drop policy if exists "lists read" on public.lists;
+drop policy if exists "lists insert" on public.lists;
+drop policy if exists "lists update" on public.lists;
+drop policy if exists "lists delete" on public.lists;
+create policy "lists read" on public.lists for select to authenticated using (private.can_see_list(id));
+create policy "lists insert" on public.lists for insert to authenticated with check (household_id in (select private.my_household_ids()));
+create policy "lists update" on public.lists for update to authenticated using (private.can_see_list(id)) with check (private.can_see_list(id));
+create policy "lists delete" on public.lists for delete to authenticated using (household_id in (select private.my_household_ids()));
+drop policy if exists "list items" on public.list_items;
+create policy "list items" on public.list_items for all to authenticated using (private.can_see_list(list_id)) with check (private.can_see_list(list_id));
+create index if not exists lists_household_id_idx on public.lists (household_id);
+create index if not exists lists_user_id_idx on public.lists (user_id);
+create index if not exists lists_book_id_idx on public.lists (book_id);
+create index if not exists list_items_list_id_idx on public.list_items (list_id);
+create index if not exists list_items_user_id_idx on public.list_items (user_id);
+create index if not exists list_items_household_id_idx on public.list_items (household_id);
