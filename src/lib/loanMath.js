@@ -40,8 +40,13 @@ export function fyOf(date) {
   return `FY ${start}-${String((start + 1) % 100).padStart(2, '0')}`
 }
 
-// The EMI actually charged: the one typed in, else worked out from principal, rate and tenure.
-export const emiOf = (loan) => (Number(loan.emi) > 0 ? Number(loan.emi) : pmt(loan.principal, loan.rate, loan.tenure_months))
+// Loan life cover (e.g. a credit-protect plan): when the bank funds the premium into the loan it is stored as a `cover`
+// event and the loan becomes principal + premium, with the EMI worked out on the total over the same tenure.
+export const fundedCover = (loan) => (loan.events || []).filter((e) => e.type === 'cover').reduce((t, e) => t + (Number(e.amount) || 0), 0)
+export const loanAmount = (loan) => Number(loan.principal) + fundedCover(loan)
+
+// The EMI actually charged: the one typed in, else worked out from the loan amount (incl. funded cover), rate and tenure.
+export const emiOf = (loan) => (Number(loan.emi) > 0 ? Number(loan.emi) : pmt(loanAmount(loan), loan.rate, loan.tenure_months))
 
 // Month-by-month schedule: [{ n, date, interest, principal, prepay, balance, emi }]. `extra` = what-if events.
 export function schedule(loan, extra = []) {
@@ -49,7 +54,7 @@ export function schedule(loan, extra = []) {
   const prepays = events.filter((e) => e.type === 'prepay').sort(byDate)
   const rates = events.filter((e) => e.type === 'rate').sort(byDate)
   const emi = emiOf(loan)
-  let bal = Number(loan.principal)
+  let bal = loanAmount(loan)
   const rows = []
   if (!(bal > 0) || !(emi > 0)) return rows
   for (let n = 1; n <= 1200 && bal > 0.005; n++) {
@@ -76,8 +81,9 @@ export function schedule(loan, extra = []) {
 export function summary(loan, today) {
   const rows = schedule(loan)
   const emi = emiOf(loan)
-  const principal = Number(loan.principal)
-  if (!rows.length) return { incomplete: true, emi, outstanding: principal, paidInterest: 0, paidPrincipal: 0, progress: 0 }
+  const principal = loanAmount(loan)
+  const cover = fundedCover(loan)
+  if (!rows.length) return { incomplete: true, emi, cover, outstanding: principal, paidInterest: 0, paidPrincipal: 0, progress: 0 }
   const past = rows.filter((r) => r.date <= today)
   const next = rows.find((r) => r.date > today)
   const paidInterest = past.reduce((s, r) => s + r.interest, 0)
@@ -87,6 +93,7 @@ export function summary(loan, today) {
   const totalInterest = rows.reduce((s, r) => s + r.interest, 0)
   return {
     emi,
+    cover,
     rows,
     stuck: rows.some((r) => r.stuck),
     outstanding,

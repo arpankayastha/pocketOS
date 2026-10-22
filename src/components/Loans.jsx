@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { today } from '../lib/format'
 import {
-  KINDS, kindLabel, summaryOf, prepaySavings, interestUntil, costSplit, fyTable, emiOf, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
+  KINDS, kindLabel, summaryOf, prepaySavings, interestUntil, costSplit, fundedCover, fyTable, emiOf, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
   loadLoans, loadDeals, saveDeal, deleteDeal, starterChecklist,
 } from '../lib/loans'
 import { loadDues } from '../lib/dues'
@@ -176,7 +176,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
   const [error, setError] = useState(null)
   const savings = !s.gold && Number(what) > 0 ? prepaySavings(loan, what, day) : null
   const fy = !s.gold && s.rows ? fyTable(s.rows, day) : []
-  const events = [...(loan.events || [])].sort((a, b) => (a.date < b.date ? 1 : -1))
+  const events = [...(loan.events || [])].filter((x) => x.type !== 'cover').sort((a, b) => (a.date < b.date ? 1 : -1))
   const split = !s.gold && s.rows ? costSplit(fy, s) : null
 
   async function addEvent(e) {
@@ -232,6 +232,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
         <h3>{loan.name}</h3>
         <div className="muted small">{[kindLabel(loan.kind), loan.lender, `${loan.rate}% a year`, `from ${fmtDate(loan.start_date)}`].filter(Boolean).join(' · ')}</div>
         <div className="due-bal neg"><b className="amt">{money(s.outstanding)}</b><span className="small">outstanding</span></div>
+        {s.cover > 0 && <div className="muted small">Loan {money(loan.principal)} + life cover {money(s.cover)} funded into the loan</div>}
 
         {s.gold ? (
           <>
@@ -291,7 +292,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
                   ))}
                   <div className="fy-row total"><span>Total</span><span className="amt">{money(split.whole.interest)}</span><span className="amt">{money(split.whole.principal)}</span></div>
                 </div>
-                <p className="muted small" style={{ margin: 0 }}>* Not over yet. Worked out as if every EMI was paid on its date, so past years should match your bank's loan certificate.</p>
+                <p className="muted small" style={{ margin: 0 }}>* Not over yet. Worked out as if every EMI was paid on its date, so past years should match your bank's loan certificate.{s.cover > 0 ? ` Principal includes the ${money(s.cover)} life-cover premium funded into the loan.` : ''}</p>
               </>
             )}
 
@@ -328,6 +329,7 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
   const dialog = useDialog()
   const [f, setF] = useState(() => ({
     kind: loan?.kind || 'home', name: loan?.name || '', lender: loan?.lender || '', principal: loan ? String(loan.principal) : '',
+    cover: loan && fundedCover(loan) > 0 ? String(fundedCover(loan)) : '',
     rate: loan ? String(loan.rate) : '', tenure_months: loan?.tenure_months ? String(loan.tenure_months) : '', emi: loan?.emi ? String(loan.emi) : '',
     start_date: loan?.start_date || today(), interest_only: loan ? loan.interest_only : false, due_date: loan?.due_date || '',
     grams: loan?.grams ? String(loan.grams) : '', note: loan?.note || '',
@@ -336,13 +338,13 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
   const [error, setError] = useState(null)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
   const pickKind = (e) => setF((x) => ({ ...x, kind: e.target.value, interest_only: e.target.value === 'gold' ? true : x.interest_only && x.kind !== 'gold' }))
-  const hint = !f.interest_only && Number(f.principal) > 0 && Number(f.tenure_months) > 0 ? emiOf({ principal: f.principal, rate: f.rate, tenure_months: f.tenure_months, emi: null }) : 0
+  const hint = !f.interest_only && Number(f.principal) > 0 && Number(f.tenure_months) > 0 ? emiOf({ principal: f.principal, rate: f.rate, tenure_months: f.tenure_months, emi: null, events: [{ type: 'cover', amount: Number(f.cover) || 0 }] }) : 0
 
   async function save(e) {
     e.preventDefault()
     if (!f.interest_only && !(Number(f.tenure_months) > 0) && !(Number(f.emi) > 0)) { setError('Add the tenure or the EMI.'); return }
     setBusy(true); setError(null)
-    try { onSaved(await saveLoan({ id: loan?.id, householdId, ...f })) } catch (err) { setError(err.message); setBusy(false) }
+    try { onSaved(await saveLoan({ id: loan?.id, householdId, ...f, events: loan?.events })) } catch (err) { setError(err.message); setBusy(false) }
   }
   async function remove() {
     if (!await dialog.confirm({ title: `Delete ${loan.name}?`, message: 'Its prepayments and rate changes are deleted too. A property deal linked to it just loses the link.', confirmLabel: 'Delete' })) return
@@ -362,6 +364,11 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
           <label>Amount borrowed<AmountInput min="1" step="0.01" required value={f.principal} onChange={set('principal')} /></label>
           <label>Interest % a year<input type="number" inputMode="decimal" min="0" step="0.01" required value={f.rate} onChange={set('rate')} /></label>
         </div>
+        {!f.interest_only && (
+          <label>Loan life cover premium <span className="muted">(optional, if the bank added it to the loan)</span>
+            <AmountInput min="0" step="0.01" value={f.cover} onChange={set('cover')} placeholder="e.g. 3,00,000" />
+          </label>
+        )}
         <label>{f.interest_only ? 'Taken on' : 'First loan date'}<input type="date" required value={f.start_date} onChange={set('start_date')} /></label>
         <label className="check"><input type="checkbox" checked={f.interest_only} onChange={set('interest_only')} /> Interest only — interest paid once a year, the amount repaid at the end (gold loan)</label>
         {f.interest_only ? (
@@ -375,7 +382,7 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
               <label>Tenure (months)<input type="number" inputMode="numeric" min="1" value={f.tenure_months} onChange={set('tenure_months')} placeholder="e.g. 240" /></label>
               <label>EMI <span className="muted">(optional)</span><AmountInput min="0" step="0.01" value={f.emi} onChange={set('emi')} placeholder={hint ? `≈ ${Math.round(hint)}` : 'worked out'} /></label>
             </div>
-            <p className="muted small">The EMI is worked out from the amount, rate and tenure unless you type the exact one from your bank.</p>
+            <p className="muted small">The EMI is worked out from the amount (plus any life cover funded into the loan), the rate and the tenure, unless you type the exact one from your bank.</p>
           </>
         )}
         <label>Note <span className="muted">(optional)</span><input value={f.note} onChange={set('note')} /></label>
