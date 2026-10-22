@@ -1377,7 +1377,8 @@ drop policy if exists "lists read" on public.lists;
 drop policy if exists "lists insert" on public.lists;
 drop policy if exists "lists update" on public.lists;
 drop policy if exists "lists delete" on public.lists;
-create policy "lists read" on public.lists for select to authenticated using (private.can_see_list(id));
+-- user_id first: on INSERT … RETURNING the new row isn't yet visible to can_see_list().
+create policy "lists read" on public.lists for select to authenticated using (user_id = (select auth.uid()) or private.can_see_list(id));
 create policy "lists insert" on public.lists for insert to authenticated with check (household_id in (select private.my_household_ids()));
 create policy "lists update" on public.lists for update to authenticated using (private.can_see_list(id)) with check (private.can_see_list(id));
 create policy "lists delete" on public.lists for delete to authenticated using (household_id in (select private.my_household_ids()));
