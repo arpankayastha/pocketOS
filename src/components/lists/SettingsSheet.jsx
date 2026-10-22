@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDialog } from '../../lib/dialog'
+import { templateFromList } from '../../lib/lists'
 import { ICONS } from '../../lib/listTemplates'
 import { ShareChips, Toggle } from './ListParts'
 
@@ -43,6 +44,7 @@ export default function SettingsSheet({ list, households, member, onSave, onDele
         </>)}
         {!member && <ShareChips households={households} homeId={list.household_id} value={f.shared} onChange={(shared) => setF({ ...f, shared })} />}
         {!member && !occasion && <button type="button" className="btn" onClick={makeOccasion}>Make it an occasion…</button>}
+        {!member && occasion && <button type="button" className="btn" onClick={() => run(async () => { await templateFromList(list); dialog.alert('Saved. Find it under Customise templates when you make a new occasion.') })}>Save as a template</button>}
         <button type="button" className="btn" onClick={() => run(() => onSave({ archived: !list.archived }))}>{list.archived ? 'Move out of archive' : 'Archive'}</button>
         {!member && <button type="button" className="btn danger" onClick={remove}>Delete {occasion ? 'occasion' : 'list'}</button>}
         <div className="actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy}>Save</button></div>

@@ -1061,3 +1061,9 @@ input.ls-switch:checked::after { transform: translateX(16px); }
 .ls-icons button.on { border-color: var(--accent); background: var(--accent-2); }
 .ls-search { width: 100%; }
 .modal.sheet-lite { max-height: 85vh; overflow-y: auto; }
+.ls-x { background: none; border: none; color: var(--muted); font-size: 16px; min-width: 36px; min-height: 36px; cursor: pointer; flex: none; }
+.ls-tplrows { display: grid; gap: 8px; max-height: 46vh; overflow-y: auto; }
+.ls-tplrow { display: flex; gap: 6px; align-items: center; }
+.ls-tplrow input { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
+.ls-tplrow input.grow { flex: 2 1 0; }
+.ls-tplrow input.num { flex: 0 0 76px; }

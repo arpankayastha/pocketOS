@@ -9,6 +9,7 @@ import ListView from './lists/ListView'
 import OccasionView from './lists/OccasionView'
 import SettingsSheet from './lists/SettingsSheet'
 import NewSheet from './lists/NewSheet'
+import TemplatesSheet from './lists/TemplatesSheet'
 
 const VIEW_KEY = 'pocketos.listsView'
 const TABS = [['active', 'Active'], ['occasions', 'Occasions'], ['archive', 'Archive']]
@@ -24,6 +25,7 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
   const [tab, setTab] = useState(() => { try { return sessionStorage.getItem(VIEW_KEY) || 'active' } catch { return 'active' } })
   const [menu, setMenu] = useState(false)
   const [reuse, setReuse] = useState(null)
+  const [tplOpen, setTplOpen] = useState(false)
   const setTabKeep = (t) => { setTab(t); try { sessionStorage.setItem(VIEW_KEY, t) } catch { /* ignore */ } }
 
   const load = useCallback(async () => {
@@ -96,6 +98,8 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
           {tab === 'archive' ? 'Nothing archived yet.' : tab === 'occasions' ? 'No occasions yet. Tap + to plan one.' : 'No lists yet. Tap + to start Groceries.'}
         </div>
       )}
+      {tab === 'occasions' && !member && homeId && <button type="button" className="ls-linkbtn" onClick={() => setTplOpen(true)}>Customise occasion templates ›</button>}
+      {tplOpen && <TemplatesSheet homeId={homeId} onClose={() => setTplOpen(false)} />}
       {tab !== 'archive' && <p className="muted small ls-note">Every list stays; tick things off and they go to “Got it”. No new list each day.</p>}
       {newOpen && homeId && <NewSheet homeId={homeId} households={households} member={member} initialKind={tab === 'occasions' ? 'occasion' : 'list'}
         onClose={() => setNewOpen(false)} onCreated={(l) => { setNewOpen(false); setLists((cur) => [...(cur || []), l]); setOpenId(l.id); load() }} />}

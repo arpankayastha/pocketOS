@@ -97,3 +97,54 @@ export const loadHouseholdBooks = (householdId) => loadBooks(householdId)
 export async function loadHouseholds() {
   return must(await supabase.from('households').select('id, name, color').order('created_at'))
 }
+
+// ===== Occasion templates (editable): saved as lists with is_template = true, one row per task / samagri / person.
+// A task's "days before the event" lives in its qty. Until the owner customises, the built-in ones in listTemplates.js are used.
+export function templateShape(row, items) {
+  const mine = items.filter((i) => i.list_id === row.id)
+  return {
+    id: row.id, name: row.name, icon: row.icon, saved: true,
+    tasks: mine.filter((i) => i.tab === 'tasks').map((i) => [i.name, Number(i.qty) || 0]),
+    samagri: mine.filter((i) => i.tab === 'samagri').map((i) => [i.section || 'Other', i.name, i.qty || '']),
+    people: mine.filter((i) => i.tab === 'people').map((i) => [i.section || 'Family', i.name]),
+  }
+}
+export async function loadTemplates() {
+  const rows = must(await supabase.from('lists').select('*').eq('is_template', true).order('created_at'))
+  if (!rows.length) return []
+  const items = must(await supabase.from('list_items').select('*').in('list_id', rows.map((r) => r.id)).order('created_at').limit(5000))
+  return rows.map((r) => templateShape(r, items))
+}
+export async function saveTemplate(householdId, tpl) {
+  let id = tpl.id
+  if (id) {
+    must(await supabase.from('lists').update({ name: tpl.name, icon: tpl.icon }).eq('id', id))
+    must(await supabase.from('list_items').delete().eq('list_id', id))
+  } else {
+    id = must(await supabase.from('lists').insert({ household_id: householdId, name: tpl.name, icon: tpl.icon, kind: 'occasion', is_template: true, tabs: ['tasks', 'samagri', 'people'] }).select('id').single()).id
+  }
+  const base = { list_id: id, household_id: householdId }
+  const rows = [
+    ...tpl.tasks.filter((t) => t[0].trim()).map(([n, d]) => ({ ...base, tab: 'tasks', name: n.trim(), qty: String(Number(d) || 0) })),
+    ...tpl.samagri.filter((t) => t[1].trim()).map(([s, n, q]) => ({ ...base, tab: 'samagri', name: n.trim(), section: s.trim() || 'Other', qty: q || null })),
+    ...tpl.people.filter((t) => t[1].trim()).map(([s, n]) => ({ ...base, tab: 'people', name: n.trim(), section: s.trim() || 'Family' })),
+  ]
+  if (rows.length) must(await supabase.from('list_items').insert(rows))
+  return id
+}
+export const deleteTemplate = (id) => deleteList(id)
+// First customise: copy the built-in starters in, so they can be edited like any other.
+export async function seedTemplates(householdId, builtIns) {
+  for (const t of builtIns) if (t.name) await saveTemplate(householdId, { name: t.name, icon: t.icon, tasks: t.tasks, samagri: t.samagri, people: t.people })
+}
+// "Save as template" from an occasion: its items with ticks cleared; due dates become days before the event.
+export async function templateFromList(list) {
+  const items = (await loadItems(list.id)).filter((i) => !i.cleared)
+  const day = (iso) => Math.round((Date.parse(`${list.event_date}T00:00:00Z`) - Date.parse(`${iso}T00:00:00Z`)) / 86400000)
+  return saveTemplate(list.household_id, {
+    name: `${list.name} (template)`, icon: list.icon,
+    tasks: items.filter((i) => i.tab === 'tasks').map((i) => [i.name, list.event_date && i.due_date ? Math.max(day(i.due_date), 0) : 0]),
+    samagri: items.filter((i) => i.tab === 'samagri').map((i) => [i.section || 'Other', i.name, i.qty || '']),
+    people: items.filter((i) => i.tab === 'people').map((i) => [i.section || 'Family', i.name]),
+  })
+}
