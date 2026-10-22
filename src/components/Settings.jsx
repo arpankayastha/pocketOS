@@ -13,6 +13,7 @@ import { attachDigits, isCard, loadUnlinked, parseDigits, setHidden } from '../l
 import { money } from '../lib/format'
 import { setThemePref, themePref } from '../lib/theme'
 import { backupCall, requestDriveCode } from '../lib/backup'
+import { HOME_CARDS, homeCardsOff, setHomeCardOn } from '../lib/homeCards'
 import { leaveDemo, switchToDemo } from '../lib/demo'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, demo, member, appLock, vault }) {
@@ -25,6 +26,9 @@ export default function Settings({ accounts, categories, refresh, households, ac
       </div>
       <div style={{ gridColumn: '1 / -1' }}>
         <Appearance />
+      </div>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <HomeCardsCard />
       </div>
       {vault?.status === 'unlocked' && (
         <div style={{ gridColumn: '1 / -1' }}>
@@ -128,6 +132,26 @@ const sizeLabel = (n) => (n ? (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.
 
 // Dark (default) / Light / System — per device, applied at once (src/lib/theme.js).
 const THEMES = [['dark', 'Dark'], ['light', 'Light'], ['system', 'System']]
+// Which cards Home shows. Just for this phone; the greeting and the month's number are always there.
+function HomeCardsCard() {
+  const [off, setOff] = useState(() => new Set(homeCardsOff()))
+  const toggle = (id, on) => { setHomeCardOn(id, on); setOff(new Set(homeCardsOff())) }
+  const shown = HOME_CARDS.filter(([id]) => !off.has(id)).length
+  return (
+    <Collapsible id="homecards" title="Home cards" summary={`${shown} of ${HOME_CARDS.length} shown`}>
+      <div className="stack">
+        {HOME_CARDS.map(([id, label, hint]) => (
+          <label key={id} className="check" style={{ alignItems: 'flex-start' }}>
+            <input type="checkbox" checked={!off.has(id)} onChange={(e) => toggle(id, e.target.checked)} />
+            <span>{label}<span className="muted small" style={{ display: 'block' }}>{hint}</span></span>
+          </label>
+        ))}
+      </div>
+      <p className="muted small" style={{ margin: '8px 0 0' }}>Just for this phone. A card also stays hidden until it has something to show. Reopen Home to see the change.</p>
+    </Collapsible>
+  )
+}
+
 function Appearance() {
   const [pref, setPref] = useState(themePref)
   const pick = (v) => { setPref(v); setThemePref(v) }

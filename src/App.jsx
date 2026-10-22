@@ -11,6 +11,7 @@ import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
 import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/AppLockScreen'
 import { isMember, memberName, markFingerprint } from './lib/members'
+import { firstName } from './lib/homeLogic'
 import { demoIsStale, demoOwnerEmail, isDemo, leaveDemo } from './lib/demo'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
@@ -22,8 +23,8 @@ import { BrandMark, HomeIcon, LoansIcon, BookIcon, PlanIcon, SettingsIcon, PlusI
 
 // Tabs and modules load on demand (code-split), so the first screen only downloads the shell.
 // The Home tab and the chart chunk are preloaded as soon as the app starts (see preloadBudget).
-const loadDashboard = () => import('./components/Dashboard')
-const Dashboard = lazy(loadDashboard)
+const loadDashboard = () => import('./components/Home')
+const Home = lazy(loadDashboard)
 const Transactions = lazy(() => import('./components/Transactions'))
 const Plan = lazy(() => import('./components/Plan'))
 const Dues = lazy(() => import('./components/Dues'))
@@ -308,7 +309,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
               <CaptureInbox householdId={data.activeHouseholdId} categories={data.categories} accounts={data.accounts}
                 onFiled={() => { setDataVersion((v) => v + 1); data.refresh() }} />
             )}
-            {tab === 'dashboard' && <Dashboard key={dataVersion} {...data} />}
+            {tab === 'dashboard' && <Home key={dataVersion} {...data} name={firstName(email)} go={setTab} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
