@@ -17,7 +17,7 @@ const months = (n) => `${Math.floor(n / 12) ? `${Math.floor(n / 12)} yr ` : ''}$
 
 // Budget → Loans: home loan, gold loan, any other loan — and, while one is going on, a property deal
 // (buy or sell) with a paper checklist. Loans are long-lived; a deal is archived when it closes.
-export default function Loans({ activeHouseholdId }) {
+export default function Loans({ activeHouseholdId, view = 'loans' }) {
   const [loans, setLoans] = useState(null)
   const [deals, setDeals] = useState([])
   const [dues, setDues] = useState([])
@@ -58,6 +58,8 @@ export default function Loans({ activeHouseholdId }) {
   return (
     <section>
       {error && <div className="alert error">{error}</div>}
+      {view !== 'deals' && (
+        <>
       <div className="tiles dues-tiles">
         <div className="card tile">
           <div className="muted small">Outstanding</div>
@@ -91,8 +93,12 @@ export default function Loans({ activeHouseholdId }) {
           {list.map((l) => <LoanCard key={l.id} loan={l} onOpen={() => setOpenLoanId(l.id)} />)}
         </div>
       )}
+        </>
+      )}
 
-      <div className="toolbar" style={{ marginTop: 22 }}>
+      {view === 'deals' && (
+        <>
+      <div className="toolbar">
         <h3 style={{ margin: 0 }}>Property deals</h3>
         <div className="spacer" />
         <button className="btn small" onClick={() => setDealSheet({})}>+ New deal</button>
@@ -108,6 +114,8 @@ export default function Loans({ activeHouseholdId }) {
         <>
           <button className="btn link small" onClick={() => setShowArchived((v) => !v)}>{showArchived ? 'Hide' : 'Show'} {archivedDeals.length} archived</button>
           {showArchived && <div className="due-list">{archivedDeals.map((d) => <DealCard key={d.id} deal={d} dues={dues} loans={withSummary} onOpen={() => setDealSheet(d)} />)}</div>}
+        </>
+      )}
         </>
       )}
 

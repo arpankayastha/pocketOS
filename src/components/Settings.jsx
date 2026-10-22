@@ -474,7 +474,8 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
   )
 }
 
-const START_TABS = [['dashboard', 'Home'], ['transactions', 'Entries'], ['plan', 'Plan'], ['dues', 'Dues'], ['hisab', 'Hisab']]
+// Screens the app can open on (saved values are screen ids; the database only allows these five). The tab each lives in is shown.
+const START_TABS = [['dashboard', 'Home'], ['plan', 'Month › Plan'], ['transactions', 'Month › Entries'], ['dues', 'Loans › Dues'], ['hisab', 'Hisab']]
 
 function LoginBadge({ member, loading }) {
   if (loading) return null

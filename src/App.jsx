@@ -18,7 +18,7 @@ import { MODULES } from './lib/modules'
 import { useDialog } from './lib/dialog'
 import { useBackAction, useBackButton } from './lib/backNav'
 import { DashboardSkeleton, ListSkeleton } from './components/Skeleton'
-import { BrandMark, HomeIcon, DuesIcon, LoansIcon, BookIcon, ListIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, ShieldIcon, LockIcon, UmbrellaIcon } from './lib/icons'
+import { BrandMark, HomeIcon, LoansIcon, BookIcon, PlanIcon, SettingsIcon, PlusIcon, KeyIcon, ShieldIcon, LockIcon, UmbrellaIcon } from './lib/icons'
 
 // Tabs and modules load on demand (code-split), so the first screen only downloads the shell.
 // The Home tab and the chart chunk are preloaded as soon as the app starts (see preloadBudget).
@@ -44,15 +44,16 @@ function preloadBudget() {
 // eChopdo is a shell of independent modules (see components/Topbar.jsx); each renders its own tabs.
 const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
 
-// Accounts & Categories ('settings') isn't a tab: it opens from the ⚙ button in the header.
-const BUDGET_TABS = [
-  { id: 'dashboard', label: 'Home', icon: HomeIcon },
-  { id: 'transactions', label: 'Entries', icon: ListIcon },
-  { id: 'plan', label: 'Plan', icon: PlanIcon },
-  { id: 'dues', label: 'Dues', icon: DuesIcon },
-  { id: 'loans', label: 'Loans', icon: LoansIcon },
-  { id: 'hisab', label: 'Hisab', icon: BookIcon },
+// Budget has four tabs; the other screens are segments inside them (Month: Plan | Entries, Loans: Loans | Dues | Deals).
+// Screen ids stay the same as before ('plan', 'transactions', 'dues', 'loans'…), so each household's saved
+// "Opens on" setting keeps working. Accounts & Categories ('settings') isn't a tab: it opens from the ⚙ button.
+const BUDGET_GROUPS = [
+  { id: 'dashboard', label: 'Home', icon: HomeIcon, subs: [['dashboard', 'Home']] },
+  { id: 'month', label: 'Month', icon: PlanIcon, subs: [['plan', 'Plan'], ['transactions', 'Entries']] },
+  { id: 'loans', label: 'Loans', icon: LoansIcon, subs: [['loans', 'Loans'], ['dues', 'Dues'], ['deals', 'Deals']] },
+  { id: 'hisab', label: 'Hisab', icon: BookIcon, subs: [['hisab', 'Hisab']] },
 ]
+const groupOf = (route) => BUDGET_GROUPS.find((g) => g.subs.some(([id]) => id === route))?.id || null
 
 const VAULT_TABS = [
   { id: 'items', label: 'Passwords', icon: KeyIcon },
@@ -242,7 +243,7 @@ function UnlockScreen({ vault, onRecovered }) {
 
 function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard', hisabOnly = false, demo = false }) {
   // A member login the owner set to "Only Hisab" sees just that tab (⚙ stays for their own settings).
-  const tabs = hisabOnly ? BUDGET_TABS.filter((t) => t.id === 'hisab') : BUDGET_TABS
+  const tabs = hisabOnly ? BUDGET_GROUPS.filter((g) => g.id === 'hisab') : BUDGET_GROUPS
   // The "home" tab: where the app opens and where Android back returns to. A member's comes from
   // their login (`startTab`); the owner picks one per household ("Opens on" in the HouseholdSheet).
   const [tab, setTab] = useState(startTab)
@@ -255,6 +256,12 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   const household = data.households.find((h) => h.id === data.activeHouseholdId)
   const home = member ? startTab : household?.start_tab || 'dashboard'
   useBackAction(tab !== home, () => setTab(home), 2)
+  // Tapping a tab opens the screen last used in it (Month → Plan or Entries…).
+  const group = groupOf(tab)
+  const lastScreen = useRef({})
+  useEffect(() => { if (group) lastScreen.current[group] = tab }, [group, tab])
+  const openGroup = (id) => setTab(lastScreen.current[id] || BUDGET_GROUPS.find((g) => g.id === id).subs[0][0])
+  const subs = BUDGET_GROUPS.find((g) => g.id === group)?.subs || []
   // Switched to "Only Hisab" after the app opened (the setting is refreshed on start): leave hidden tabs.
   useEffect(() => { if (hisabOnly && tab !== 'hisab' && tab !== 'settings') setTab('hisab') }, [hisabOnly, tab])
   // Opening the app or switching household lands on that household's home (not while in Settings).
@@ -280,13 +287,20 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
       </>)}>
         <nav className="tabs">
           {tabs.length > 1 && tabs.map((t) => (
-            <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+            <button key={t.id} className={`tab ${group === t.id ? 'active' : ''}`} onClick={() => openGroup(t.id)}>
               <t.icon /> {t.label}
             </button>
           ))}
         </nav>
       </Topbar>
       <main className="content fade-in">
+        {subs.length > 1 && (
+          <div className="subnav" role="tablist">
+            {subs.map(([id, label]) => (
+              <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
+            ))}
+          </div>
+        )}
         {data.error && <div className="alert error">Database error: {data.error}. Did you run <code>supabase/schema.sql</code>?</div>}
         {data.loading ? (tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />) : (
           <Suspense fallback={tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />}>
@@ -299,13 +313,13 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
-            {tab === 'loans' && <Loans key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} households={data.households} />}
+            {(tab === 'loans' || tab === 'deals') && <Loans key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} view={tab} />}
             {tab === 'settings' && <Settings {...data} email={email} demo={demo} member={member} appLock={appLock} vault={vault} />}
           </Suspense>
         )}
       </main>
 
-      {tabs.length > 1 && <PillNav tabs={tabs} tab={tab} setTab={setTab} withFab />}
+      {tabs.length > 1 && <PillNav tabs={tabs} tab={group} setTab={openGroup} withFab />}
 
       {fabOpen && <div className="fab-backdrop" onClick={() => setFabOpen(false)} />}
       <div className="fab-wrap">

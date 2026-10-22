@@ -902,3 +902,8 @@ details.section[open] .chev { transform: rotate(90deg); }
 .deal-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .deal-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deal-title .pill { flex: none; margin-left: 0; }
+
+/* Segments inside a Budget tab (Month: Plan | Entries, Loans: Loans | Dues | Deals) */
+.subnav { display: flex; gap: 4px; padding: 4px; margin-bottom: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+.subnav button { flex: 1 1 0; min-width: 0; min-height: 40px; padding: 0 10px; border: none; border-radius: 9px; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; transition: background-color .15s, color .15s; }
+.subnav button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
