@@ -9,14 +9,14 @@ import ListView from './lists/ListView'
 import OccasionView from './lists/OccasionView'
 import SettingsSheet from './lists/SettingsSheet'
 import NewSheet from './lists/NewSheet'
-import TemplatesSheet from './lists/TemplatesSheet'
+import TemplatesPanel from './lists/TemplatesSheet'
 
 const VIEW_KEY = 'pocketos.listsView'
 const TABS = [['active', 'Active'], ['occasions', 'Occasions'], ['archive', 'Archive']]
 
 // Lists module (Oct 2026, the user's request: a shared place for shopping lists instead of WhatsApp, growing to whole
 // occasions). Everyday lists stay and are reused; occasions add a date, tasks, samagri, people and money.
-export default function Lists({ homeHouseholdId, member, openId, setOpenId, newOpen, setNewOpen }) {
+export default function Lists({ homeHouseholdId, member, openId, setOpenId, newOpen, setNewOpen, settingsOpen, setSettingsOpen }) {
   const dialog = useDialog()
   const [lists, setLists] = useState(null)
   const [counts, setCounts] = useState({})
@@ -25,7 +25,6 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
   const [tab, setTab] = useState(() => { try { return sessionStorage.getItem(VIEW_KEY) || 'active' } catch { return 'active' } })
   const [menu, setMenu] = useState(false)
   const [reuse, setReuse] = useState(null)
-  const [tplOpen, setTplOpen] = useState(false)
   const setTabKeep = (t) => { setTab(t); try { sessionStorage.setItem(VIEW_KEY, t) } catch { /* ignore */ } }
 
   const load = useCallback(async () => {
@@ -40,7 +39,7 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
     return () => clearInterval(t)
   }, [load, openId])
 
-  useBackAction(!!openId, () => setOpenId(null), 2)
+  useBackAction(!!openId || settingsOpen, () => { if (openId) setOpenId(null); else setSettingsOpen(false) }, 2)
   const open = lists?.find((l) => l.id === openId)
   const homeId = homeHouseholdId || households[0]?.id
   const nameOf = (id) => households.find((h) => h.id === id)?.name
@@ -62,6 +61,16 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
       {menu && <SettingsSheet list={open} households={households} member={member} onSave={saveList}
         onDelete={async () => { await deleteList(open.id); setOpenId(null); load() }} onClose={() => setMenu(false)} />}
     </>)
+  }
+
+  if (settingsOpen && !member) {
+    return (
+      <section className="ls-home fade-in">
+        <h1 className="ls-title">Lists settings</h1>
+        <p className="muted ls-subtitle">Starting points for new occasions</p>
+        {homeId && <TemplatesPanel homeId={homeId} />}
+      </section>
+    )
   }
 
   const visible = (lists || []).filter((l) => (tab === 'archive' ? l.archived : !l.archived && (tab === 'occasions' ? l.kind === 'occasion' : l.kind === 'list')))
@@ -98,8 +107,6 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
           {tab === 'archive' ? 'Nothing archived yet.' : tab === 'occasions' ? 'No occasions yet. Tap + to plan one.' : 'No lists yet. Tap + to start Groceries.'}
         </div>
       )}
-      {tab === 'occasions' && !member && homeId && <button type="button" className="ls-linkbtn" onClick={() => setTplOpen(true)}>Customise occasion templates ›</button>}
-      {tplOpen && <TemplatesSheet homeId={homeId} onClose={() => setTplOpen(false)} />}
       {tab !== 'archive' && <p className="muted small ls-note">Every list stays; tick things off and they go to “Got it”. No new list each day.</p>}
       {newOpen && homeId && <NewSheet homeId={homeId} households={households} member={member} initialKind={tab === 'occasions' ? 'occasion' : 'list'}
         onClose={() => setNewOpen(false)} onCreated={(l) => { setNewOpen(false); setLists((cur) => [...(cur || []), l]); setOpenId(l.id); load() }} />}

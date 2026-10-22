@@ -1067,3 +1067,5 @@ input.ls-switch:checked::after { transform: translateX(16px); }
 .ls-tplrow input { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
 .ls-tplrow input.grow { flex: 2 1 0; }
 .ls-tplrow input.num { flex: 0 0 76px; }
+.ls-panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 12px; }
+.ls-panel h3 { margin: 0; }

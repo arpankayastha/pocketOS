@@ -3,7 +3,6 @@ import { useDialog } from '../../lib/dialog'
 import { createList, createOccasion, loadTemplates } from '../../lib/lists'
 import { EVENT_TEMPLATES, LIST_PRESETS, OCCASION_TABS } from '../../lib/listTemplates'
 import { ShareChips, Toggle } from './ListParts'
-import TemplatesSheet from './TemplatesSheet'
 
 // + on the Lists home: "A list" (quick) or "An occasion" (date, countdown, tasks, samagri, people, money).
 export default function NewSheet({ homeId, households, member, initialKind = 'list', onCreated, onClose }) {
@@ -12,16 +11,14 @@ export default function NewSheet({ homeId, households, member, initialKind = 'li
   const [kind, setKind] = useState(initialKind)
   const [preset, setPreset] = useState(LIST_PRESETS[0])
   const [saved, setSaved] = useState([])
-  const [tplOpen, setTplOpen] = useState(false)
   const blank = EVENT_TEMPLATES.find((t) => !t.name)
   const templates = [...(saved.length ? saved : EVENT_TEMPLATES.filter((t) => t.name)), blank]
   const [tpl, setTpl] = useState(EVENT_TEMPLATES[0])
   const [name, setName] = useState(initialKind === 'list' ? LIST_PRESETS[0].name : EVENT_TEMPLATES[0].name)
-  const reloadTemplates = () => loadTemplates().then((t) => {
+  useEffect(() => { loadTemplates().then((t) => {
     setSaved(t)
     if (t.length) { setTpl(t[0]); setName((n) => (kind === 'occasion' && EVENT_TEMPLATES.some((b) => b.name === n) ? t[0].name : n)) }
-  }).catch(() => {})
-  useEffect(() => { reloadTemplates() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }).catch(() => {}) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [place, setPlace] = useState('')
@@ -59,7 +56,6 @@ export default function NewSheet({ homeId, households, member, initialKind = 'li
             ? LIST_PRESETS.map((p) => <button key={p.id} type="button" className={preset.id === p.id ? 'on' : ''} onClick={() => { setPreset(p); setName(p.name) }}>{p.icon} {p.name || 'Blank'}</button>)
             : templates.map((t) => <button key={t.id} type="button" className={tpl.id === t.id ? 'on' : ''} onClick={() => { setTpl(t); setName(t.name) }}>{t.icon} {t.name || 'Blank'}</button>)}
         </div>
-        {kind === 'occasion' && !member && <button type="button" className="ls-linkbtn" onClick={() => setTplOpen(true)}>Customise templates ›</button>}
         <label>Name<input value={name} onChange={(e) => setName(e.target.value)} required autoFocus /></label>
         {kind === 'occasion' && (<>
           <div className="row2">
@@ -75,7 +71,6 @@ export default function NewSheet({ homeId, households, member, initialKind = 'li
         {!member && <ShareChips households={households} homeId={homeId} value={shared} onChange={setShared} />}
         <div className="actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !name.trim()}>Create</button></div>
       </form>
-      {tplOpen && <TemplatesSheet homeId={homeId} onClose={() => { setTplOpen(false); reloadTemplates() }} />}
     </div>
   )
 }

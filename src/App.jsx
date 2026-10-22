@@ -368,14 +368,18 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
 function ListsModule({ topbar, member, homeHouseholdId }) {
   const [openId, setOpenId] = useState(null)
   const [newOpen, setNewOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const homeId = homeHouseholdId || (() => { try { return localStorage.getItem('pocketos.activeHouseholdId') } catch { return null } })()
   return (
     <div className="app">
-      <Topbar {...topbar}><div className="spacer" /></Topbar>
+      <Topbar {...topbar} right={!member && (
+        <button className={`btn icon settings-btn ${settingsOpen ? 'on' : ''}`} aria-label="Lists settings" title="Lists settings"
+          onClick={() => { setOpenId(null); setSettingsOpen((v) => !v) }}><SettingsIcon /></button>
+      )}><div className="spacer" /></Topbar>
       <main className="content fade-in"><Suspense fallback={<ListSkeleton />}>
-        <Lists homeHouseholdId={homeId} member={member} openId={openId} setOpenId={setOpenId} newOpen={newOpen} setNewOpen={setNewOpen} />
+        <Lists homeHouseholdId={homeId} member={member} openId={openId} setOpenId={setOpenId} newOpen={newOpen} setNewOpen={setNewOpen} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
       </Suspense></main>
-      {!openId && <div className="fab-wrap"><button className="fab" aria-label="New list or occasion" onClick={() => setNewOpen(true)}><PlusIcon /></button></div>}
+      {!openId && !settingsOpen && <div className="fab-wrap"><button className="fab" aria-label="New list or occasion" onClick={() => setNewOpen(true)}><PlusIcon /></button></div>}
     </div>
   )
 }

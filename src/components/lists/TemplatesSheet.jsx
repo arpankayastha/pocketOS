@@ -5,8 +5,8 @@ import { EVENT_TEMPLATES, ICONS } from '../../lib/listTemplates'
 
 const EMPTY = { name: '', icon: '🪔', tasks: [], samagri: [], people: [] }
 
-// Customise the occasion starters: edit the built-in ones (copied in on first use), add your own, delete.
-export default function TemplatesSheet({ homeId, onClose }) {
+// Customise the occasion starters (Lists ⚙ settings): edit the built-in ones (copied in on first use), add your own, delete.
+export default function TemplatesPanel({ homeId }) {
   const dialog = useDialog()
   const [tpls, setTpls] = useState(null)
   const [editing, setEditing] = useState(null)
@@ -25,10 +25,9 @@ export default function TemplatesSheet({ homeId, onClose }) {
     if (await dialog.confirm({ title: `Delete “${t.name}”?`, message: 'Occasions already made from it are not affected.', confirmLabel: 'Delete', danger: true })) { await deleteTemplate(t.id); load() }
   }
 
-  if (editing) return <Editor start={editing} homeId={homeId} onClose={(changed) => { setEditing(null); if (changed) load() }} />
   return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="card modal sheet-lite">
+    <>
+      <div className="ls-panel">
         <h3>Occasion templates</h3>
         <p className="muted small">The starting tasks, samagri and people for a new occasion. Change them to fit your family.</p>
         {!tpls && <div className="ls-empty">Loading…</div>}
@@ -46,12 +45,10 @@ export default function TemplatesSheet({ homeId, onClose }) {
             <button type="button" className="ls-x" aria-label={`Delete ${t.name}`} onClick={() => remove(t)}>✕</button>
           </div>
         ))}</div>}
-        <div className="actions">
-          <button type="button" className="btn" onClick={() => setEditing({ ...EMPTY })}>＋ New template</button>
-          <button type="button" className="btn primary" onClick={onClose}>Done</button>
-        </div>
+        <button type="button" className="btn" onClick={() => setEditing({ ...EMPTY })}>＋ New template</button>
       </div>
-    </div>
+      {editing && <Editor start={editing} homeId={homeId} onClose={(changed) => { setEditing(null); if (changed) load() }} />}
+    </>
   )
 }
 
