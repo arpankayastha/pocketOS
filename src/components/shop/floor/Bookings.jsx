@@ -70,9 +70,9 @@ export function Bookings({ systems = [], bookings = [], eventChecks = [], entryC
   // (Received / Arrived / Confirm); the rest (details, call, not received, cancel) is in its sheet.
   const items = [
     ...entryChecks.map((x) => ({
-      id: x.id, badge: '🏆', cls: 'ev', name: `${x.name} · ${x.rank}`, sub: `${x.shop_events?.name}${Number(x.fee) ? ` · ${rs(x.fee)}` : ''}`, phone: x.phone, check: true,
+      id: x.id, badge: '🏆', cls: 'ev', name: `${x.name}${x.partner_name ? ` + ${x.partner_name}` : ''} · ${x.rank}`, sub: `${x.shop_events?.name}${Number(x.fee) ? ` · ${rs(x.fee)}` : ''}`, phone: x.phone, check: true,
       pill: Number(x.fee) ? 'Payment?' : 'New entry',
-      details: [['Event', x.shop_events?.name], ['Entry fee', Number(x.fee) ? rs(x.fee) : 'not set yet'], ['UPI ref', x.upi_ref], ['Mobile', x.phone]],
+      details: [['Event', x.shop_events?.name], ['Entry fee', Number(x.fee) ? rs(x.fee) : 'not set yet'], ['UPI ref', x.upi_ref], ['Mobile', x.phone], x.partner_name && ['Partner', `${x.partner_name} · ${x.partner_phone || ''}`]].filter(Boolean),
       main: { label: Number(x.fee) ? 'Received' : 'Confirm', run: () => update('shop_entries', x, { status: 'confirmed' }, `${x.name} is in`) },
       other: { label: Number(x.fee) ? 'Not received' : 'Remove', run: () => update('shop_entries', x, { status: 'cancelled' }, 'Entry cancelled', Number(x.fee) ? notPaid(x.name) : { title: `Remove ${x.name}’s entry?`, confirmLabel: 'Remove', danger: true }) },
     })),

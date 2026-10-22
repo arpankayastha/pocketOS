@@ -1421,3 +1421,9 @@ begin
 end $$;
 revoke execute on function private.session_push_reset() from public, anon, authenticated;
 create or replace trigger shop_sessions_push_reset before update on public.shop_sessions for each row execute function private.session_push_reset();
+-- Tournament pairs (owner, 22 Oct: "entry fee 250 · ek aur banda add kar sake, do logo ka naam aur number, 500 ho
+-- jayega · mandatory mat rakhna"), migration tournament_pair_entry: shop_entries.partner_name / partner_phone;
+-- rpc public_tournament_join(event, name, phone, rank, upi_ref, partner_name, partner_phone) (anon) = the old
+-- public_tournament_entry + an optional partner (name + 10-digit mobile, not the same number), fee = entry_fee ×
+-- players. The Valorant event's entry_fee was set to 250 (per player) in the same migration.
+alter table public.shop_entries add column if not exists partner_name text, add column if not exists partner_phone text;

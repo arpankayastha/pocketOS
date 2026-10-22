@@ -332,7 +332,7 @@ function TournamentHead({ ev, admin, onEdit }) {
       {ev.image_url && <img className="gx-event-img" src={ev.image_url} alt="" />}
       <div className="gx-event-name">{ev.name}</div>
       {ev.description && <div className="small">{ev.description}</div>}
-      <div className="muted small">{ev.entry_fee === null ? 'Entry fee not set yet' : `Entry fee ${rs(ev.entry_fee)}`}{ev.max_entries ? ` · up to ${ev.max_entries} players` : ''}{ev.active ? ' · entries open' : ' · entries closed'}</div>
+      <div className="muted small">{ev.entry_fee === null ? 'Entry fee not set yet' : `Entry fee ${rs(ev.entry_fee)} per player`}{ev.max_entries ? ` · up to ${ev.max_entries} players` : ''}{ev.active ? ' · entries open' : ' · entries closed'}</div>
     </div>
   )
 }
@@ -367,8 +367,8 @@ function Entries({ ev, settings, householdId, toast }) {
         <div key={x.id} className="line">
           <span className="gx-badge sm">{i + 1}</span>
           <div className="grow">
-            <div>{x.name} · <b>{x.rank}</b> {x.status === 'requested' && <span className="pill gx-pill ending">{Number(x.fee) ? 'Check payment' : 'New'}</span>}</div>
-            <div className="muted small"><a href={`tel:${x.phone}`}>{x.phone}</a> · {Number(x.fee) ? rs(x.fee) : 'no fee yet'}{x.upi_ref ? ` · ref ${x.upi_ref}` : ''} · {x.source === 'online' ? 'online' : `by ${x.entered_by || '—'}`}{x.handled_by ? ` · ✓ ${x.handled_by}` : ''}</div>
+            <div>{x.name}{x.partner_name ? ` + ${x.partner_name}` : ''} · <b>{x.rank}</b> {x.status === 'requested' && <span className="pill gx-pill ending">{Number(x.fee) ? 'Check payment' : 'New'}</span>}</div>
+            <div className="muted small"><a href={`tel:${x.phone}`}>{x.phone}</a>{x.partner_phone ? <> · <a href={`tel:${x.partner_phone}`}>{x.partner_phone}</a></> : ''} · {Number(x.fee) ? rs(x.fee) : 'no fee yet'}{x.upi_ref ? ` · ref ${x.upi_ref}` : ''} · {x.source === 'online' ? 'online' : `by ${x.entered_by || '—'}`}{x.handled_by ? ` · ✓ ${x.handled_by}` : ''}</div>
           </div>
           {x.status === 'requested' && <button className="btn small primary" onClick={() => set(x, 'confirmed')}>{Number(x.fee) ? 'Received' : 'Confirm'}</button>}
           <button className="btn small ghost" aria-label="Remove entry" onClick={() => set(x, 'cancelled')}>✕</button>
@@ -383,25 +383,33 @@ function EntrySheet({ ev, settings, householdId, onClose, onDone }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [rank, setRank] = useState(null)
+  const [pName, setPName] = useState('') // optional partner (team of 2), owner 22 Oct — fee per player
+  const [pPhone, setPPhone] = useState('')
   const [mode, setMode] = useState('cash')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  const fee = Number(ev.entry_fee) || 0
+  const pair = pName.trim().length > 0 || pPhone.trim().length > 0
+  const fee = (Number(ev.entry_fee) || 0) * (pair ? 2 : 1)
   async function save() {
-    const digits = phone.replace(/\D/g, '').slice(-10)
+    const digits = phone.replace(/\D/g, '').slice(-10), pDigits = pPhone.replace(/\D/g, '').slice(-10)
     if (digits.length !== 10) { setError('Enter a 10-digit mobile number.'); return }
+    if (pair && (pName.trim().length < 2 || pDigits.length !== 10)) { setError('Add the partner’s name and 10-digit mobile, or leave both empty.'); return }
     setBusy(true); setError(null)
-    const { error } = await supabase.from('shop_entries').insert({ household_id: householdId, event_id: ev.id, name: name.trim(), phone: digits, rank, fee, status: 'confirmed', source: 'counter', upi_ref: fee ? mode : null })
+    const { error } = await supabase.from('shop_entries').insert({ household_id: householdId, event_id: ev.id, name: name.trim(), phone: digits, rank, fee, status: 'confirmed', source: 'counter', upi_ref: fee ? mode : null,
+      partner_name: pair ? pName.trim() : null, partner_phone: pair ? pDigits : null })
     setBusy(false)
     if (error) { setError(error.code === '23505' ? 'This mobile number is already entered.' : error.message); return }
-    onDone(`${name.trim()} entered`)
+    onDone(`${name.trim()}${pair ? ` + ${pName.trim()}` : ''} entered`)
   }
   return (
-    <Sheet title={`Entry · ${ev.name}`} sub={fee ? `Entry fee ${rs(fee)}, non-refundable` : 'Entry fee not set yet'} onClose={onClose} onSubmit={save}>
+    <Sheet title={`Entry · ${ev.name}`} sub={fee ? `Entry fee ${rs(fee)}${pair ? ' for the pair' : ''}, non-refundable` : 'Entry fee not set yet'} onClose={onClose} onSubmit={save}>
       {error && <div className="alert error">{error}</div>}
       <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} autoFocus required phonePlaceholder="10 digits" />
       <div className="caps muted">Rank</div>
       <Chips options={RANKS.map((r) => [r, r])} value={rank} onChange={setRank} />
+      <div className="caps muted">Partner · optional (team of 2, fee × 2)</div>
+      <label>Partner’s name<input value={pName} onChange={(e) => setPName(e.target.value)} maxLength={40} placeholder="Leave empty if solo" /></label>
+      <label>Partner’s mobile<input value={pPhone} onChange={(e) => setPPhone(e.target.value)} inputMode="tel" placeholder="10 digits" /></label>
       {fee > 0 && (<>
         <div className="caps muted">Fee paid by</div>
         <Chips options={[['cash', 'Cash'], ['online', 'Online / scanner']]} value={mode} onChange={setMode} />

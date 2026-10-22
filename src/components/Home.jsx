@@ -108,7 +108,7 @@ function EventCard({ ev }) {
         <span className="muted small">{when}{tour ? '' : ` · ${timeLabel(`2000-01-01T${ev.open_time}`)} – ${timeLabel(`2000-01-01T${ev.close_time}`)}`}</span>
         {ev.description && <span className="small">{ev.description}</span>}
         <span className="small">{tour
-          ? `${ev.entry_fee === null ? 'Entry fee to be announced' : `Entry ${rs(ev.entry_fee)}`}${ev.max_entries ? ` · ${Math.max(0, ev.max_entries - ev.entries)} places left` : ''}`
+          ? `${ev.entry_fee === null ? 'Entry fee to be announced' : `Entry ${rs(ev.entry_fee)} per player · solo or pair`}${ev.max_entries ? ` · ${Math.max(0, ev.max_entries - ev.entries)} places left` : ''}`
           : `${rs(ev.first_price)} first hour · then ${rs(ev.next_price)}/hr${ev.kind === 'PS' ? ' per head' : ''}`}</span>
         <span className="btn primary small home-event-cta">{full ? 'Full' : tour ? 'Enter now' : `Book ${ev.name.replace(/ launch$/i, '')} slots`}</span>
       </div>

@@ -131,17 +131,23 @@ function Tournament({ ev, info, me }) {
   const [name, setName] = useState(me?.name || '')
   const [phone, setPhone] = useState(me?.phone || '')
   const [rank, setRank] = useState(null)
+  // Owner, 22 Oct: enter as a pair (optional) — partner's name + mobile, the fee is per player.
+  const [pair, setPair] = useState(false)
+  const [pName, setPName] = useState('')
+  const [pPhone, setPPhone] = useState('')
   const [ref, setRef] = useState('')
   const [step, setStep] = useState('form')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [done, setDone] = useState(null)
   useEffect(() => { if (me) { setName((n) => n || me.name || ''); setPhone((p) => p || me.phone || '') } }, [me])
-  const fee = ev.entry_fee === null ? null : Number(ev.entry_fee)
+  const each = ev.entry_fee === null ? null : Number(ev.entry_fee)
+  const fee = each === null ? null : each * (pair ? 2 : 1)
   const left = ev.max_entries ? Math.max(0, ev.max_entries - ev.entries) : null
   async function send() {
     setBusy(true); setError(null)
-    const { data, error } = await supabase.rpc('public_tournament_entry', { p_event: ev.id, p_name: name.trim(), p_phone: phone, p_rank: rank, p_upi_ref: ref.trim() || null })
+    const { data, error } = await supabase.rpc('public_tournament_join', { p_event: ev.id, p_name: name.trim(), p_phone: phone, p_rank: rank, p_upi_ref: ref.trim() || null,
+      p_partner_name: pair ? pName.trim() : null, p_partner_phone: pair ? pPhone : null })
     setBusy(false)
     if (error) { setError(error.message); setStep('form'); return }
     rememberMine('entries', data.id)
@@ -153,23 +159,31 @@ function Tournament({ ev, info, me }) {
       <div className="book-tick">✓</div>
       <h2>You’re registered</h2>
       <div className="book-code mono">{done.code}</div>
-      <p>{ev.name} · {rank} · {when}</p>
+      <p>{ev.name} · {rank}{pair ? ` · with ${pName.trim()}` : ''} · {when}</p>
       <p className="muted small">{done.fee ? `The shop confirms your place once the ${rs(done.fee)} entry fee shows up.` : 'The entry fee will be announced; the shop will call you.'} Your entry shows on the home page.</p>
       <a className="btn block" href="#">Home</a>
     </div>
   )
   if (step === 'pay') return (
-    <PayCard amount={fee} info={info} note={`${ev.name} entry ${name.trim()}`} what={`${ev.name} · ${rank}`} refValue={ref} setRef={setRef}
+    <PayCard amount={fee} info={info} note={`${ev.name} entry ${name.trim()}`} what={`${ev.name} · ${rank}${pair ? ` · ${name.trim()} + ${pName.trim()}` : ''}`} refValue={ref} setRef={setRef}
       onBack={() => setStep('form')} busy={busy} error={error} onSend={send} footer="The entry fee is non-refundable." />
   )
   const ready = name.trim().length >= 2 && phone.replace(/\D/g, '').length >= 10 && rank && left !== 0
+    && (!pair || (pName.trim().length >= 2 && pPhone.replace(/\D/g, '').length >= 10))
   return (
     <div className="card book-form">
-      <div className="book-total"><span>{when}</span><b>{fee === null ? 'Fee TBA' : rs(fee)}</b></div>
+      <div className="book-total"><span>{when}{pair && each ? ` · ${rs(each)} × 2` : ''}</span><b>{fee === null ? 'Fee TBA' : rs(fee)}</b></div>
       {left !== null && <div className="muted small">{left} place{left === 1 ? '' : 's'} left</div>}
       <ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} />
       <div className="caps muted">Your rank</div>
       <div className="chips">{RANKS.map((r) => <button key={r} type="button" className={`chip chip-btn ${rank === r ? 'on' : ''}`} onClick={() => setRank(r)}>{r}</button>)}</div>
+      {!pair ? (
+        <button type="button" className="btn block" onClick={() => setPair(true)}>+ Add a partner (team of 2){each ? ` · ${rs(each)} more` : ''}</button>
+      ) : (<>
+        <div className="card-head" style={{ margin: 0 }}><div className="caps muted">Partner</div><button type="button" className="btn link" style={{ padding: 0 }} onClick={() => { setPair(false); setPName(''); setPPhone('') }}>Remove</button></div>
+        <label>Partner’s name<input value={pName} onChange={(e) => setPName(e.target.value)} maxLength={40} autoComplete="off" /></label>
+        <label>Partner’s mobile<input value={pPhone} onChange={(e) => setPPhone(e.target.value.replace(/[^\d+ ]/g, ''))} inputMode="tel" placeholder="10 digits" autoComplete="off" /></label>
+      </>)}
       {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
       <button className="btn primary block" disabled={!ready || busy} onClick={() => { setError(null); if (fee) setStep('pay'); else send() }}>{left === 0 ? 'Full' : fee ? `Enter · pay ${rs(fee)}` : busy ? 'Sending…' : 'Register'}</button>
     </div>
