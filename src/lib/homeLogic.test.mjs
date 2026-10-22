@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
-import { greeting, firstName, addDays, mood, dueDateOf, weekItems, dealProgress, loanJourney, spendByHousehold, peopleSummary } from './homeLogic.js'
+import { greeting, greetingEmoji, firstName, addDays, mood, dueDateOf, weekItems, dealProgress, loanJourney, spendByHousehold, peopleSummary } from './homeLogic.js'
 
-assert.equal(greeting(new Date(2026, 9, 22, 8)), 'Good morning')
+for (const [h, want] of [[0, 'Good night'], [1, 'Good night'], [4, 'Good night'], [5, 'Good morning'], [8, 'Good morning'], [11, 'Good morning'], [12, 'Good afternoon'], [16, 'Good afternoon'], [17, 'Good evening'], [20, 'Good evening'], [21, 'Good night'], [23, 'Good night']]) {
+  assert.equal(greeting(new Date(2026, 9, 22, h)), want, `hour ${h}`)
+}
+assert.equal(greetingEmoji(new Date(2026, 9, 22, 1)), '🌙')
+assert.equal(greetingEmoji(new Date(2026, 9, 22, 9)), '🙏')
 assert.equal(greeting(new Date(2026, 9, 22, 14)), 'Good afternoon')
 assert.equal(greeting(new Date(2026, 9, 22, 20)), 'Good evening')
 assert.equal(firstName('arpan@alchemytech.ca'), 'Arpan')

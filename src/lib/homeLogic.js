@@ -1,7 +1,12 @@
 // Pure logic behind the Home tab (no imports, so plain node can test it: `npm run test:home`).
 // Wording is deliberately gentle: progress made, never a bare "you owe".
 
-export const greeting = (now) => { const h = now.getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' }
+// Morning 5–11, afternoon 12–16, evening 17–20, night 21–4 (so 1 am is never "good morning").
+export const greeting = (now) => {
+  const h = now.getHours()
+  return h >= 21 || h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+}
+export const greetingEmoji = (now) => { const h = now.getHours(); return h >= 21 || h < 5 ? '🌙' : '🙏' }
 
 // "arpan@alchemytech.ca" → "Arpan"; "pinu" → "Pinu".
 export function firstName(label) {

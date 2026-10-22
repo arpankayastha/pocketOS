@@ -12,6 +12,7 @@ import VaultGate, { RecoveryCode } from './components/VaultGate'
 import AppLockScreen, { MemberLockScreen, FingerprintSetup } from './components/AppLockScreen'
 import { isMember, memberName, markFingerprint } from './lib/members'
 import { firstName } from './lib/homeLogic'
+import { useSwipe } from './lib/useSwipe'
 import { demoIsStale, demoOwnerEmail, isDemo, leaveDemo } from './lib/demo'
 import Topbar, { HouseholdMenu } from './components/Topbar'
 import PillNav from './components/PillNav'
@@ -263,6 +264,15 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   useEffect(() => { if (group) lastScreen.current[group] = tab }, [group, tab])
   const openGroup = (id) => setTab(lastScreen.current[id] || BUDGET_GROUPS.find((g) => g.id === id).subs[0][0])
   const subs = BUDGET_GROUPS.find((g) => g.id === group)?.subs || []
+  // Swipe left / right to move between the segments of a tab (Loans | Dues | Deals, Plan | Entries). Loans swipes anywhere
+  // on the page; Month swipes on the segment bar only, because Plan and Entries use page swipes to change month.
+  const at = subs.findIndex(([id]) => id === tab)
+  const swipeSub = useSwipe({
+    onLeft: () => { if (at >= 0 && at < subs.length - 1) setTab(subs[at + 1][0]) },
+    onRight: () => { if (at > 0) setTab(subs[at - 1][0]) },
+  })
+  const pageSwipe = group === 'loans' ? swipeSub : {}
+  const barSwipe = group !== 'loans' ? swipeSub : {}
   // Switched to "Only Hisab" after the app opened (the setting is refreshed on start): leave hidden tabs.
   useEffect(() => { if (hisabOnly && tab !== 'hisab' && tab !== 'settings') setTab('hisab') }, [hisabOnly, tab])
   // Opening the app or switching household lands on that household's home (not while in Settings).
@@ -294,9 +304,9 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
           ))}
         </nav>
       </Topbar>
-      <main className="content fade-in">
+      <main className="content fade-in" {...pageSwipe}>
         {subs.length > 1 && (
-          <div className="subnav" role="tablist">
+          <div className="subnav" role="tablist" {...barSwipe}>
             {subs.map(([id, label]) => (
               <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
             ))}
