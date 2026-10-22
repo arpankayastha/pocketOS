@@ -65,4 +65,15 @@ class UpiParserTest {
         assertEquals("Demo Stores", UpiParser.parse(gpay, "Payment successful", "₹250 paid to Demo Stores on 12 Oct via UPI")!!.name)
         assertNotNull(UpiParser.appFor(gpay)); assertNull(UpiParser.appFor("x"))
     }
+
+    // Paytm's Pocket Money notices say "spent" and "made a payment", with the payer's number and no payee name.
+    @Test fun paytmPocketMoneySpent() {
+        val n = UpiParser.parse(paytm, "₹40 spent using Pocket Money", "9000000001 made a payment using Pocket Money. Tap to see details.")!!
+        assertEquals("out", n.direction); assertEquals(40.0, n.amount, 0.0); assertNull(n.name); assertEquals("Paytm", n.app)
+    }
+
+    @Test fun paytmPocketMoneyBiggerAmount() {
+        val n = UpiParser.parse(paytm, "₹1,250 spent using Pocket Money", "9000000001 made a payment using Pocket Money. Tap to see details.")!!
+        assertEquals(1250.0, n.amount, 0.0)
+    }
 }

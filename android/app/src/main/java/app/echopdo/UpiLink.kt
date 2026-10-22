@@ -27,6 +27,8 @@ import java.util.concurrent.TimeUnit
 object UpiLink {
     const val WINDOW_MS = 15 * 60_000L   // an SMS and a notice this close, same amount + direction, are one payment
     const val SETTLE_MS = 10 * 60_000L   // no bank SMS by then → add the notice on its own
+    const val NAMELESS_SETTLE_MS = 3 * 60_000L // a notice with no name (e.g. "₹40 spent using Pocket Money") waits less: its SMS, if any, comes within moments
+    const val SMS_PAIR_MS = 3 * 60_000L  // a nameless notice and the bank SMS of the same payment are posted this close
 
     fun accessGranted(ctx: Context): Boolean {
         val enabled = Settings.Secure.getString(ctx.contentResolver, "enabled_notification_listeners") ?: return false
@@ -45,6 +47,11 @@ object UpiLink {
         // Apps re-post a notification when it updates: read each once.
         if (!Store.markSeen(ctx, "u" + Integer.toHexString("$pkg $shown ${postTime / 60_000}".hashCode()))) return
         val what = "${if (n.direction == "in") "Money in" else "Money out"} · ${Calc.money(n.amount)}${n.name?.let { " · $it" } ?: ""}"
+        // No name to give: if this payment's bank SMS was already read, that is the record — nothing more to do.
+        if (n.name == null && Store.claimSmsPayment(ctx, n.direction, n.amount, postTime, SMS_PAIR_MS)) {
+            Store.logUpi(ctx, postTime, app, shown, "sent", "$what · already added from its bank SMS")
+            return
+        }
         val recent = Store.upiRecent(ctx)
         recent.put(JSONObject().put("key", "$postTime|$shown".hashCode()).put("at", postTime).put("direction", n.direction)
             .put("amount", n.amount).put("name", n.name ?: "").put("app", n.app).put("state", "open").put("shown", shown))
@@ -61,7 +68,7 @@ object UpiLink {
             } catch (_: IOException) { /* offline: the settle job retries */ } catch (_: ApiError) { /* try again at settle time */ }
         }
         Store.logUpi(ctx, postTime, app, shown, "wait", "$what · waiting for its bank SMS")
-        UpiSettleWorker.schedule(ctx, SETTLE_MS)
+        UpiSettleWorker.schedule(ctx, nextDue(ctx))
     }
 
     private fun setState(ctx: Context, at: Long, state: String) {
@@ -70,21 +77,44 @@ object UpiLink {
         Store.setUpiRecent(ctx, a)
     }
 
-    /** SMS path: the name of a recent, still-open notice for this payment (marks it used), or null. */
-    fun nameFor(ctx: Context, direction: String, amount: Double, smsTime: Long): String? {
+    /** SMS path: the recent, still-open notice for this payment nearest in time (marked used), or null. */
+    fun claimNotice(ctx: Context, direction: String, amount: Double, smsTime: Long): JSONObject? {
         if (direction != "in" && direction != "out") return null
         val a = Store.upiRecent(ctx)
+        var best: JSONObject? = null
         for (i in 0 until a.length()) {
             val r = a.getJSONObject(i)
             if (r.optString("state") != "open" || r.optString("direction") != direction) continue
             if (Math.abs(r.optDouble("amount") - amount) > 0.001 || Math.abs(r.optLong("at") - smsTime) > WINDOW_MS) continue
-            r.put("state", "named")
-            Store.setUpiRecent(ctx, a)
-            runCatching { Store.logUpi(ctx, r.optLong("at"), r.optString("app"), r.optString("shown"), "sent", "${Calc.money(amount)} · its name went on the bank SMS payment") }
-            return r.optString("name").takeIf { it.isNotEmpty() }
+            if (best == null || Math.abs(r.optLong("at") - smsTime) < Math.abs(best.optLong("at") - smsTime)) best = r
         }
-        return null
+        val r = best ?: return null
+        r.put("state", "named")
+        Store.setUpiRecent(ctx, a)
+        runCatching { Store.logUpi(ctx, r.optLong("at"), r.optString("app"), r.optString("shown"), "sent", "${Calc.money(amount)} · ${if (r.optString("name").isEmpty()) "matched its bank SMS payment" else "its name went on the bank SMS payment"}") }
+        return r
     }
+
+    /** SMS path: the name of a recent, still-open notice for this payment (marks it used), or null. */
+    fun nameFor(ctx: Context, direction: String, amount: Double, smsTime: Long): String? =
+        claimNotice(ctx, direction, amount, smsTime)?.optString("name")?.takeIf { it.isNotEmpty() }
+
+    private fun waitFor(r: JSONObject) = if (r.optString("name").isEmpty()) NAMELESS_SETTLE_MS else SETTLE_MS
+
+    /** Milliseconds until the first open notice is due to be settled (at least a few seconds). */
+    fun nextDue(ctx: Context): Long {
+        val a = Store.upiRecent(ctx)
+        var next = SETTLE_MS
+        for (i in 0 until a.length()) {
+            val r = a.getJSONObject(i)
+            if (r.optString("state") != "open") continue
+            next = minOf(next, waitFor(r) - (System.currentTimeMillis() - r.optLong("at")))
+        }
+        return maxOf(next, 5_000L)
+    }
+
+    /** What a payment with no name is called when it is added on its own. */
+    fun labelFor(app: String, shown: String) = if (shown.contains("pocket money", ignoreCase = true)) "$app Pocket Money" else "$app payment"
 
     /** Blocking (worker). Notices that waited long enough with no bank SMS are added as payments of their own. Returns true to retry. */
     fun settle(ctx: Context): Boolean {
@@ -96,8 +126,27 @@ object UpiLink {
             val r = a.getJSONObject(i)
             if (r.optString("state") != "open") continue
             val age = System.currentTimeMillis() - r.optLong("at")
-            if (age < SETTLE_MS - 30_000) { nextIn = minOf(nextIn, SETTLE_MS - age); continue }
+            val wait = waitFor(r)
+            if (age < wait - 30_000) { nextIn = minOf(nextIn, wait - age); continue }
             val at = r.optLong("at")
+            if (r.optString("name").isEmpty()) {
+                // No name and no bank SMS: a payment from a wallet / Pocket Money. Add it to Hisab as it is; if its SMS
+                // turns up later, eChopdo recognises the entry and doesn't add it twice.
+                val entry = JSONObject().put("target", "hisab").put("direction", r.optString("direction")).put("amount", r.optDouble("amount"))
+                    .put("date", Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDate().toString())
+                    .put("at", Instant.ofEpochMilli(at).toString()).put("category", "Other").put("source", "UPI")
+                    .put("note", labelFor(r.optString("app"), r.optString("shown")))
+                val result = Repo.save(ctx, entry)
+                r.put("state", "sent")
+                Store.logUpi(ctx, at, r.optString("app"), r.optString("shown"), if (result is SaveResult.Failed) "error" else "sent",
+                    "${Calc.money(r.optDouble("amount"))} · " + when (result) {
+                        is SaveResult.Saved -> "added to Hisab (no bank SMS)"
+                        is SaveResult.Queued -> "offline — will be added later"
+                        is SaveResult.Failed -> result.message
+                    })
+                runCatching { Notify.saved(ctx, entry, result) }
+                continue
+            }
             val req = JSONObject().put("action", "capture").put("source", "upi")
                 .put("direction", r.optString("direction")).put("amount", r.optDouble("amount"))
                 .put("date", Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDate().toString())

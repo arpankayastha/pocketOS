@@ -49,10 +49,13 @@ object Captures {
         // Key without "|" (the list separator): a reference, else a hash of sender + text.
         if (!Store.markSeen(ctx, t.ref ?: "h" + Integer.toHexString("$sender $text".hashCode()))) { log("sent", "$what · already sent"); return false }
         // GPay / Paytm told us who this payment was to: use that name instead of a bare UPI id.
-        val named = if (t.direction == "in" || t.direction == "out") runCatching { UpiLink.nameFor(ctx, t.direction, t.amount, smsTime) }.getOrNull() else null
+        val notice = if (t.direction == "in" || t.direction == "out") runCatching { UpiLink.claimNotice(ctx, t.direction, t.amount, smsTime) }.getOrNull() else null
+        val named = notice?.optString("name")?.takeIf { it.isNotEmpty() }
         val req = body(if (named != null && (t.payee.isNullOrEmpty() || t.payee.contains('@'))) t.copy(payee = named) else t, smsTime)
         try {
             val res = Api.call(ctx, JSONObject(req.toString()))
+            // Remember this payment, so a nameless GPay / Paytm notice for it isn't added a second time.
+            if ((t.direction == "in" || t.direction == "out") && !res.optBoolean("duplicate")) runCatching { Store.noteSmsPayment(ctx, smsTime, t.direction, t.amount, notice != null) }
             if (notify && !res.optBoolean("duplicate")) show(ctx, res)
             log("sent", what + when {
                 res.optBoolean("duplicate") -> " · already in eChopdo"

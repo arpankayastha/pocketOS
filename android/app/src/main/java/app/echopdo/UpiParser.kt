@@ -28,7 +28,7 @@ object UpiParser {
     private val AMOUNT = Regex("(?i)(?:₹|rs\\.?|inr)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)")
     // "X paid you ₹5" / "X sent you ₹5" / "received ₹5 from X" / "₹5 received".
     private val IN_WORDS = Regex("(?i)\\b(paid you|sent you|received|credited|money received|payment received|added to)\\b")
-    private val OUT_WORDS = Regex("(?i)\\b(you paid|paid|sent|payment (of )?successful|payment successful|debited|money sent|transferred)\\b")
+    private val OUT_WORDS = Regex("(?i)\\b(you paid|paid|sent|spent|made a payment|payment (of )?successful|payment successful|debited|money sent|transferred)\\b")
     private val NAME_AFTER_TO = Regex("(?i)\\b(?:paid|sent|payment)?\\s*(?:to|for)\\s+([^\\n]+?)(?=\\s+(?:on|via|using|from|at|with|ref|upi|successful|\\.|,|$)|[.,]|$)")
     private val NAME_AFTER_FROM = Regex("(?i)\\bfrom\\s+([^\\n]+?)(?=\\s+(?:on|via|using|to|at|with|ref|upi|\\.|,|$)|[.,]|$)")
     private val NAME_BEFORE_PAID_YOU = Regex("(?i)^\\s*([^\\n]+?)\\s+(?:paid|sent)\\s+you\\b")
@@ -38,8 +38,8 @@ object UpiParser {
     /** [title] and [text] as the notification shows them. Null if it isn't a completed payment. */
     fun parse(pkg: String?, title: String?, text: String?): UpiNotice? {
         val app = appFor(pkg) ?: return null
-        val t = (title ?: "").replace(Regex("\\s+"), " ").trim()
-        val x = (text ?: "").replace(Regex("\\s+"), " ").trim()
+        val t = tidy(title)
+        val x = tidy(text)
         val full = listOf(t, x).filter { it.isNotEmpty() }.joinToString(" · ")
         if (full.isEmpty() || SKIP.containsMatchIn(full)) return null
         val amount = AMOUNT.find(full)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()?.takeIf { it > 0 } ?: return null
@@ -55,6 +55,10 @@ object UpiParser {
         val name = nameOf(direction, t, x, full)
         return UpiNotice(direction, amount, name, app)
     }
+
+    // Whitespace squeezed, and the "Tap to see details." call to action dropped (its "to see details" is not a payee).
+    private fun tidy(raw: String?): String = (raw ?: "").replace(Regex("\\s+"), " ")
+        .replace(Regex("(?i)\\b(?:tap|click|touch)\\s+(?:here\\s+)?to\\s+(?:see|view|check|know)\\b[^.]*\\.?"), "").trim()
 
     private fun nameOf(direction: String, title: String, text: String, full: String): String? {
         val candidates = listOf(text, title, full)

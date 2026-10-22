@@ -92,6 +92,38 @@ object Store {
     }
     @Synchronized fun setUpiRecent(ctx: Context, a: JSONArray) { prefs(ctx).edit().putString("upiRecent", a.toString()).apply() }
 
+    /** Bank SMS payments read recently: [{ at, direction, amount, claimed }]. A GPay / Paytm notice with no name is the same payment as an unclaimed one of these. */
+    @Synchronized private fun smsRecent(ctx: Context): JSONArray {
+        val cutoff = System.currentTimeMillis() - 24 * 3600_000L
+        val all = prefs(ctx).getString("smsRecent", null)?.let { runCatching { JSONArray(it) }.getOrNull() } ?: JSONArray()
+        val keep = JSONArray()
+        for (i in 0 until all.length()) { val r = all.getJSONObject(i); if (r.optLong("at") >= cutoff) keep.put(r) }
+        return keep
+    }
+    @Synchronized fun noteSmsPayment(ctx: Context, at: Long, direction: String, amount: Double, claimed: Boolean) {
+        val a = smsRecent(ctx)
+        a.put(JSONObject().put("at", at).put("direction", direction).put("amount", amount).put("claimed", claimed))
+        // Keep it short: the last 60 payments are plenty.
+        val out = JSONArray(); val from = maxOf(0, a.length() - 60)
+        for (i in from until a.length()) out.put(a.get(i))
+        prefs(ctx).edit().putString("smsRecent", out.toString()).apply()
+    }
+    /** Marks the unclaimed SMS payment nearest in time to a notice (same direction + amount, within [windowMs]) as taken. True if there was one. */
+    @Synchronized fun claimSmsPayment(ctx: Context, direction: String, amount: Double, noticeAt: Long, windowMs: Long): Boolean {
+        val a = smsRecent(ctx)
+        var best = -1; var bestGap = Long.MAX_VALUE
+        for (i in 0 until a.length()) {
+            val r = a.getJSONObject(i)
+            if (r.optBoolean("claimed") || r.optString("direction") != direction || Math.abs(r.optDouble("amount") - amount) > 0.001) continue
+            val gap = Math.abs(r.optLong("at") - noticeAt)
+            if (gap <= windowMs && gap < bestGap) { best = i; bestGap = gap }
+        }
+        if (best < 0) return false
+        a.getJSONObject(best).put("claimed", true)
+        prefs(ctx).edit().putString("smsRecent", a.toString()).apply()
+        return true
+    }
+
     /** Forget which SMS were sent (for "Resync"; the server still refuses real duplicates). */
     fun clearSeen(ctx: Context) { prefs(ctx).edit().remove("seen").apply() }
 
