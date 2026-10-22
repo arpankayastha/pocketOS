@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { customerKey, duesByCustomer, DURATIONS, durLabel, inr, priceFor, rs, shareOut, startPayments, timeLabel } from '../../../lib/shop'
+import { balanceFor, customerKey, duesByCustomer, DURATIONS, durLabel, inr, priceFor, rs, shareOut, startPayments, timeLabel } from '../../../lib/shop'
 import { Chips, Sheet, SumRow } from '../ui'
 import { UpiQrButton } from '../UpiQr'
 import CustomerFields from '../CustomerFields'
@@ -22,10 +22,11 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   const [fnbOther, setFnbOther] = useState('') // owner: type any F&B amount, not only the chips
   const [names, setNames] = useState({}) // PS5: a name for each extra controller (owner, 14 Oct), keyed by controller
   const online = booking && booking.source !== 'counter' // online bookings are paid in full by UPI
-  // Owner, 19 Oct: a + Book advance is the customer's deposit — take it at Start, so it isn't left in Deposits
-  // while the full bill is collected again at the end.
+  // Owner, 19 + 22 Oct: a + Book advance is the customer's deposit — it's always taken off this bill at Start
+  // (staff used to mark the full bill paid and the advance was counted twice); Payment only covers the rest.
   const advance = booking && !online ? Number(booking.paid) || 0 : 0
-  const [pay, setPay] = useState(online ? 'booked' : advance > 0 ? 'deposit' : 'end')
+  const advDep = advance > 0 ? balanceFor(deposits, booking.customer_name, booking.customer_phone) : null
+  const [pay, setPay] = useState(online ? 'booked' : 'end')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const multi = (system.seats || 1) > 1
@@ -33,12 +34,21 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   const each = priceFor(rates, system.kind, mins, happy)
   const bookedSame = booking && mins === booking.minutes && count === (booking.players || 1)
   const gaming = bookedSame ? Number(booking.amount) : each * count
-  const total = gaming + fnb
+  const bill = gaming + fnb
+  const advUse = advDep ? Math.min(advance, advDep.balance, bill) : 0
+  const total = bill - advUse // what the Payment choice covers
   const key = customerKey(name, phone)
   const owes = key.length > 2 ? duesByCustomer(dues).find((d) => d.key === key) : null
   // Owner, 14 Oct: regulars play on dues (pay days later) or from their deposit.
-  const { any: anyDep, own: ownDep, dep, friend, picker: depPicker } = useDepositPick(deposits, name, phone)
-  const [part, setPart] = useState(advance > 0 ? String(Math.round(advance)) : '') // owner, 15 Oct: type how much goes to dues / comes from the deposit; the rest at the end
+  const pick = useDepositPick(deposits, name, phone)
+  // With an advance taken, "From deposit" is only what's left in the same customer's deposit (one deposit per Start).
+  const advLeft = advDep ? { ...advDep, balance: advDep.balance - advUse } : null
+  const anyDep = advUse > 0 ? advLeft.balance > 0.5 : pick.any
+  const ownDep = advUse > 0 ? advLeft : pick.own
+  const dep = advUse > 0 ? advLeft : pick.dep
+  const friend = advUse > 0 ? false : pick.friend
+  const depPicker = advUse > 0 ? null : pick.picker
+  const [part, setPart] = useState('') // owner, 15 Oct: type how much goes to dues / comes from the deposit; the rest at the end
   const partOf = (max) => (part === '' ? max : Math.min(max, Number(part) || 0))
   const fromDep = pay === 'deposit' && dep ? partOf(Math.min(dep.balance, total)) : 0
   const dueNow = pay === 'due' ? partOf(total) : 0
@@ -51,7 +61,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
     const t0 = new Date().toISOString()
     // A booking's amount and the cash part are shared across the timers so they add up exactly (money.js).
     const games = bookedSame ? shareOut(Number(booking.amount), count) : picked.map(() => each)
-    const pays = startPayments(picked.map((_, i) => ({ g: games[i], f: i === 0 ? fnb : 0 })), { pay, cashPart, fromDep, dueNow, booked: pay === 'booked' ? Number(booking.amount) : 0 })
+    const pays = startPayments(picked.map((_, i) => ({ g: games[i], f: i === 0 ? fnb : 0 })), { pay, cashPart, fromDep, dueNow, advance: advUse, booked: pay === 'booked' ? Number(booking.amount) : 0 })
     const rows = picked.map((seat, i) => {
       const g = games[i], f = i === 0 ? fnb : 0
       const { paid_cash, paid_online, paid_deposit: d, owed: o } = pays[i]
@@ -60,7 +70,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
         customer_name: i > 0 && (names[seat] || '').trim() ? names[seat].trim() : (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
         paid_cash, paid_online,
-        owed: o, paid_deposit: d, note: [o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`].filter(Boolean).join(' · ') || null,
+        owed: o, paid_deposit: d, note: [o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`, i === 0 && advUse > 0 && `Booking advance ${inr(advUse)} from deposit`].filter(Boolean).join(' · ') || null,
         ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
     })
@@ -96,7 +106,8 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       <input className="gx-other" inputMode="numeric" value={fnbOther} placeholder="Other amount ₹"
         onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 5); setFnbOther(v); setFnb(Number(v) || 0) }} />
       <div className="caps muted">Payment</div>
-      {advance > 0 && <div className="small muted">{rs(advance)} advance was taken when booking (their deposit) — it's taken off this bill below.</div>}
+      {advUse > 0 && <div className="small"><b className="pos">{rs(advUse)} advance</b> <span className="muted">paid when booking · taken off this bill automatically. Pick how the rest {rs(total)} is paid.</span></div>}
+      {advance > 0 && !advUse && <div className="small muted">The {rs(advance)} booking advance isn’t in {booking.customer_name}’s deposit any more, so it can’t be taken off.</div>}
       <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online'], ['due', 'Due · pays later'], ...(anyDep ? [['deposit', depLabel(ownDep)]] : [])]} value={pay} onChange={(v) => { setPay(v); setPart('') }} />
       {pay === 'deposit' && depPicker}
       {(pay === 'due' || (pay === 'deposit' && dep)) && <label>{pay === 'due' ? 'Amount into dues' : 'Amount from deposit'} (₹)<input inputMode="numeric" value={part} onChange={(e) => setPart(e.target.value.replace(/\D/g, ''))} placeholder={`${rs(pay === 'due' ? total : Math.min(dep.balance, total))} · all`} /></label>}
@@ -107,6 +118,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
+        {advUse > 0 && <SumRow label="Booking advance (from deposit)" value={`−${rs(advUse)}`} />}
         <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : pay === 'due' ? 'Into their dues' : pay === 'deposit' ? 'From deposit' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : pay === 'deposit' ? fromDep : pay === 'due' ? dueNow : total)} />
         {pay === 'split' && <SumRow label={`Cash ${rs(Math.min(Number(cashPart) || 0, total))} · online`} value={rs(Math.max(0, total - (Number(cashPart) || 0)))} />}
       </div>

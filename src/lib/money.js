@@ -139,20 +139,24 @@ export function shareOut(total, n) {
 // pay: end | cash | online | split (cash part typed, rest online) | due | deposit | booked (online booking:
 // `booked` = what was paid online, shared across the timers; F&B is collected at the end).
 // Dues and the deposit fill the first timers first; the split's cash part and a booking's amount add up exactly.
-export function startPayments(items, { pay, cashPart = 0, fromDep = 0, dueNow = 0, booked = 0 }) {
-  const total = items.reduce((t, x) => t + x.g + x.f, 0)
+export function startPayments(items, { pay, cashPart = 0, fromDep = 0, dueNow = 0, booked = 0, advance = 0 }) {
+  // advance = a + Book advance (their deposit): always taken off first (owner, 22 Oct — it was counted twice when
+  // staff marked the full bill paid); the payment choice only covers what's left.
+  let advLeft = Math.max(0, Number(advance) || 0)
+  const adv = items.map(({ g, f }) => { const a = Math.min(advLeft, g + f); advLeft -= a; return a })
+  const total = items.reduce((t, x, i) => t + x.g + x.f - adv[i], 0)
   const cashTotal = pay === 'split' ? Math.min(Math.max(0, Number(cashPart) || 0), total) : 0
   let depLeft = fromDep, dueLeft = dueNow, cashLeft = cashTotal
   const bookedShare = shareOut(booked, items.length)
   return items.map(({ g, f }, i) => {
-    const line = g + f
+    const line = g + f - adv[i]
     const c = i === items.length - 1 ? cashLeft : Math.min(cashLeft, Math.round(total ? (line * cashTotal) / total : 0)); cashLeft -= c
     const d = Math.min(depLeft, line); depLeft -= d
     const o = Math.min(dueLeft, line); dueLeft -= o
     return {
       paid_cash: pay === 'cash' ? line : pay === 'split' ? c : 0,
       paid_online: pay === 'online' ? line : pay === 'split' ? line - c : pay === 'booked' ? bookedShare[i] : 0,
-      paid_deposit: d, owed: o,
+      paid_deposit: adv[i] + d, owed: o,
     }
   })
 }

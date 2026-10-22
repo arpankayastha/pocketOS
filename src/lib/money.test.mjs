@@ -159,4 +159,12 @@ assert.deepEqual(cashOnline(100, 40), { cash: 40, online: 60 })
 assert.deepEqual(cashOnline(100, 250), { cash: 100, online: 0 })
 assert.deepEqual(cashOnline(100, ''), { cash: 0, online: 100 })
 
+// + Book advance always comes off first; the payment choice covers the rest (Amit: ₹130 bill, ₹80 advance, rest cash)
+assert.deepEqual(startPayments([{ g: 130, f: 0 }], { pay: 'cash', advance: 80 }), [{ paid_cash: 50, paid_online: 0, paid_deposit: 80, owed: 0 }])
+// two controllers, ₹200 advance covers both, nothing else paid
+assert.deepEqual(startPayments([{ g: 100, f: 0 }, { g: 100, f: 0 }], { pay: 'online', advance: 200 }).map((x) => [x.paid_online, x.paid_deposit]), [[0, 100], [0, 100]])
+// advance + split of the rest
+const sp = startPayments([{ g: 160, f: 20 }], { pay: 'split', cashPart: 30, advance: 100 })
+assert.equal(sp[0].paid_cash + sp[0].paid_online + sp[0].paid_deposit, 180); assert.equal(sp[0].paid_cash, 30)
+
 console.log('money rules: all good')
