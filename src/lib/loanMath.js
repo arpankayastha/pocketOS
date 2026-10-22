@@ -40,13 +40,21 @@ export function fyOf(date) {
   return `FY ${start}-${String((start + 1) % 100).padStart(2, '0')}`
 }
 
-// Loan life cover (e.g. a credit-protect plan): when the bank funds the premium into the loan it is stored as a `cover`
-// event and the loan becomes principal + premium, with the EMI worked out on the total over the same tenure.
-export const fundedCover = (loan) => (loan.events || []).filter((e) => e.type === 'cover').reduce((t, e) => t + (Number(e.amount) || 0), 0)
-export const loanAmount = (loan) => Number(loan.principal) + fundedCover(loan)
+// The EMI actually charged on the loan: the one typed in, else worked out from principal, rate and tenure.
+export const emiOf = (loan) => (Number(loan.emi) > 0 ? Number(loan.emi) : pmt(loan.principal, loan.rate, loan.tenure_months))
 
-// The EMI actually charged: the one typed in, else worked out from the loan amount (incl. funded cover), rate and tenure.
-export const emiOf = (loan) => (Number(loan.emi) > 0 ? Number(loan.emi) : pmt(loanAmount(loan), loan.rate, loan.tenure_months))
+// Loan life cover (e.g. a credit-protect plan): the premium is repaid with the EMI as a separate extra amount each
+// month, for as long as the loan runs. It is stored as one `cover` event { amount: premium, emi?: monthly extra } and
+// never touches the loan itself (balance, interest, schedule). Without a typed monthly amount it is worked out as the
+// premium repaid over the loan's tenure at the loan's rate.
+export const coverEvent = (loan) => (loan.events || []).find((e) => e.type === 'cover') || null
+export function coverEmi(loan) {
+  const c = coverEvent(loan)
+  if (!c) return 0
+  if (Number(c.emi) > 0) return Number(c.emi)
+  const premium = Number(c.amount) || 0
+  return premium > 0 ? pmt(premium, loan.rate, loan.tenure_months) : 0
+}
 
 // Month-by-month schedule: [{ n, date, interest, principal, prepay, balance, emi }]. `extra` = what-if events.
 export function schedule(loan, extra = []) {
@@ -54,7 +62,7 @@ export function schedule(loan, extra = []) {
   const prepays = events.filter((e) => e.type === 'prepay').sort(byDate)
   const rates = events.filter((e) => e.type === 'rate').sort(byDate)
   const emi = emiOf(loan)
-  let bal = loanAmount(loan)
+  let bal = Number(loan.principal)
   const rows = []
   if (!(bal > 0) || !(emi > 0)) return rows
   for (let n = 1; n <= 1200 && bal > 0.005; n++) {
@@ -81,9 +89,9 @@ export function schedule(loan, extra = []) {
 export function summary(loan, today) {
   const rows = schedule(loan)
   const emi = emiOf(loan)
-  const principal = loanAmount(loan)
-  const cover = fundedCover(loan)
-  if (!rows.length) return { incomplete: true, emi, cover, outstanding: principal, paidInterest: 0, paidPrincipal: 0, progress: 0 }
+  const principal = Number(loan.principal)
+  const extra = coverEmi(loan)
+  if (!rows.length) return { incomplete: true, emi, coverEmi: extra, emiWithCover: emi + extra, outstanding: principal, paidInterest: 0, paidPrincipal: 0, progress: 0 }
   const past = rows.filter((r) => r.date <= today)
   const next = rows.find((r) => r.date > today)
   const paidInterest = past.reduce((s, r) => s + r.interest, 0)
@@ -93,7 +101,10 @@ export function summary(loan, today) {
   const totalInterest = rows.reduce((s, r) => s + r.interest, 0)
   return {
     emi,
-    cover,
+    coverEmi: extra,                       // the life cover's extra amount each month (0 = none)
+    emiWithCover: emi + extra,             // what the bank debits each month
+    coverPaid: extra * past.length,        // paid so far
+    coverTotal: extra * rows.length,       // over the life of the loan
     rows,
     stuck: rows.some((r) => r.stuck),
     outstanding,
@@ -122,11 +133,12 @@ export function prepaySavings(loan, amount, today) {
 }
 
 // Interest and principal per financial year, for tax time. `planned` = the year isn't over yet.
-export function fyTable(rows, today) {
+export function fyTable(rows, today, extraEmi = 0) {
   const map = new Map()
   for (const r of rows) {
     const k = fyOf(r.date)
-    const e = map.get(k) || { fy: k, interest: 0, principal: 0, last: r.date }
+    const e = map.get(k) || { fy: k, interest: 0, principal: 0, cover: 0, last: r.date }
+    e.cover += extraEmi
     e.interest += r.interest
     e.principal += r.principal + r.prepay
     e.last = r.date
@@ -185,7 +197,7 @@ export function goldSummary(loan, today) {
 export function emiInMonth(loan, month) {
   if (loan.interest_only || loan.closed_on) return null
   const row = schedule(loan).find((r) => r.date.slice(0, 7) === month && !r.stuck)
-  return row ? { date: row.date, emi: row.emi, prepay: row.prepay } : null
+  return row ? { date: row.date, emi: row.emi + coverEmi(loan), prepay: row.prepay } : null
 }
 
 // Which already-logged spend paid this EMI: an unlinked outgoing entry of (almost) the same amount that month.

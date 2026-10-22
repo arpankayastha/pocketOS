@@ -10,12 +10,14 @@ export async function loadLoans(householdId) {
   return data
 }
 
-// The loan's events with the funded life-cover premium set (replacing any earlier one); other events are kept.
-function withCover(events, cover, startDate) {
+// The loan's events with the life-cover premium (and its monthly extra, if typed) set, replacing any earlier one; other
+// events are kept.
+function withCover(events, premium, monthly, startDate) {
   const list = Array.isArray(events) ? events : []
   const old = list.find((e) => e.type === 'cover')
   const others = list.filter((e) => e.type !== 'cover')
-  return cover > 0 ? [...others, { id: old?.id || crypto.randomUUID(), type: 'cover', date: startDate, amount: cover, note: 'Loan life cover premium, funded into the loan' }] : others
+  if (!(premium > 0)) return others
+  return [...others, { id: old?.id || crypto.randomUUID(), type: 'cover', date: startDate, amount: premium, ...(monthly > 0 ? { emi: monthly } : {}), note: 'Loan life cover: premium repaid with the EMI' }]
 }
 
 export async function saveLoan({ id, householdId, ...f }) {
@@ -32,7 +34,7 @@ export async function saveLoan({ id, householdId, ...f }) {
     due_date: f.interest_only ? f.due_date || null : null,
     grams: Number(f.grams) > 0 ? Number(f.grams) : null,
     note: f.note?.trim() || null,
-    events: withCover(f.events, f.interest_only ? 0 : Number(f.cover), f.start_date),
+    events: withCover(f.events, f.interest_only ? 0 : Number(f.cover), Number(f.coverEmi), f.start_date),
   }
   const q = id ? supabase.from('loans').update(row).eq('id', id) : supabase.from('loans').insert({ ...row, household_id: householdId })
   const { data, error } = await q.select().single()

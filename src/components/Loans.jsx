@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { today } from '../lib/format'
 import {
-  KINDS, kindLabel, summaryOf, prepaySavings, interestUntil, costSplit, fundedCover, fyTable, emiOf, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
+  KINDS, kindLabel, summaryOf, prepaySavings, interestUntil, costSplit, coverEvent, fyTable, emiOf, pmt, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
   loadLoans, loadDeals, saveDeal, deleteDeal, starterChecklist,
 } from '../lib/loans'
 import { loadDues } from '../lib/dues'
@@ -49,7 +49,7 @@ export default function Loans({ activeHouseholdId, view = 'loans' }) {
   const list = show === 'open' ? open : closed
   const totals = open.reduce((t, l) => ({
     outstanding: t.outstanding + l.s.outstanding,
-    monthly: t.monthly + (l.s.gold ? 0 : l.s.emi || 0),
+    monthly: t.monthly + (l.s.gold ? 0 : l.s.emiWithCover || l.s.emi || 0),
   }), { outstanding: 0, monthly: 0 })
   const current = withSummary.find((l) => l.id === openLoanId)
   const liveDeals = deals.filter((d) => !d.archived)
@@ -152,7 +152,7 @@ function LoanCard({ loan, onOpen }) {
         <>
           <div className="bar"><div className="fill ok" style={{ width: `${s.progress * 100}%` }} /></div>
           <div className="muted small due-foot">
-            <span>{Math.round(s.progress * 100)}% repaid · EMI {money(s.emi)}</span>
+            <span>{Math.round(s.progress * 100)}% repaid · EMI {money(s.emiWithCover || s.emi)}</span>
             <span>{loan.closed_on ? `closed ${fmtDate(loan.closed_on)}` : s.nextDate ? `next ${fmtDate(s.nextDate)}` : 'fully paid'}</span>
           </div>
         </>
@@ -175,7 +175,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const savings = !s.gold && Number(what) > 0 ? prepaySavings(loan, what, day) : null
-  const fy = !s.gold && s.rows ? fyTable(s.rows, day) : []
+  const fy = !s.gold && s.rows ? fyTable(s.rows, day, s.coverEmi) : []
   const events = [...(loan.events || [])].filter((x) => x.type !== 'cover').sort((a, b) => (a.date < b.date ? 1 : -1))
   const split = !s.gold && s.rows ? costSplit(fy, s) : null
 
@@ -232,7 +232,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
         <h3>{loan.name}</h3>
         <div className="muted small">{[kindLabel(loan.kind), loan.lender, `${loan.rate}% a year`, `from ${fmtDate(loan.start_date)}`].filter(Boolean).join(' · ')}</div>
         <div className="due-bal neg"><b className="amt">{money(s.outstanding)}</b><span className="small">outstanding</span></div>
-        {s.cover > 0 && <div className="muted small">Loan {money(loan.principal)} + life cover {money(s.cover)} funded into the loan</div>}
+        {s.coverEmi > 0 && <div className="muted small">Bank debits {money(s.emiWithCover)} a month: {money(s.emi)} loan + {money(s.coverEmi)} life cover</div>}
 
         {s.gold ? (
           <>
@@ -262,12 +262,17 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
                 <div className="loan-stats">
                   <Stat label="Principal paid" value={money(s.paidPrincipal)} tone="pos" />
                   <Stat label="Interest paid" value={money(s.paidInterest)} tone="neg" />
-                  <Stat label="EMI" value={money(s.emi)} />
+                  <Stat label={s.coverEmi > 0 ? 'EMI (loan)' : 'EMI'} value={money(s.emi)} />
                   <Stat label="Next EMI" value={s.nextDate ? fmtDate(s.nextDate) : 'none'} />
                   <Stat label="Ends" value={fmtDate(s.payoffDate)} />
                   <Stat label="Time left" value={months(s.monthsLeft)} />
                 </div>
                 {split && <p className="muted small" style={{ margin: 0 }}>Over the whole loan you pay <b>{money(split.whole.total)}</b>: {money(split.whole.principal)} principal and {money(split.whole.interest)} interest. See the Years tab for each year.</p>}
+                {s.coverEmi > 0 && (
+                  <div className="loan-save">
+                    <b>Life cover</b>: {money(s.coverEmi)} a month with the EMI, {money(s.coverTotal)} over the loan{coverEvent(loan)?.amount ? ` (premium ${money(coverEvent(loan).amount)} plus the interest on it)` : ''}. Paid so far <b>{money(s.coverPaid)}</b>.
+                  </div>
+                )}
               </>
             )}
 
@@ -279,7 +284,13 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
                   <div className="fy-row"><span>Still to come</span><span className="amt">{money(split.ahead.interest)}</span><span className="amt">{money(split.ahead.principal)}</span></div>
                   <div className="fy-row total"><span>Whole loan</span><span className="amt">{money(split.whole.interest)}</span><span className="amt">{money(split.whole.principal)}</span></div>
                 </div>
-                <p className="loan-save" style={{ margin: 0 }}>Together: <b>{money(split.whole.total)}</b> over the loan, of which <b>{money(split.paid.total)}</b> paid so far.</p>
+                {s.coverEmi > 0 && (
+                  <div className="fy-table fy-totals">
+                    <div className="fy-row head"><span /><span>Paid so far</span><span>Whole loan</span></div>
+                    <div className="fy-row total"><span>Life cover</span><span className="amt">{money(s.coverPaid)}</span><span className="amt">{money(s.coverTotal)}</span></div>
+                  </div>
+                )}
+                <p className="loan-save" style={{ margin: 0 }}>Together{s.coverEmi > 0 ? ' with the life cover' : ''}: <b>{money(split.whole.total + (s.coverTotal || 0))}</b> over the loan, of which <b>{money(split.paid.total + (s.coverPaid || 0))}</b> paid so far.</p>
                 <h4>Year by year</h4>
                 <div className="fy-table">
                   <div className="fy-row head"><span>Year</span><span>Interest</span><span>Principal</span></div>
@@ -288,11 +299,12 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
                       <span>{r.fy}{r.planned ? '*' : ''}</span>
                       <span className="amt">{money(r.interest)}</span>
                       <span className="amt">{money(r.principal)}</span>
+                      {r.cover > 0 && <span className="fy-extra">+ {money(r.cover)} life cover</span>}
                     </div>
                   ))}
                   <div className="fy-row total"><span>Total</span><span className="amt">{money(split.whole.interest)}</span><span className="amt">{money(split.whole.principal)}</span></div>
                 </div>
-                <p className="muted small" style={{ margin: 0 }}>* Not over yet. Worked out as if every EMI was paid on its date, so past years should match your bank's loan certificate.{s.cover > 0 ? ` Principal includes the ${money(s.cover)} life-cover premium funded into the loan.` : ''}</p>
+                <p className="muted small" style={{ margin: 0 }}>* Not over yet. Worked out as if every EMI was paid on its date, so past years should match your bank's loan certificate.{s.coverEmi > 0 ? ' Interest and principal are for the loan itself; the life cover is shown separately.' : ''}</p>
               </>
             )}
 
@@ -329,7 +341,7 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
   const dialog = useDialog()
   const [f, setF] = useState(() => ({
     kind: loan?.kind || 'home', name: loan?.name || '', lender: loan?.lender || '', principal: loan ? String(loan.principal) : '',
-    cover: loan && fundedCover(loan) > 0 ? String(fundedCover(loan)) : '',
+    cover: coverEvent(loan || {})?.amount ? String(coverEvent(loan).amount) : '', coverEmi: coverEvent(loan || {})?.emi ? String(coverEvent(loan).emi) : '',
     rate: loan ? String(loan.rate) : '', tenure_months: loan?.tenure_months ? String(loan.tenure_months) : '', emi: loan?.emi ? String(loan.emi) : '',
     start_date: loan?.start_date || today(), interest_only: loan ? loan.interest_only : false, due_date: loan?.due_date || '',
     grams: loan?.grams ? String(loan.grams) : '', note: loan?.note || '',
@@ -338,7 +350,8 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
   const [error, setError] = useState(null)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
   const pickKind = (e) => setF((x) => ({ ...x, kind: e.target.value, interest_only: e.target.value === 'gold' ? true : x.interest_only && x.kind !== 'gold' }))
-  const hint = !f.interest_only && Number(f.principal) > 0 && Number(f.tenure_months) > 0 ? emiOf({ principal: f.principal, rate: f.rate, tenure_months: f.tenure_months, emi: null, events: [{ type: 'cover', amount: Number(f.cover) || 0 }] }) : 0
+  const coverHint = !f.interest_only && Number(f.cover) > 0 && Number(f.tenure_months) > 0 ? pmt(Number(f.cover), f.rate, f.tenure_months) : 0
+  const hint = !f.interest_only && Number(f.principal) > 0 && Number(f.tenure_months) > 0 ? emiOf({ principal: f.principal, rate: f.rate, tenure_months: f.tenure_months, emi: null }) : 0
 
   async function save(e) {
     e.preventDefault()
@@ -365,9 +378,17 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
           <label>Interest % a year<input type="number" inputMode="decimal" min="0" step="0.01" required value={f.rate} onChange={set('rate')} /></label>
         </div>
         {!f.interest_only && (
-          <label>Loan life cover premium <span className="muted">(optional, if the bank added it to the loan)</span>
-            <AmountInput min="0" step="0.01" value={f.cover} onChange={set('cover')} placeholder="e.g. 3,00,000" />
-          </label>
+          <>
+            <div className="row2">
+              <label>Life cover premium <span className="muted">(optional)</span>
+                <AmountInput min="0" step="0.01" value={f.cover} onChange={set('cover')} placeholder="e.g. 3,00,000" />
+              </label>
+              <label>Cover extra / month <span className="muted">(optional)</span>
+                <AmountInput min="0" step="0.01" value={f.coverEmi} onChange={set('coverEmi')} placeholder={coverHint ? `≈ ${Math.round(coverHint)}` : 'worked out'} />
+              </label>
+            </div>
+            <p className="muted small" style={{ margin: 0 }}>If the bank adds a loan life cover, its premium is repaid with your EMI as a separate extra amount each month. The loan itself stays as it is.</p>
+          </>
         )}
         <label>{f.interest_only ? 'Taken on' : 'First loan date'}<input type="date" required value={f.start_date} onChange={set('start_date')} /></label>
         <label className="check"><input type="checkbox" checked={f.interest_only} onChange={set('interest_only')} /> Interest only — interest paid once a year, the amount repaid at the end (gold loan)</label>
@@ -382,7 +403,7 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
               <label>Tenure (months)<input type="number" inputMode="numeric" min="1" value={f.tenure_months} onChange={set('tenure_months')} placeholder="e.g. 240" /></label>
               <label>EMI <span className="muted">(optional)</span><AmountInput min="0" step="0.01" value={f.emi} onChange={set('emi')} placeholder={hint ? `≈ ${Math.round(hint)}` : 'worked out'} /></label>
             </div>
-            <p className="muted small">The EMI is worked out from the amount (plus any life cover funded into the loan), the rate and the tenure, unless you type the exact one from your bank.</p>
+            <p className="muted small">The loan EMI is worked out from the amount, the rate and the tenure, unless you type the exact one from your bank (without the life cover).</p>
           </>
         )}
         <label>Note <span className="muted">(optional)</span><input value={f.note} onChange={set('note')} /></label>

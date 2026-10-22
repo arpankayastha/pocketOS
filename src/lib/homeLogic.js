@@ -78,7 +78,7 @@ export function loanJourney(loan, s, today) {
   const pct = Math.round((s.progress || 0) * 100)
   return {
     begins, beginsOn: loan.start_date, pct, justBegun: !begins && (s.progress || 0) < 0.01,
-    paid: s.paidPrincipal || 0, nextDate: s.nextDate, nextAmount: s.nextAmount || s.emi || 0,
+    paid: s.paidPrincipal || 0, nextDate: s.nextDate, nextAmount: (s.nextAmount || s.emi || 0) + (s.coverEmi || 0),
     years: Math.floor((s.monthsLeft || 0) / 12), months: (s.monthsLeft || 0) % 12,
   }
 }

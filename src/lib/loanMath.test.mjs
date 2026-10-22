@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { emiOf, fundedCover, loanAmount, costSplit, emiInMonth, matchEmiPayment, interestUntil, pmt, addMonths, fyOf, schedule, summary, prepaySavings, fyTable, goldSummary, summaryOf, daysBetween } from './loanMath.js'
+import { emiOf, coverEmi, costSplit, emiInMonth, matchEmiPayment, interestUntil, pmt, addMonths, fyOf, schedule, summary, prepaySavings, fyTable, goldSummary, summaryOf, daysBetween } from './loanMath.js'
 
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`)
 
@@ -95,23 +95,26 @@ const csp = costSplit(fyTable(schedule({ ...loan, events: [{ id: 'p', type: 'pre
 near(csp.whole.principal, 5000000, 0.01, 'principal with prepay')
 assert.ok(csp.whole.interest < cs.whole.interest)
 
-// Loan life cover funded into the loan: the loan becomes principal + premium; same tenure, so the EMI grows in proportion.
+// Loan life cover: a separate extra each month with the EMI; the loan itself (balance, interest, schedule) is untouched.
 const covered = { ...loan, events: [{ id: 'c', type: 'cover', date: '2025-04-10', amount: 320000 }] }
-assert.equal(fundedCover(covered), 320000); assert.equal(loanAmount(covered), 5320000); assert.equal(fundedCover(loan), 0)
-near(emiOf(covered), emiOf(loan) * 5320000 / 5000000, 0.01, 'EMI on loan + cover')
-const covRows = schedule(covered)
-assert.ok(covRows.length >= 239 && covRows.length <= 241)
-near(covRows[covRows.length - 1].balance, 0, 0.01, 'covered loan ends at zero')
-near(covRows[0].interest, 5320000 * 8.5 / 1200, 0.01, 'first interest on the total')
-const covSummary = summary(covered, '2026-04-20')
-assert.equal(covSummary.cover, 320000)
-near(covSummary.paidInterest + covSummary.paidPrincipal, 12 * emiOf(covered), 20, 'paid so far on the covered loan')
-const covSplit = costSplit(fyTable(covRows, '2026-04-20'), covSummary)
-near(covSplit.whole.principal, 5320000, 0.01, 'principal includes the funded premium')
-assert.equal(summary({ ...covered, start_date: '2030-01-10' }, '2026-10-22').outstanding, 5320000) // not started: the full amount
-// A typed EMI still wins; prepayments and rate changes keep working next to the cover.
-assert.equal(emiOf({ ...covered, emi: 49852 }), 49852)
-assert.ok(schedule({ ...covered, events: [...covered.events, { id: 'p', type: 'prepay', date: '2026-02-01', amount: 500000 }] }).length < covRows.length)
+near(coverEmi(covered), emiOf(loan) * 320000 / 5000000, 0.01, 'cover EMI worked out from the premium')
+assert.equal(coverEmi(loan), 0)
+assert.equal(coverEmi({ ...covered, events: [{ id: 'c', type: 'cover', date: '2025-04-10', amount: 320000, emi: 2777 }] }), 2777) // typed wins
+assert.equal(emiOf(covered), emiOf(loan)) // the loan's own EMI does not move
+assert.deepEqual(schedule(covered).map((r) => [r.interest, r.principal, r.balance]), schedule(loan).map((r) => [r.interest, r.principal, r.balance]))
+const cs2 = summary(covered, '2026-04-20') // 12 EMIs paid
+near(cs2.emiWithCover, emiOf(loan) + coverEmi(covered), 0.01, 'bank debit = EMI + cover')
+near(cs2.coverPaid, 12 * coverEmi(covered), 0.01, 'cover paid so far')
+near(cs2.coverTotal, schedule(loan).length * coverEmi(covered), 0.01, 'cover over the loan')
+assert.equal(cs2.outstanding, summary(loan, '2026-04-20').outstanding)
+near(cs2.paidInterest, summary(loan, '2026-04-20').paidInterest, 0.01, 'loan interest unchanged')
+const fyc = fyTable(schedule(covered), '2026-04-20', coverEmi(covered))
+near(fyc.reduce((t, r) => t + r.cover, 0), cs2.coverTotal, 0.01, 'cover by year adds up')
+assert.equal(fyTable(schedule(loan), '2026-04-20')[0].cover, 0)
+// A typed premium extra still wins over the worked-out figure in the Plan line, and the debit is the full amount.
+const dueCov = emiInMonth(covered, '2026-05')
+near(dueCov.emi, emiOf(loan) + coverEmi(covered), 0.01, 'Plan EMI includes the cover')
+assert.equal(emiInMonth(loan, '2026-05').emi, emiOf(loan))
 
 // The EMI shows in the month its date falls in.
 const home = { principal: 6500000, rate: 7.55, tenure_months: 324, emi: null, start_date: '2026-12-05', events: [], interest_only: false }

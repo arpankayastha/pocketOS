@@ -963,5 +963,8 @@ details.section[open] .chev { transform: rotate(90deg); }
 .fy-totals { background: var(--card-2); border-radius: 14px; padding: 4px 12px; }
 .fy-totals .fy-row:first-child { border-top: none; }
 .fy-row.total { font-weight: 700; border-top: 2px solid var(--line); border-bottom: none; }
+.fy-totals .fy-row.total:first-of-type { border-top: none; }
 .fy-totals .fy-row:last-child { border-bottom: none; }
 .due-sheet h4 { margin: 6px 0 2px; }
+
+.fy-extra { grid-column: 1 / -1; color: var(--muted); font-size: 12px; margin-top: -2px; }
