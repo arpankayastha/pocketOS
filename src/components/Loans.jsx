@@ -341,7 +341,7 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
   const dialog = useDialog()
   const [f, setF] = useState(() => ({
     kind: loan?.kind || 'home', name: loan?.name || '', lender: loan?.lender || '', principal: loan ? String(loan.principal) : '',
-    cover: coverEvent(loan || {})?.amount ? String(coverEvent(loan).amount) : '', coverEmi: coverEvent(loan || {})?.emi ? String(coverEvent(loan).emi) : '',
+    coverEmi: (() => { const ce = coverEvent(loan || {}); return ce?.emi ? String(ce.emi) : ce?.amount ? String(Math.round(pmt(ce.amount, loan.rate, loan.tenure_months))) : '' })(),
     rate: loan ? String(loan.rate) : '', tenure_months: loan?.tenure_months ? String(loan.tenure_months) : '', emi: loan?.emi ? String(loan.emi) : '',
     start_date: loan?.start_date || today(), interest_only: loan ? loan.interest_only : false, due_date: loan?.due_date || '',
     grams: loan?.grams ? String(loan.grams) : '', note: loan?.note || '',
@@ -350,7 +350,6 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
   const [error, setError] = useState(null)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
   const pickKind = (e) => setF((x) => ({ ...x, kind: e.target.value, interest_only: e.target.value === 'gold' ? true : x.interest_only && x.kind !== 'gold' }))
-  const coverHint = !f.interest_only && Number(f.cover) > 0 && Number(f.tenure_months) > 0 ? pmt(Number(f.cover), f.rate, f.tenure_months) : 0
   const hint = !f.interest_only && Number(f.principal) > 0 && Number(f.tenure_months) > 0 ? emiOf({ principal: f.principal, rate: f.rate, tenure_months: f.tenure_months, emi: null }) : 0
 
   async function save(e) {
@@ -377,19 +376,6 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
           <label>Amount borrowed<AmountInput min="1" step="0.01" required value={f.principal} onChange={set('principal')} /></label>
           <label>Interest % a year<input type="number" inputMode="decimal" min="0" step="0.01" required value={f.rate} onChange={set('rate')} /></label>
         </div>
-        {!f.interest_only && (
-          <>
-            <div className="row2">
-              <label>Life cover premium <span className="muted">(optional)</span>
-                <AmountInput min="0" step="0.01" value={f.cover} onChange={set('cover')} placeholder="e.g. 3,00,000" />
-              </label>
-              <label>Cover extra / month <span className="muted">(optional)</span>
-                <AmountInput min="0" step="0.01" value={f.coverEmi} onChange={set('coverEmi')} placeholder={coverHint ? `≈ ${Math.round(coverHint)}` : 'worked out'} />
-              </label>
-            </div>
-            <p className="muted small" style={{ margin: 0 }}>If the bank adds a loan life cover, its premium is repaid with your EMI as a separate extra amount each month. The loan itself stays as it is.</p>
-          </>
-        )}
         <label>{f.interest_only ? 'Taken on' : 'First loan date'}<input type="date" required value={f.start_date} onChange={set('start_date')} /></label>
         <label className="check"><input type="checkbox" checked={f.interest_only} onChange={set('interest_only')} /> Interest only — interest paid once a year, the amount repaid at the end (gold loan)</label>
         {f.interest_only ? (
@@ -401,9 +387,13 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
           <>
             <div className="row2">
               <label>Tenure (months)<input type="number" inputMode="numeric" min="1" value={f.tenure_months} onChange={set('tenure_months')} placeholder="e.g. 240" /></label>
-              <label>EMI <span className="muted">(optional)</span><AmountInput min="0" step="0.01" value={f.emi} onChange={set('emi')} placeholder={hint ? `≈ ${Math.round(hint)}` : 'worked out'} /></label>
+              <label>Loan EMI <span className="muted">(optional)</span><AmountInput min="0" step="0.01" value={f.emi} onChange={set('emi')} placeholder={hint ? `≈ ${Math.round(hint)}` : 'worked out'} /></label>
             </div>
-            <p className="muted small">The loan EMI is worked out from the amount, the rate and the tenure, unless you type the exact one from your bank (without the life cover).</p>
+            <p className="muted small">The loan EMI is worked out from the amount, the rate and the tenure, unless you type the exact one from your bank (without any life cover).</p>
+            <label>Life cover premium, each month <span className="muted">(optional)</span>
+              <AmountInput min="0" step="0.01" value={f.coverEmi} onChange={set('coverEmi')} placeholder="e.g. 2,788" />
+            </label>
+            <p className="muted small" style={{ margin: 0 }}>If your bank adds a loan life cover, put what it adds to the EMI each month here. Your bank debits the EMI plus this; the loan itself stays as it is.</p>
           </>
         )}
         <label>Note <span className="muted">(optional)</span><input value={f.note} onChange={set('note')} /></label>
