@@ -172,6 +172,12 @@ export function endBill(s, { discount = 0, deposit = 0, useDeposit = false, mode
   return { total, paid, owedBefore, before, fromDep, due, cash, online, owed }
 }
 
+// Owner, 22 Oct: F&B / Extend paid now partly in cash, the rest online. The cash part is capped at the amount.
+export function cashOnline(value, cashPart) {
+  const v = Math.max(0, Number(value) || 0), cash = Math.min(v, Math.max(0, Math.round(Number(cashPart) || 0)))
+  return { cash, online: v - cash }
+}
+
 // Collect while playing: dues from this session first (lowering owed), then the rest of the bill.
 export function collectSplit(s, amount) {
   const owed = Number(s.owed || 0), due = dueOf(s) + owed

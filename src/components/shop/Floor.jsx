@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
-import { isHappyDay, minutesLeft, rs, timeLabel, useNow } from '../../lib/shop'
+import { isHappyDay, minutesLeft, rs, sessionEnd, timeLabel, useNow } from '../../lib/shop'
 import { Chips } from './ui'
-import { alarm, speak } from '../../lib/alarm'
+import { alarm, scheduleAlarm, speak } from '../../lib/alarm'
 import { ControllersSheet, MoveSheet, RunRow, SessionSheet, TimerCodeSheet } from './floor/SessionRows'
 import { StartSheet } from './floor/StartSheet'
 import { CollectSheet, EndSheet, ExtendSheet, FnbSheet } from './floor/PaySheets'
@@ -167,15 +167,34 @@ export default function Floor({ shop, householdId, toast }) {
 // 5 minutes left and again when its time is up; a phone notification too if alerts are allowed.
 export function useTimeUpAlarm(running, now, onAlert) {
   const fired = useRef(new Set())
+  // Owner, 22 Oct: no sound when an extended time ran out. The beeps are now booked ahead on the audio clock
+  // for each session's end (like the #timer screen), so a throttled background tab still rings on time, and
+  // re-booked whenever the end moves (Extend / pause / resume). Keys carry the end time, so a new end rings again.
+  const booked = useRef(new Map()) // key → cancel
+  const keyOf = (s, mark) => `${s.id}:${sessionEnd(s).getTime()}:${mark}`
+  useEffect(() => {
+    const want = new Set()
+    for (const s of running) {
+      if (s.paused_at || s.waiting) continue
+      for (const mark of [5, 0]) {
+        const key = keyOf(s, mark), at = sessionEnd(s).getTime() - mark * 60_000
+        if (at <= Date.now() || fired.current.has(key)) continue
+        want.add(key)
+        if (!booked.current.has(key)) booked.current.set(key, scheduleAlarm(at, mark === 0 ? 10 : 5))
+      }
+    }
+    for (const [key, cancel] of booked.current) if (!want.has(key) && !fired.current.has(key)) { cancel(); booked.current.delete(key) }
+  }, [running]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { for (const cancel of booked.current.values()) cancel() }, [])
   useEffect(() => {
     for (const s of running) {
-      if (s.paused_at) continue
+      if (s.paused_at || s.waiting) continue
       const left = minutesLeft(s, now)
       for (const [mark, msg] of [[5, '5 minutes left'], [0, 'time is up']]) {
-        const key = `${s.id}:${s.minutes}:${mark}`
+        const key = keyOf(s, mark)
         if (left <= mark && left > mark - 3 && !fired.current.has(key)) {
           fired.current.add(key)
-          alarm(mark === 0 ? 10 : 5) // seconds: 5 at 5 min left, 10 at time up
+          if (!booked.current.has(key)) alarm(mark === 0 ? 10 : 5) // seconds: 5 at 5 min left, 10 at time up
           const where = s.system_name.startsWith('PS') ? `${s.system_name.replace('PS', 'P S ')}, controller ${s.seat || 1}` : s.system_name.replace(/^PC/, 'P C ')
           setTimeout(() => speak(`${mark === 0 ? 'Time is up for' : '5 minutes remaining for'} ${where}, ${s.customer_name.replace(/ \(\d+\/\d+\)$/, '')}`), (mark === 0 ? 10 : 5) * 1000)
           const title = `${s.system_name}${s.seat > 1 || s.system_name.startsWith('PS') ? ` · controller ${s.seat || 1}` : ''}: ${msg}`

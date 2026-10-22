@@ -1,6 +1,7 @@
 // Run: npm test — the counter's money and time rules (lib/money.js). Made-up customers only.
 import assert from 'node:assert/strict'
 import {
+  cashOnline,
   priceFor, sessionEnd, pausedMinutes, sessionTotal, sessionPaid, depositBalances, balanceFor, customerKey,
   dayTotals, duesByCustomer, dueOf, dueReason, shareOut, startPayments, endBill, collectSplit,
 } from './money.js'
@@ -152,5 +153,10 @@ const back = [
 assert.equal(balanceFor(back, 'Test Three', '9800000003'), undefined)        // nothing left
 const t2 = dayTotals({ sessions: [], cash: [], advances: [], deposits: back }, day)
 assert.equal(t2.cash, 50); assert.equal(t2.deposits, 100); assert.equal(t2.refunds, 50)
+
+// F&B / Extend split: cash part capped, rest online
+assert.deepEqual(cashOnline(100, 40), { cash: 40, online: 60 })
+assert.deepEqual(cashOnline(100, 250), { cash: 100, online: 0 })
+assert.deepEqual(cashOnline(100, ''), { cash: 0, online: 100 })
 
 console.log('money rules: all good')

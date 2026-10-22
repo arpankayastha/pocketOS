@@ -1408,3 +1408,16 @@ begin
 end $$;
 revoke execute on function private.shift_edit_log() from public, anon, authenticated;
 create or replace trigger shop_shifts_edit_log before update on public.shop_shifts for each row execute function private.shift_edit_log();
+-- Extend resets the lock-screen alerts (owner, 22 Oct: no alert when an extended time ran out — push_5_at /
+-- push_0_at stayed set from the first end). Migration session_push_reset_on_extend:
+create or replace function private.session_push_reset() returns trigger language plpgsql set search_path = '' as $$
+begin
+  if new.status = 'running' and (new.minutes is distinct from old.minutes or new.paused_minutes is distinct from old.paused_minutes
+      or new.started_at is distinct from old.started_at) then
+    if private.session_end(new) - interval '5 minutes' > now() then new.push_5_at := null; end if;
+    if private.session_end(new) > now() then new.push_0_at := null; end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function private.session_push_reset() from public, anon, authenticated;
+create or replace trigger shop_sessions_push_reset before update on public.shop_sessions for each row execute function private.session_push_reset();

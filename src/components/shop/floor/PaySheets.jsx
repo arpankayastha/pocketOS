@@ -3,7 +3,7 @@ import { supabase } from '../../../lib/supabase'
 import { collectSplit, durLabel, endBill, inr, priceFor, rs, sessionEnd, timeLabel, useNow } from '../../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from '../ui'
 import { UpiQrButton } from '../UpiQr'
-import { depositOf, dueOf, FNB, payAdd, payNote, payOptions, saveSession, useDepositPick } from './common'
+import { depositOf, dueOf, FNB, payAdd, payNote, payOptions, saveSession, SplitPay, useDepositPick } from './common'
 
 // Owner, 14 Oct: the customer paid while still playing (staff forgot to pick a payment) — record it now;
 // End & collect then only asks for what's left.
@@ -35,6 +35,7 @@ export function FnbSheet({ session, settings, deposits = [], onClose, onDone }) 
   const [amt, setAmt] = useState(20)
   const [custom, setCustom] = useState('')
   const [pay, setPay] = useState('end')
+  const [cashPart, setCashPart] = useState('')
   const [busy, setBusy] = useState(false)
   const value = custom ? Number(custom) : amt
   async function save() {
@@ -42,7 +43,7 @@ export function FnbSheet({ session, settings, deposits = [], onClose, onDone }) 
     setBusy(true)
     const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, value) : 0
     const { error } = await saveSession(session.id, {
-      add: { fnb_while: value, ...(fromDep ? { paid_deposit: fromDep } : payAdd(pay, value)) },
+      add: { fnb_while: value, ...(fromDep ? { paid_deposit: fromDep } : payAdd(pay, value, cashPart)) },
       note: pay === 'due' ? `Due: F&B ${inr(value)}` : fromDep && d.friend ? `From ${dep.name}’s deposit ${inr(fromDep)}` : null,
       deposit: depositOf(dep, fromDep),
     })
@@ -59,6 +60,7 @@ export function FnbSheet({ session, settings, deposits = [], onClose, onDone }) 
       {pay === 'deposit' && d.picker}
       {pay === 'deposit' && dep && value > dep.balance && <p className="muted small" style={{ margin: 0 }}>{rs(dep.balance)} from the deposit, {rs(value - dep.balance)} with the bill at the end.</p>}
       {pay === 'online' && value > 0 && <UpiQrButton settings={settings} amount={value} note={`${session.system_name} F&B · ${session.customer_name}`} />}
+      {pay === 'split' && value > 0 && <SplitPay value={value} cashPart={cashPart} setCashPart={setCashPart} settings={settings} note={`${session.system_name} F&B · ${session.customer_name}`} />}
       <SheetActions onClose={onClose} busy={busy} disabled={!(value > 0)} label={`Add ${rs(value || 0)}`} />
     </Sheet>
   )
@@ -70,6 +72,7 @@ export function ExtendSheet({ system, session, rates, settings, deposits = [], o
   const d = useDepositPick(deposits, session.customer_name, session.customer_phone), dep = d.dep
   const [add, setAdd] = useState(30)
   const [pay, setPay] = useState('end')
+  const [cashPart, setCashPart] = useState('')
   const [busy, setBusy] = useState(false)
   const minutes = session.minutes + add
   const extra = priceFor(rates, system.kind, add, session.happy) * (session.players || 1)
@@ -79,7 +82,7 @@ export function ExtendSheet({ system, session, rates, settings, deposits = [], o
     setBusy(true)
     const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, extra) : 0
     const { error } = await saveSession(session.id, {
-      add: { minutes: add, extend_amount: extra, ...(fromDep ? { paid_deposit: fromDep } : payAdd(pay, extra)) },
+      add: { minutes: add, extend_amount: extra, ...(fromDep ? { paid_deposit: fromDep } : payAdd(pay, extra, cashPart)) },
       note: pay === 'due' ? `Due: extend ${durLabel(add)} ${inr(extra)}` : fromDep && d.friend ? `From ${dep.name}’s deposit ${inr(fromDep)}` : null,
       deposit: depositOf(dep, fromDep),
     })
@@ -99,6 +102,7 @@ export function ExtendSheet({ system, session, rates, settings, deposits = [], o
       {pay === 'deposit' && d.picker}
       {pay === 'deposit' && dep && extra > dep.balance && <p className="muted small" style={{ margin: 0 }}>{rs(dep.balance)} from the deposit, {rs(extra - dep.balance)} with the bill at the end.</p>}
       {pay === 'online' && <UpiQrButton settings={settings} amount={extra} note={`${session.system_name} extend · ${session.customer_name}`} />}
+      {pay === 'split' && <SplitPay value={extra} cashPart={cashPart} setCashPart={setCashPart} settings={settings} note={`${session.system_name} extend · ${session.customer_name}`} />}
       <SheetActions onClose={onClose} busy={busy} label="Extend" />
     </Sheet>
   )

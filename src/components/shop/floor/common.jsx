@@ -1,7 +1,8 @@
 // Small helpers shared by the Slots screens (Floor.jsx and the sheets in this folder).
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { balanceFor, depositBalances, minutesLeft, rs, timeLabel } from '../../../lib/shop'
+import { balanceFor, cashOnline, depositBalances, minutesLeft, rs, timeLabel } from '../../../lib/shop'
+import { UpiQrButton } from '../UpiQr'
 export { dueOf } from '../../../lib/money'
 
 export const stateOf = (s, now) => { const left = minutesLeft(s, now); return s.waiting ? 'waiting' : s.paused_at ? 'paused' : left <= 0 ? 'over' : left <= 5 ? 'ending' : 'busy' }
@@ -35,11 +36,26 @@ export const depLabel = (own) => own ? `From deposit · ${rs(own.balance)}` : 'F
 
 // Pay for an add-on now or at the end (owner, 13 Oct: "customer paid online but it showed ₹50 to collect").
 // Owner, 14 Oct: 'Due' puts it straight into the customer's dues (Cash → Customer dues), by their name.
-export const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['due', 'Due · customer owes']]
+export const PAY_NOW = [['end', 'With the bill at the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Paid now · cash + online'], ['due', 'Due · customer owes']]
 
 // Amounts an add-on adds to the session (F&B / Extend): paid now cash / online, into their dues, or nothing
 // (with the bill at the end). The deposit case is handled by the caller (paid_deposit + the deposit used).
-export const payAdd = (pay, value) => (pay === 'due' ? { owed: value } : pay === 'cash' ? { paid_cash: value } : pay === 'online' ? { paid_online: value } : {})
+export const payAdd = (pay, value, cashPart) => {
+  if (pay === 'split') { const { cash, online } = cashOnline(value, cashPart); return { paid_cash: cash, paid_online: online } }
+  return pay === 'due' ? { owed: value } : pay === 'cash' ? { paid_cash: value } : pay === 'online' ? { paid_online: value } : {}
+}
+
+// Owner, 22 Oct: "Cash + online" on F&B and Extend — type the cash part, the QR asks for the rest.
+export function SplitPay({ value, cashPart, setCashPart, settings, note }) {
+  const { cash, online } = cashOnline(value, cashPart)
+  return (
+    <>
+      <label>Cash part<input inputMode="numeric" value={cashPart} onChange={(e) => setCashPart(e.target.value.replace(/\D/g, ''))} placeholder={`of ${rs(value)} — rest is online`} /></label>
+      {cashPart !== '' && <p className="muted small" style={{ margin: 0 }}>{rs(cash)} cash + {rs(online)} online</p>}
+      {online > 0 && <UpiQrButton settings={settings} amount={online} note={note} />}
+    </>
+  )
+}
 
 // Owner, 17 Oct: a customer with a deposit can have F&B / extend taken from it (up to the balance; any rest is with the bill at the end).
 export const payOptions = (d) => d.any ? [...PAY_NOW, ['deposit', depLabel(d.own)]] : PAY_NOW
@@ -51,7 +67,7 @@ export function saveSession(id, { add = {}, set = {}, note = null, deposit = nul
 }
 export const depositOf = (dep, amount) => (dep && amount > 0 ? { name: dep.name, phone: dep.phone || null, amount } : null)
 
-export const payNote = (pay) => pay === 'deposit' ? ' · from their deposit' : pay === 'due' ? ' · added to their dues' : pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : ' · to collect at the end'
+export const payNote = (pay) => pay === 'deposit' ? ' · from their deposit' : pay === 'due' ? ' · added to their dues' : pay === 'cash' ? ' · paid cash' : pay === 'online' ? ' · paid online' : pay === 'split' ? ' · paid cash + online' : ' · to collect at the end'
 
 // The first booked time and each change (owner, 16 Oct: keep the original time in the record after a change).
 export const whenLabel = (t) => `${new Date(t).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} ${timeLabel(t)}`
