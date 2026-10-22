@@ -15,7 +15,12 @@ export default function TemplatesSheet({ homeId, onClose }) {
   }, [dialog])
   useEffect(() => { load() }, [load])
 
-  async function seed() { try { await seedTemplates(homeId, EVENT_TEMPLATES); await load() } catch (e) { dialog.alert(e.message || String(e)) } }
+  const [seeding, setSeeding] = useState(false)
+  async function seed() {
+    if (seeding) return
+    setSeeding(true)
+    try { await seedTemplates(homeId, EVENT_TEMPLATES); await load() } catch (e) { dialog.alert(e.message || String(e)) } finally { setSeeding(false) }
+  }
   async function remove(t) {
     if (await dialog.confirm({ title: `Delete “${t.name}”?`, message: 'Occasions already made from it are not affected.', confirmLabel: 'Delete', danger: true })) { await deleteTemplate(t.id); load() }
   }
@@ -30,7 +35,7 @@ export default function TemplatesSheet({ homeId, onClose }) {
         {tpls && !tpls.length && (
           <div className="ls-box ls-money-empty">
             <p>You are using the built-in starters. Copy them in to edit them.</p>
-            <button type="button" className="btn primary" onClick={seed}>Copy the built-in starters to edit</button>
+            <button type="button" className="btn primary" disabled={seeding} onClick={seed}>{seeding ? 'Copying…' : 'Copy the built-in starters to edit'}</button>
           </div>
         )}
         {tpls?.length > 0 && <div className="ls-box">{tpls.map((t) => (

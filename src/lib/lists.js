@@ -135,7 +135,9 @@ export async function saveTemplate(householdId, tpl) {
 export const deleteTemplate = (id) => deleteList(id)
 // First customise: copy the built-in starters in, so they can be edited like any other.
 export async function seedTemplates(householdId, builtIns) {
-  for (const t of builtIns) if (t.name) await saveTemplate(householdId, { name: t.name, icon: t.icon, tasks: t.tasks, samagri: t.samagri, people: t.people })
+  // Idempotent: skips any name that is already saved, so a double tap can't make copies.
+  const have = new Set((await loadTemplates()).map((t) => t.name.toLowerCase()))
+  for (const t of builtIns) if (t.name && !have.has(t.name.toLowerCase())) await saveTemplate(householdId, { name: t.name, icon: t.icon, tasks: t.tasks, samagri: t.samagri, people: t.people })
 }
 // "Save as template" from an occasion: its items with ticks cleared; due dates become days before the event.
 export async function templateFromList(list) {
