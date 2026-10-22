@@ -128,6 +128,16 @@ export function fyTable(rows, today) {
   return [...map.values()].map((e) => ({ ...e, planned: e.last > today }))
 }
 
+// What the whole loan costs, split into principal and interest: paid so far, still to come, and the whole.
+// `fy` = fyTable rows, `s` = summary(). Prepayments count as principal, as in the year table.
+export function costSplit(fy, s) {
+  const whole = { interest: fy.reduce((t, r) => t + r.interest, 0), principal: fy.reduce((t, r) => t + r.principal, 0) }
+  const paid = { interest: s.paidInterest || 0, principal: s.paidPrincipal || 0 }
+  const ahead = { interest: Math.max(0, whole.interest - paid.interest), principal: Math.max(0, whole.principal - paid.principal) }
+  const total = (x) => x.interest + x.principal
+  return { whole: { ...whole, total: total(whole) }, paid: { ...paid, total: total(paid) }, ahead: { ...ahead, total: total(ahead) } }
+}
+
 // Interest-only loans (gold): the principal is repaid at the end. Interest runs by the day and is paid about once
 // a year, but it can be paid early — "interest till date". Each payment is an `interest` event; what has built up
 // counts from the last payment (or from the day the loan was taken), and the next one falls a year after that.

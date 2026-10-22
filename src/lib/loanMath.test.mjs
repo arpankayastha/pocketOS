@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { emiInMonth, matchEmiPayment, interestUntil, pmt, addMonths, fyOf, schedule, summary, prepaySavings, fyTable, goldSummary, summaryOf, daysBetween } from './loanMath.js'
+import { costSplit, emiInMonth, matchEmiPayment, interestUntil, pmt, addMonths, fyOf, schedule, summary, prepaySavings, fyTable, goldSummary, summaryOf, daysBetween } from './loanMath.js'
 
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`)
 
@@ -82,6 +82,18 @@ assert.equal(gp.state, 'ok')
 assert.equal(goldSummary({ ...gold, due_date: '2026-12-31' }, '2027-01-05').state, 'overdue') // renewal passed
 assert.equal(goldSummary({ ...gold, closed_on: '2026-09-01' }, '2026-12-01').state, 'closed')
 assert.equal(summaryOf(gold, '2026-07-01').gold, true)
+
+// Totals over the years: paid so far + still to come = the whole loan; principal always adds back to the amount borrowed.
+const cs = costSplit(fyTable(rows, '2026-04-20'), summary(loan, '2026-04-20'))
+near(cs.whole.principal, 5000000, 0.01, 'whole principal')
+near(cs.whole.interest, totalInterest, 0.01, 'whole interest')
+near(cs.paid.total + cs.ahead.total, cs.whole.total, 0.01, 'paid + ahead = whole')
+near(cs.paid.principal + cs.ahead.principal, 5000000, 0.01, 'principal split')
+assert.ok(cs.paid.interest > 0 && cs.ahead.interest > cs.paid.interest)
+// With a prepayment the whole-loan interest shrinks and principal still adds to the amount borrowed.
+const csp = costSplit(fyTable(schedule({ ...loan, events: [{ id: 'p', type: 'prepay', date: '2026-02-01', amount: 1000000 }] }), '2026-04-20'), summary({ ...loan, events: [{ id: 'p', type: 'prepay', date: '2026-02-01', amount: 1000000 }] }, '2026-04-20'))
+near(csp.whole.principal, 5000000, 0.01, 'principal with prepay')
+assert.ok(csp.whole.interest < cs.whole.interest)
 
 // The EMI shows in the month its date falls in.
 const home = { principal: 6500000, rate: 7.55, tenure_months: 324, emi: null, start_date: '2026-12-05', events: [], interest_only: false }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { today } from '../lib/format'
 import {
-  KINDS, kindLabel, summaryOf, prepaySavings, interestUntil, fyTable, emiOf, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
+  KINDS, kindLabel, summaryOf, prepaySavings, interestUntil, costSplit, fyTable, emiOf, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
   loadLoans, loadDeals, saveDeal, deleteDeal, starterChecklist,
 } from '../lib/loans'
 import { loadDues } from '../lib/dues'
@@ -169,6 +169,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
   const dialog = useDialog()
   const s = loan.s
   const day = today()
+  const [tab, setTab] = useState('overview') // EMI loans: overview | years | prepay
   const [what, setWhat] = useState('')
   const [ev, setEv] = useState(null) // { type, date, amount, rate }
   const [busy, setBusy] = useState(false)
@@ -176,6 +177,7 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
   const savings = !s.gold && Number(what) > 0 ? prepaySavings(loan, what, day) : null
   const fy = !s.gold && s.rows ? fyTable(s.rows, day) : []
   const events = [...(loan.events || [])].sort((a, b) => (a.date < b.date ? 1 : -1))
+  const split = !s.gold && s.rows ? costSplit(fy, s) : null
 
   async function addEvent(e) {
     e.preventDefault()
@@ -197,6 +199,33 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
     try { await setLoanClosed(loan, loan.closed_on ? null : day); onChanged(); if (!loan.closed_on) onClose() } catch (err) { setError(err.message) }
   }
 
+  const eventsBlock = (
+    <>
+      {events.length === 0 && <p className="muted small">{s.gold ? 'None yet. Pay the interest whenever you like — even before the year ends — and add it here; what builds up then counts from that day.' : 'None yet. Add one when it happens, so the schedule follows your loan.'}</p>}
+      {events.map((x) => (
+        <div key={x.id} className="line">
+          <span>{x.type === 'prepay' ? `Prepaid ${money(x.amount)}` : x.type === 'interest' ? `Paid interest ${money(x.amount)}` : `Rate changed to ${x.rate}%`}<span className="muted small"> · {fmtDate(x.date)}</span></span>
+          <button className="btn icon" aria-label="Remove" onClick={() => removeEvent(x.id)}><TrashIcon /></button>
+        </div>
+      ))}
+      {ev ? (
+        <form className="stack" onSubmit={addEvent}>
+          {!s.gold && <div className="seg">
+            <button type="button" className={ev.type === 'prepay' ? 'on' : ''} onClick={() => setEv({ ...ev, type: 'prepay' })}>Prepayment</button>
+            <button type="button" className={ev.type === 'rate' ? 'on' : ''} onClick={() => setEv({ ...ev, type: 'rate' })}>Rate change</button>
+          </div>}
+          <div className="row2">
+            <label>Date<input type="date" required value={ev.date} onChange={(e) => setEv({ ...ev, date: e.target.value, ...(ev.type === 'interest' && !ev.touched ? { amount: String(Math.round(interestUntil(loan, e.target.value))) } : {}) })} /></label>
+            {ev.type !== 'rate'
+              ? <label>{ev.type === 'interest' ? 'Interest paid' : 'Amount'}<AmountInput min="1" step="0.01" required value={ev.amount} onChange={(e) => setEv({ ...ev, amount: e.target.value, touched: true })} /></label>
+              : <label>New rate %<input type="number" inputMode="decimal" min="0" step="0.01" required value={ev.rate} onChange={(e) => setEv({ ...ev, rate: e.target.value })} /></label>}
+          </div>
+          <div className="actions"><div className="spacer" /><button type="button" className="btn" onClick={() => setEv(null)}>Cancel</button><button className="btn primary" disabled={busy}>Add</button></div>
+        </form>
+      ) : <button className="btn small" onClick={() => setEv(s.gold ? { type: 'interest', date: day, amount: String(Math.round(interestUntil(loan, day))), rate: '' } : { type: 'prepay', date: day, amount: '', rate: '' })}>{s.gold ? '+ Pay interest (till date)' : '+ Add prepayment or rate change'}</button>}
+    </>
+  )
+
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <div className="card modal due-sheet" onMouseDown={(e) => e.stopPropagation()}>
@@ -205,76 +234,80 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
         <div className="due-bal neg"><b className="amt">{money(s.outstanding)}</b><span className="small">outstanding</span></div>
 
         {s.gold ? (
-          <div className="loan-stats">
-            <Stat label="Interest each year" value={money(s.yearlyInterest)} />
-            <Stat label="Next interest due" value={s.nextInterestOn ? fmtDate(s.nextInterestOn) : '—'} tone={s.state === 'soon' ? 'warn' : ''} />
-            <Stat label={s.lastInterestOn ? `Built up since ${fmtDate(s.lastInterestOn)}` : 'Built up since you took it'} value={money(s.sinceLast)} />
-            <Stat label="Renewal / closing date" value={loan.due_date ? fmtDate(loan.due_date) : '—'} tone={s.state === 'overdue' ? 'neg' : ''} />
-            <Stat label="Interest paid so far" value={money(s.paidInterest)} tone="pos" />
-            <Stat label="Gold pledged" value={loan.grams ? `${loan.grams} g` : '—'} />
-          </div>
+          <>
+            <div className="loan-stats">
+              <Stat label="Interest each year" value={money(s.yearlyInterest)} />
+              <Stat label="Next interest due" value={s.nextInterestOn ? fmtDate(s.nextInterestOn) : '—'} tone={s.state === 'soon' ? 'warn' : ''} />
+              <Stat label={s.lastInterestOn ? `Built up since ${fmtDate(s.lastInterestOn)}` : 'Built up since you took it'} value={money(s.sinceLast)} />
+              <Stat label="Renewal / closing date" value={loan.due_date ? fmtDate(loan.due_date) : '—'} tone={s.state === 'overdue' ? 'neg' : ''} />
+              <Stat label="Interest paid so far" value={money(s.paidInterest)} tone="pos" />
+              <Stat label="Gold pledged" value={loan.grams ? `${loan.grams} g` : '—'} />
+            </div>
+            <h4>Interest payments</h4>
+            {eventsBlock}
+          </>
         ) : s.incomplete ? <div className="alert error">Edit the loan and add its tenure or EMI to see the schedule.</div> : (
           <>
             <div className="bar"><div className="fill ok" style={{ width: `${s.progress * 100}%` }} /></div>
-            <div className="loan-stats">
-              <Stat label="Principal paid" value={money(s.paidPrincipal)} tone="pos" />
-              <Stat label="Interest paid" value={money(s.paidInterest)} tone="neg" />
-              <Stat label="EMI" value={money(s.emi)} />
-              <Stat label="Next EMI" value={s.nextDate ? fmtDate(s.nextDate) : 'none'} />
-              <Stat label="Ends" value={`${fmtDate(s.payoffDate)}`} />
-              <Stat label="Left" value={months(s.monthsLeft)} />
-              <Stat label="Interest over the whole loan" value={money(s.totalInterest)} />
+            <div className="subnav loan-tabs" role="tablist">
+              {[['overview', 'Overview'], ['years', 'Years'], ['prepay', 'Prepay']].map(([id, label]) => (
+                <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
+              ))}
             </div>
             {s.stuck && <div className="alert error">The EMI does not cover the monthly interest, so the loan never ends. Check the rate and EMI.</div>}
 
-            <h4>If I prepay</h4>
-            <label>Amount<AmountInput min="1" value={what} onChange={(e) => setWhat(e.target.value)} placeholder="e.g. 2,00,000" /></label>
-            {savings && (
-              <div className="loan-save">
-                Saves <b className="pos">{money(savings.interestSaved)}</b> of interest and <b>{months(savings.monthsSaved)}</b>; the loan then ends {fmtDate(savings.newPayoff)}.
-              </div>
+            {tab === 'overview' && (
+              <>
+                <div className="loan-stats">
+                  <Stat label="Principal paid" value={money(s.paidPrincipal)} tone="pos" />
+                  <Stat label="Interest paid" value={money(s.paidInterest)} tone="neg" />
+                  <Stat label="EMI" value={money(s.emi)} />
+                  <Stat label="Next EMI" value={s.nextDate ? fmtDate(s.nextDate) : 'none'} />
+                  <Stat label="Ends" value={fmtDate(s.payoffDate)} />
+                  <Stat label="Time left" value={months(s.monthsLeft)} />
+                </div>
+                {split && <p className="muted small" style={{ margin: 0 }}>Over the whole loan you pay <b>{money(split.whole.total)}</b>: {money(split.whole.principal)} principal and {money(split.whole.interest)} interest. See the Years tab for each year.</p>}
+              </>
             )}
 
-            <h4>Interest and principal by year</h4>
-            <div className="fy-table">
-              <div className="fy-row head"><span>Year</span><span>Interest</span><span>Principal</span></div>
-              {fy.map((r) => (
-                <div key={r.fy} className="fy-row">
-                  <span>{r.fy}{r.planned ? '*' : ''}</span>
-                  <span className="amt">{money(r.interest)}</span>
-                  <span className="amt">{money(r.principal)}</span>
+            {tab === 'years' && split && (
+              <>
+                <div className="fy-table fy-totals">
+                  <div className="fy-row head"><span /><span>Interest</span><span>Principal</span></div>
+                  <div className="fy-row"><span>Paid so far</span><span className="amt">{money(split.paid.interest)}</span><span className="amt">{money(split.paid.principal)}</span></div>
+                  <div className="fy-row"><span>Still to come</span><span className="amt">{money(split.ahead.interest)}</span><span className="amt">{money(split.ahead.principal)}</span></div>
+                  <div className="fy-row total"><span>Whole loan</span><span className="amt">{money(split.whole.interest)}</span><span className="amt">{money(split.whole.principal)}</span></div>
                 </div>
-              ))}
-            </div>
-            <p className="muted small">* Not over yet. Worked out as if every EMI was paid on its date, so past years should match your bank's loan certificate.</p>
-          </>
-        )}
+                <p className="loan-save" style={{ margin: 0 }}>Together: <b>{money(split.whole.total)}</b> over the loan, of which <b>{money(split.paid.total)}</b> paid so far.</p>
+                <h4>Year by year</h4>
+                <div className="fy-table">
+                  <div className="fy-row head"><span>Year</span><span>Interest</span><span>Principal</span></div>
+                  {fy.map((r) => (
+                    <div key={r.fy} className="fy-row">
+                      <span>{r.fy}{r.planned ? '*' : ''}</span>
+                      <span className="amt">{money(r.interest)}</span>
+                      <span className="amt">{money(r.principal)}</span>
+                    </div>
+                  ))}
+                  <div className="fy-row total"><span>Total</span><span className="amt">{money(split.whole.interest)}</span><span className="amt">{money(split.whole.principal)}</span></div>
+                </div>
+                <p className="muted small" style={{ margin: 0 }}>* Not over yet. Worked out as if every EMI was paid on its date, so past years should match your bank's loan certificate.</p>
+              </>
+            )}
 
-        {(
-          <>
-            <h4>{s.gold ? 'Interest payments' : 'Prepayments and rate changes'}</h4>
-            {events.length === 0 && <p className="muted small">{s.gold ? 'None yet. Pay the interest whenever you like — even before the year ends — and add it here; what builds up then counts from that day.' : 'None yet. Add one when it happens, so the schedule follows your loan.'}</p>}
-            {events.map((x) => (
-              <div key={x.id} className="line">
-                <span>{x.type === 'prepay' ? `Prepaid ${money(x.amount)}` : x.type === 'interest' ? `Paid interest ${money(x.amount)}` : `Rate changed to ${x.rate}%`}<span className="muted small"> · {fmtDate(x.date)}</span></span>
-                <button className="btn icon" aria-label="Remove" onClick={() => removeEvent(x.id)}><TrashIcon /></button>
-              </div>
-            ))}
-            {ev ? (
-              <form className="stack" onSubmit={addEvent}>
-                {!s.gold && <div className="seg">
-                  <button type="button" className={ev.type === 'prepay' ? 'on' : ''} onClick={() => setEv({ ...ev, type: 'prepay' })}>Prepayment</button>
-                  <button type="button" className={ev.type === 'rate' ? 'on' : ''} onClick={() => setEv({ ...ev, type: 'rate' })}>Rate change</button>
-                </div>}
-                <div className="row2">
-                  <label>Date<input type="date" required value={ev.date} onChange={(e) => setEv({ ...ev, date: e.target.value, ...(ev.type === 'interest' && !ev.touched ? { amount: String(Math.round(interestUntil(loan, e.target.value))) } : {}) })} /></label>
-                  {ev.type !== 'rate'
-                    ? <label>{ev.type === 'interest' ? 'Interest paid' : 'Amount'}<AmountInput min="1" step="0.01" required value={ev.amount} onChange={(e) => setEv({ ...ev, amount: e.target.value, touched: true })} /></label>
-                    : <label>New rate %<input type="number" inputMode="decimal" min="0" step="0.01" required value={ev.rate} onChange={(e) => setEv({ ...ev, rate: e.target.value })} /></label>}
-                </div>
-                <div className="actions"><div className="spacer" /><button type="button" className="btn" onClick={() => setEv(null)}>Cancel</button><button className="btn primary" disabled={busy}>Add</button></div>
-              </form>
-            ) : <button className="btn small" onClick={() => setEv(s.gold ? { type: 'interest', date: day, amount: String(Math.round(interestUntil(loan, day))), rate: '' } : { type: 'prepay', date: day, amount: '', rate: '' })}>{s.gold ? '+ Pay interest (till date)' : '+ Add prepayment or rate change'}</button>}
+            {tab === 'prepay' && (
+              <>
+                <h4 style={{ marginTop: 0 }}>If I prepay</h4>
+                <label>Amount<AmountInput min="1" value={what} onChange={(e) => setWhat(e.target.value)} placeholder="e.g. 2,00,000" /></label>
+                {savings && (
+                  <div className="loan-save">
+                    Saves <b className="pos">{money(savings.interestSaved)}</b> of interest and <b>{months(savings.monthsSaved)}</b>; the loan then ends {fmtDate(savings.newPayoff)}.
+                  </div>
+                )}
+                <h4>Prepayments and rate changes</h4>
+                {eventsBlock}
+              </>
+            )}
           </>
         )}
 

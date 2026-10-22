@@ -957,3 +957,11 @@ details.section[open] .chev { transform: rotate(90deg); }
 .home-v { font-family: var(--font-mono); font-weight: 600; }
 .home-ch { color: var(--muted); }
 .home-more { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 14px 16px; background: transparent; border: 1px solid var(--line); border-radius: 16px; color: var(--muted); font: inherit; cursor: pointer; }
+
+/* Loan sheet: tabs and the totals block */
+.loan-tabs { margin-bottom: 4px; }
+.fy-totals { background: var(--card-2); border-radius: 14px; padding: 4px 12px; }
+.fy-totals .fy-row:first-child { border-top: none; }
+.fy-row.total { font-weight: 700; border-top: 2px solid var(--line); border-bottom: none; }
+.fy-totals .fy-row:last-child { border-bottom: none; }
+.due-sheet h4 { margin: 6px 0 2px; }
