@@ -42,6 +42,7 @@ object UpiLink {
         val app = UpiParser.appFor(pkg) ?: return
         val shown = listOfNotNull(title?.takeIf { it.isNotBlank() }, text?.takeIf { it.isNotBlank() }).joinToString(" · ")
         if (shown.isEmpty()) return
+        runCatching { Store.seedSmsRecentFromLog(ctx) }
         val n = UpiParser.parse(pkg, title, text)
         if (n == null) { Store.logUpi(ctx, postTime, app, shown, "skip", "Not a completed payment"); return }
         // Apps re-post a notification when it updates: read each once.
@@ -189,19 +190,50 @@ class UpiSettleWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, para
 }
 
 // Android hands GPay / Paytm notifications to this once "Notification access" is allowed for eChopdo.
-// Only those two apps' notifications are looked at; everything else is ignored unread.
+// Only those two apps' notifications are looked at; everything else is ignored unread. When Android connects it
+// (phone start, app update, access switched on) and on request, the notifications still on the panel are read too —
+// so payments shown while eChopdo wasn't listening, or before its wording was understood, are not lost.
 class UpiNotifications : NotificationListenerService() {
+    override fun onListenerConnected() {
+        instance = this
+        val ctx = applicationContext
+        Thread { runCatching { rescan(ctx) } }.start()
+    }
+
+    override fun onListenerDisconnected() { if (instance === this) instance = null }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (UpiParser.appFor(sbn.packageName) == null) return
         val ctx = applicationContext
         if (!Store.paired(ctx) || !Store.upiEnabled(ctx)) return
-        val n = sbn.notification ?: return
-        if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
-        val ex = n.extras
-        val title = ex.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-        val text = (ex.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: ex.getCharSequence(Notification.EXTRA_TEXT))?.toString()
-        val pkg = sbn.packageName
-        val at = sbn.postTime
-        Thread { runCatching { UpiLink.handle(ctx, pkg, title, text, at) } }.start()
+        val job = read(sbn) ?: return
+        Thread { runCatching { UpiLink.handle(ctx, job.pkg, job.title, job.text, job.at) } }.start()
+    }
+
+    private class Posted(val pkg: String, val title: String?, val text: String?, val at: Long)
+
+    companion object {
+        @Volatile private var instance: UpiNotifications? = null
+
+        private fun read(sbn: StatusBarNotification): Posted? {
+            if (UpiParser.appFor(sbn.packageName) == null) return null
+            val n = sbn.notification ?: return null
+            if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return null
+            val ex = n.extras
+            val title = ex.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+            val text = (ex.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: ex.getCharSequence(Notification.EXTRA_TEXT))?.toString()
+            return Posted(sbn.packageName, title, text, sbn.postTime)
+        }
+
+        /** Blocking. Reads the GPay / Paytm notifications still on the panel from the last day, oldest first.
+         *  Returns how many were looked at, or -1 when Android isn't connected to eChopdo's listener (access off). */
+        fun rescan(ctx: Context): Int {
+            if (!Store.paired(ctx) || !Store.upiEnabled(ctx)) return 0
+            val svc = instance ?: return -1
+            val active = runCatching { svc.activeNotifications }.getOrNull() ?: return -1
+            val cutoff = System.currentTimeMillis() - 24 * 3600_000L
+            val jobs = active.mapNotNull { read(it) }.filter { it.at >= cutoff }.sortedBy { it.at }
+            for (j in jobs) runCatching { UpiLink.handle(ctx, j.pkg, j.title, j.text, j.at) }
+            return jobs.size
+        }
     }
 }

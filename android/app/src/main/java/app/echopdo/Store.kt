@@ -108,6 +108,24 @@ object Store {
         for (i in from until a.length()) out.put(a.get(i))
         prefs(ctx).edit().putString("smsRecent", out.toString()).apply()
     }
+    /** Once: fills the SMS-payment list from the SMS log (payments added before this list existed), so an old notice finds its SMS. */
+    @Synchronized fun seedSmsRecentFromLog(ctx: Context) {
+        if (prefs(ctx).getBoolean("smsRecentSeeded", false)) return
+        val log = smsLog(ctx)
+        val have = smsRecent(ctx)
+        for (i in 0 until log.length()) {
+            val r = log.getJSONObject(i)
+            val detail = r.optString("detail")
+            if (r.optString("outcome") != "sent" || !(detail.endsWith("added") || detail.contains("already in eChopdo") || detail.contains("matched an entry"))) continue
+            val t = runCatching { SmsParser.decide(r.optString("sender"), r.optString("text")).txn }.getOrNull() ?: continue
+            if (t.direction != "in" && t.direction != "out") continue
+            val at = r.optLong("at")
+            var known = false
+            for (k in 0 until have.length()) { val h = have.getJSONObject(k); if (h.optLong("at") == at && h.optString("direction") == t.direction && Math.abs(h.optDouble("amount") - t.amount) < 0.001) known = true }
+            if (!known) have.put(JSONObject().put("at", at).put("direction", t.direction).put("amount", t.amount).put("claimed", false))
+        }
+        prefs(ctx).edit().putString("smsRecent", have.toString()).putBoolean("smsRecentSeeded", true).apply()
+    }
     /** Marks the unclaimed SMS payment nearest in time to a notice (same direction + amount, within [windowMs]) as taken. True if there was one. */
     @Synchronized fun claimSmsPayment(ctx: Context, direction: String, amount: Double, noticeAt: Long, windowMs: Long): Boolean {
         val a = smsRecent(ctx)

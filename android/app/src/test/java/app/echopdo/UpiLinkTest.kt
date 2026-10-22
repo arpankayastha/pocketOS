@@ -91,4 +91,15 @@ class UpiLinkTest {
         assertEquals("Paytm Pocket Money", UpiLink.labelFor("Paytm", "₹40 spent using Pocket Money · 9000000001 made a payment using Pocket Money."))
         assertEquals("GPay payment", UpiLink.labelFor("GPay", "₹90 paid"))
     }
+
+    // Payments the SMS log already shows as added are known to the pairing list, so an old notice isn't added twice.
+    @Test fun anOldSmsInTheLogIsFoundWhenItsNoticeIsReadLater() {
+        val at = now - 4 * 60_000
+        Store.logSms(ctx, at, "JK-BOBSMS-S", "Rs.40.00 Dr. from A/C XXXXXX1234 and Cr. to demo.person@ptyes. Ref:111122223399. AvlBal:Rs10000.00(2026:09:09 12:34:56). Not you? Call 18005700/5000-BOB", "sent", "Money out · ₹40 · ••1234 · added")
+        Store.seedSmsRecentFromLog(ctx)
+        assertEquals(true, Store.claimSmsPayment(ctx, "out", 40.0, at + 30_000, UpiLink.SMS_PAIR_MS))
+        assertEquals(false, Store.claimSmsPayment(ctx, "out", 40.0, at + 60_000, UpiLink.SMS_PAIR_MS)) // only once
+        Store.seedSmsRecentFromLog(ctx) // runs once only
+        assertEquals(false, Store.claimSmsPayment(ctx, "out", 40.0, at + 60_000, UpiLink.SMS_PAIR_MS))
+    }
 }

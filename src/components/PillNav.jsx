@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 export default function PillNav({ tabs, tab, setTab, withFab }) {
   const hidden = useHideOnScroll()
   return (
-    <nav className={`pill-nav ${withFab ? 'with-fab' : ''} ${hidden ? 'hidden' : ''}`}>
+    <nav className={`pill-nav ${withFab ? 'with-fab' : ''} ${tabs.length > 5 ? 'many' : ''} ${hidden ? 'hidden' : ''}`}>
       <div className="pill-bar">
         {tabs.map((t) => (
           <button key={t.id} className={tab === t.id ? 'active' : ''} aria-label={t.label} aria-current={tab === t.id ? 'page' : undefined}

@@ -754,6 +754,12 @@ details.section[open] .chev { transform: rotate(90deg); }
   .pill-bar button.active svg { color: var(--accent); }
   .pill-bar button.active .pill-label { max-width: 96px; opacity: 1; }
   .pill-bar button:active { transform: scale(.94); }
+  /* Six tabs (Budget) must still fit beside the + button on a 360–384 px phone, active label included. */
+  .pill-nav.many .pill-bar { gap: 0; padding: 4px; }
+  .pill-nav.many .pill-bar button { min-width: 34px; padding: 0 6px; font-size: 12.5px; }
+  .pill-nav.many .pill-bar button svg { width: 21px; height: 21px; }
+  .pill-nav.many .pill-bar button.active { gap: 5px; padding: 0 10px 0 8px; }
+  .pill-nav.many .pill-bar button.active .pill-label { max-width: 56px; }
   .fab-wrap { bottom: calc(14px + var(--safe-b)); right: calc(12px + var(--safe-r)); }
   .fab-wrap .fab { width: 56px; height: 56px; }
   .toast { bottom: calc(84px + var(--safe-b)); }
@@ -789,11 +795,11 @@ details.section[open] .chev { transform: rotate(90deg); }
 .pw-seg { width: 140px; flex-shrink: 0; padding: 3px; }
 .pw-seg button { padding: 6px; min-height: 34px; font-size: 13px; }
 .pw-new { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
-.pw-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pw-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .pw-pair { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 10px; padding: 16px; border: 1px dashed var(--line); border-radius: 14px; text-align: center; }
 .pw-code { font-family: 'IBM Plex Mono', monospace; font-size: 32px; font-weight: 600; letter-spacing: .12em; background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .pw-pair .btn.primary { min-width: 200px; text-decoration: none; text-align: center; }
-.pw-actions .btn { text-decoration: none; }
+.pw-actions .btn { width: 100%; justify-content: center; text-align: center; text-decoration: none; }
 @media (max-width: 420px) { .pw-row { flex-wrap: wrap; } .pw-seg { width: 100%; order: 3; } }
 
 /* Bank payments read from SMS, waiting to be added (CaptureInbox.jsx) */

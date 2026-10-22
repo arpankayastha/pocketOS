@@ -170,11 +170,23 @@ class PairActivity : Activity() {
     private fun upiSection() {
         add(label("GPAY & PAYTM", 11f, C.muted, true).apply { letterSpacing = 0.08f; setPadding(0, dp(22), 0, dp(6)) })
         if (UpiLink.active(this)) {
-            add(para("On. When GPay or Paytm shows a payment, its name (“Asha Stores”) is matched to the bank SMS payment, so the entry and category read better. A payment with no bank SMS (a wallet payment) is added on its own after ten minutes. Only the amount, name and time are sent."))
+            add(para("On. When GPay or Paytm shows a payment, its name (“Asha Stores”) is matched to the bank SMS payment, so the entry and category read better. A payment with no bank SMS (a wallet payment, e.g. Paytm Pocket Money) is added to Hisab on its own after a few minutes. Notifications still in the panel are read too. Only the amount, name and time are sent."))
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             row.addView(button("UPI log", false) { startActivity(Intent(this, SmsLogActivity::class.java).putExtra("kind", "upi")) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(5) })
             row.addView(button("Turn off", false) { Store.setUpiEnabled(this, false); showPaired(null) }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(5) })
             add(row)
+            add(button("Read notifications now", false) {
+                Thread {
+                    val n = runCatching { UpiNotifications.rescan(this) }.getOrDefault(-1)
+                    runOnUiThread {
+                        android.widget.Toast.makeText(this, when {
+                            n < 0 -> "Android isn't sharing notifications with eChopdo yet. Switch on Notification access, then try again."
+                            n == 0 -> "No GPay or Paytm notifications in the panel."
+                            else -> "Read $n notification${if (n == 1) "" else "s"} — see the UPI log."
+                        }, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }.start()
+            }, 10, dp(46))
         } else {
             add(para("Read the notifications GPay and Paytm show after a payment, to put the payee's name on it. Only those two apps are looked at, on this phone."))
             add(button(if (UpiLink.accessGranted(this)) "Turn on GPay & Paytm" else "Allow notification access", true) {
