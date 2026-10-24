@@ -71,6 +71,7 @@ export default function Auth() {
           <HomeIcon />
           Household login
         </button>
+        <p className="auth-hint">New here? Continue with Google — the owner approves new accounts once.</p>
         <p className="auth-hint">Family member? Use the username and PIN you were given, then turn on fingerprint.</p>
         </>)}
       </div>

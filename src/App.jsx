@@ -6,6 +6,8 @@ import { platformAuthenticatorAvailable, deviceName, describeWebAuthnError } fro
 import { useAppLock } from './lib/useAppLock'
 import { clearVaultSession } from './lib/vaultSession'
 import Auth from './components/Auth'
+import PendingApproval from './components/PendingApproval'
+import { loadSignupRequests, useApproval } from './lib/signups'
 import TransactionForm from './components/TransactionForm'
 import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
@@ -81,7 +83,15 @@ export default function App() {
   if (session === undefined) return <Splash />
   if (!session) return <Auth />
   if (isDemo(session) && demoIsStale()) { leaveDemo(); return <Splash /> } // the app was closed while on demo: back to the owner
-  return isMember(session) ? <MemberShell session={session} /> : <Shell session={session} />
+  return isMember(session) ? <MemberShell session={session} /> : <ApprovalGate session={session} />
+}
+
+// A new Google sign-in gets nothing until the owner approves it (Settings → Sign-up requests).
+function ApprovalGate({ session }) {
+  const approval = useApproval(session, false)
+  if (approval.status === 'approved') return <Shell session={session} />
+  if (approval.status === 'loading') return <Splash />
+  return <PendingApproval session={session} approval={approval} />
 }
 
 // Same look as the pre-JS splash in index.html (classes styled there), shown while the session loads.
@@ -251,6 +261,12 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   const data = useFinanceData()
   const dialog = useDialog()
   const household = data.households.find((h) => h.id === data.activeHouseholdId)
+  // The owner sees a dot on ⚙ while someone is waiting for approval.
+  const [waiting, setWaiting] = useState(0)
+  useEffect(() => {
+    if (member || demo) return
+    loadSignupRequests().then((r) => setWaiting(r.isAdmin ? r.rows.filter((x) => x.status === 'pending').length : 0)).catch(() => {})
+  }, [member, demo, tab])
   const home = member ? startTab : household?.start_tab || 'dashboard'
   useBackAction(tab !== home, () => setTab(home), 2)
   // Switched to "Only Hisab" after the app opened (the setting is refreshed on start): leave hidden tabs.
@@ -274,7 +290,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
           }}
           onManage={() => setTab('settings')} />
         <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Accounts & Categories" title="Accounts & Categories"
-          onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon /></button>
+          onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon />{waiting > 0 && <span className="badge-dot" aria-label={`${waiting} waiting for approval`} />}</button>
       </>)}>
         <nav className="tabs">
           {tabs.length > 1 && tabs.map((t) => (

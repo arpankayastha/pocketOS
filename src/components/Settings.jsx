@@ -14,6 +14,7 @@ import { money } from '../lib/format'
 import { setThemePref, themePref } from '../lib/theme'
 import { backupCall, requestDriveCode } from '../lib/backup'
 import { leaveDemo, switchToDemo } from '../lib/demo'
+import { decideSignup, loadSignupRequests } from '../lib/signups'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, demo, member, appLock, vault }) {
   const dialog = useDialog()
@@ -23,6 +24,7 @@ export default function Settings({ accounts, categories, refresh, households, ac
         {member ? (appLock ? <FingerprintCard appLock={appLock} /> : null)
           : <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} vault={vault} />}
       </div>
+      {!member && !demo && <SignupRequests />}
       <div style={{ gridColumn: '1 / -1' }}>
         <Appearance />
       </div>
@@ -72,6 +74,55 @@ export default function Settings({ accounts, categories, refresh, households, ac
         </div>
       </div>
     </section>
+  )
+}
+
+// Owner only: people who signed in with Google wait here until approved. Each approved person gets
+// their own separate empty workspace; "Remove access" locks them out again (their data stays).
+function SignupRequests() {
+  const dialog = useDialog()
+  const [info, setInfo] = useState(null) // { isAdmin, rows }
+  const [busy, setBusy] = useState(null)
+  const [error, setError] = useState(null)
+  const load = useCallback(() => loadSignupRequests().then(setInfo).catch((e) => setError(e.message)), [])
+  useEffect(() => { load() }, [load])
+  if (!info?.isAdmin) return null
+
+  async function decide(r, approve) {
+    if (!approve && !await dialog.confirm({
+      title: r.status === 'approved' ? 'Remove access?' : 'Turn this request down?',
+      message: `${r.email} ${r.status === 'approved' ? 'will be locked out. Their data is kept, and you can approve them again.' : 'won’t be able to use eChopdo.'}`,
+      confirmLabel: r.status === 'approved' ? 'Remove access' : 'Reject', danger: true,
+    })) return
+    setBusy(r.user_id); setError(null)
+    try { await decideSignup(r.user_id, approve); await load() } catch (e) { setError(e.message) }
+    setBusy(null)
+  }
+  const pending = info.rows.filter((r) => r.status === 'pending')
+  const others = info.rows.filter((r) => r.status !== 'pending')
+  const when = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  const row = (r) => (
+    <div className="sec-row" key={r.user_id}>
+      <div className="grow">
+        <div>{r.name || r.email}</div>
+        <div className="muted small">{r.name ? `${r.email} · ` : ''}{r.status === 'pending' ? `asked ${when(r.created_at)}` : `${r.status} ${when(r.decided_at || r.created_at)}`}</div>
+      </div>
+      {r.status !== 'approved' && <button className="btn small primary" disabled={!!busy} onClick={() => decide(r, true)}>{busy === r.user_id ? '…' : 'Approve'}</button>}
+      {r.status !== 'rejected' && <button className="btn small ghost" disabled={!!busy} onClick={() => decide(r, false)}>{r.status === 'approved' ? 'Remove' : 'Reject'}</button>}
+    </div>
+  )
+  return (
+    <div style={{ gridColumn: '1 / -1' }}>
+      <Collapsible id="signups" title="Sign-up requests" defaultOpen={pending.length > 0}
+        summary={pending.length ? `${pending.length} waiting for approval` : `${info.rows.filter((r) => r.status === 'approved').length} approved · none waiting`}>
+        <p className="muted small" style={{ marginTop: -6 }}>Anyone can sign in with Google, but sees nothing until you approve them here. Each approved person gets their own separate, empty workspace — they never see yours.</p>
+        {error && <div className="alert error">{error}</div>}
+        {pending.length === 0 && <div className="muted small">Nobody is waiting.</div>}
+        {pending.map(row)}
+        {others.length > 0 && <div className="muted small" style={{ margin: '12px 0 0' }}>Decided</div>}
+        {others.map(row)}
+      </Collapsible>
+    </div>
   )
 }
 
