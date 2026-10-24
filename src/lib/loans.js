@@ -4,8 +4,16 @@ export * from './loanMath'
 
 // ── Data ────────────────────────────────────────────────────────────────────────────────────────────────
 
-export async function loadLoans(householdId) {
-  const { data, error } = await supabase.from('loans').select('*').eq('household_id', householdId).order('created_at')
+// This household's loans. With `shared`, also loans of another household that were shared with this one
+// (read-only here, marked `shared: true`) — only the Loans tab asks for them; Plan and Home count just their own.
+export async function loadLoans(householdId, { shared = false } = {}) {
+  const q = () => supabase.from('loans').select('*').order('created_at')
+  if (shared) {
+    const { data, error } = await q().or(`household_id.eq.${householdId},shared_with.cs.{${householdId}}`)
+    if (!error) return data.map((l) => (l.household_id === householdId ? l : { ...l, shared: true }))
+    if (!/shared_with/.test(error.message)) throw error // the sharing column isn't there yet: fall back to own loans
+  }
+  const { data, error } = await q().eq('household_id', householdId)
   if (error) throw error
   return data
 }
@@ -36,6 +44,7 @@ export async function saveLoan({ id, householdId, ...f }) {
     note: f.note?.trim() || null,
     events: withCover(f.events, f.interest_only ? 0 : Number(f.coverEmi), f.start_date),
   }
+  if (Array.isArray(f.shared_with) && (f.shared_with.length || id)) row.shared_with = f.shared_with // omitted for a new, unshared loan
   const q = id ? supabase.from('loans').update(row).eq('id', id) : supabase.from('loans').insert({ ...row, household_id: householdId })
   const { data, error } = await q.select().single()
   if (error) throw error

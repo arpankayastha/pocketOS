@@ -10,6 +10,7 @@ import { useDialog } from '../lib/dialog'
 import { LoansIcon, TrashIcon } from '../lib/icons'
 import { SkeletonRows } from './Skeleton'
 import AmountInput from './AmountInput'
+import { ShareChips } from './lists/ListParts'
 
 const money = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}` // loan amounts read better in whole rupees
 const fmtDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -17,7 +18,7 @@ const months = (n) => `${Math.floor(n / 12) ? `${Math.floor(n / 12)} yr ` : ''}$
 
 // Budget → Loans: home loan, gold loan, any other loan — and, while one is going on, a property deal
 // (buy or sell) with a paper checklist. Loans are long-lived; a deal is archived when it closes.
-export default function Loans({ activeHouseholdId, view = 'loans' }) {
+export default function Loans({ activeHouseholdId, households = [], member = false, view = 'loans' }) {
   const [loans, setLoans] = useState(null)
   const [deals, setDeals] = useState([])
   const [dues, setDues] = useState([])
@@ -34,7 +35,7 @@ export default function Loans({ activeHouseholdId, view = 'loans' }) {
     if (!activeHouseholdId) return
     try {
       const [l, d, du, b] = await Promise.all([
-        loadLoans(activeHouseholdId), loadDeals(activeHouseholdId), loadDues(activeHouseholdId),
+        loadLoans(activeHouseholdId, { shared: true }), loadDeals(activeHouseholdId), loadDues(activeHouseholdId),
         supabase.from('hisab_books').select('id, name').eq('household_id', activeHouseholdId).eq('kind', 'occasion').order('created_at', { ascending: false }),
       ])
       if (b.error) throw b.error
@@ -44,8 +45,12 @@ export default function Loans({ activeHouseholdId, view = 'loans' }) {
   useEffect(() => { load() }, [load])
 
   const withSummary = useMemo(() => (loans || []).map((l) => ({ ...l, s: summaryOf(l, day) })), [loans, day])
-  const open = withSummary.filter((l) => !l.closed_on)
-  const closed = withSummary.filter((l) => l.closed_on)
+  // Loans shared with this household by another one are listed apart and stay out of its totals.
+  const sharedIn = withSummary.filter((l) => l.shared && !l.closed_on)
+  const mine = withSummary.filter((l) => !l.shared)
+  const open = mine.filter((l) => !l.closed_on)
+  const closed = mine.filter((l) => l.closed_on)
+  const fromName = (l) => households.find((h) => h.id === l.household_id)?.name
   const list = show === 'open' ? open : closed
   const totals = open.reduce((t, l) => ({
     outstanding: t.outstanding + l.s.outstanding,
@@ -93,6 +98,14 @@ export default function Loans({ activeHouseholdId, view = 'loans' }) {
           {list.map((l) => <LoanCard key={l.id} loan={l} onOpen={() => setOpenLoanId(l.id)} />)}
         </div>
       )}
+      {show === 'open' && sharedIn.length > 0 && (
+        <>
+          <h3 className="loans-shared-head">Shared with this household</h3>
+          <div className="due-list">
+            {sharedIn.map((l) => <LoanCard key={l.id} loan={l} from={fromName(l)} onOpen={() => setOpenLoanId(l.id)} />)}
+          </div>
+        </>
+      )}
         </>
       )}
 
@@ -119,8 +132,8 @@ export default function Loans({ activeHouseholdId, view = 'loans' }) {
         </>
       )}
 
-      {current && <LoanSheet loan={current} onClose={() => setOpenLoanId(null)} onEdit={() => setEditingLoan(current)} onChanged={load} />}
-      {editingLoan && <LoanForm loan={editingLoan.id ? editingLoan : null} householdId={activeHouseholdId} onClose={() => setEditingLoan(null)}
+      {current && <LoanSheet loan={current} from={fromName(current)} onClose={() => setOpenLoanId(null)} onEdit={() => setEditingLoan(current)} onChanged={load} />}
+      {editingLoan && <LoanForm loan={editingLoan.id ? editingLoan : null} householdId={activeHouseholdId} households={households} canShare={!member} onClose={() => setEditingLoan(null)}
         onSaved={(l) => { setEditingLoan(null); load(); if (!editingLoan.id) setOpenLoanId(l.id) }}
         onDeleted={() => { setEditingLoan(null); setOpenLoanId(null); load() }} />}
       {dealSheet && <DealSheet deal={dealSheet.id ? dealSheet : null} householdId={activeHouseholdId} books={books} dues={dues} loans={withSummary}
@@ -129,7 +142,7 @@ export default function Loans({ activeHouseholdId, view = 'loans' }) {
   )
 }
 
-function LoanCard({ loan, onOpen }) {
+function LoanCard({ loan, from, onOpen }) {
   const s = loan.s
   return (
     <button className="card due-card" onClick={onOpen}>
@@ -137,7 +150,7 @@ function LoanCard({ loan, onOpen }) {
         <span className="due-avatar">{loan.kind === 'gold' ? 'Au' : loan.kind === 'home' ? '🏠' : '₹'}</span>
         <div className="grow">
           <div className="due-name">{loan.name}</div>
-          <div className="muted small">{[kindLabel(loan.kind), loan.lender].filter(Boolean).join(' · ')}</div>
+          <div className="muted small">{[kindLabel(loan.kind), loan.lender, loan.shared ? (from ? `shared by ${from}` : 'shared') : null].filter(Boolean).join(' · ')}</div>
         </div>
         <div className="due-bal neg"><b className="amt">{money(s.outstanding)}</b><span className="small">outstanding</span></div>
       </div>
@@ -165,7 +178,8 @@ function Stat({ label, value, tone }) {
   return <div className="loan-stat"><span className="muted small">{label}</span><b className={tone || ''}>{value}</b></div>
 }
 
-function LoanSheet({ loan, onClose, onEdit, onChanged }) {
+function LoanSheet({ loan, from, onClose, onEdit, onChanged }) {
+  const readOnly = !!loan.shared // shared in from another household: view only
   const dialog = useDialog()
   const s = loan.s
   const day = today()
@@ -205,10 +219,10 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
       {events.map((x) => (
         <div key={x.id} className="line">
           <span>{x.type === 'prepay' ? `Prepaid ${money(x.amount)}` : x.type === 'interest' ? `Paid interest ${money(x.amount)}` : `Rate changed to ${x.rate}%`}<span className="muted small"> · {fmtDate(x.date)}</span></span>
-          <button className="btn icon" aria-label="Remove" onClick={() => removeEvent(x.id)}><TrashIcon /></button>
+          {!readOnly && <button className="btn icon" aria-label="Remove" onClick={() => removeEvent(x.id)}><TrashIcon /></button>}
         </div>
       ))}
-      {ev ? (
+      {readOnly ? null : ev ? (
         <form className="stack" onSubmit={addEvent}>
           {!s.gold && <div className="seg">
             <button type="button" className={ev.type === 'prepay' ? 'on' : ''} onClick={() => setEv({ ...ev, type: 'prepay' })}>Prepayment</button>
@@ -325,11 +339,12 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
         )}
 
         {loan.note && <p className="muted small">{loan.note}</p>}
+        {readOnly && <p className="muted small">{from ? `Shared by ${from}.` : 'Shared with your household.'} You can look but not change it, and it isn't in your totals.</p>}
         {error && <div className="alert error">{error}</div>}
         <div className="actions">
-          <button className="btn" onClick={toggleClosed}>{loan.closed_on ? 'Reopen' : 'Close loan'}</button>
+          {!readOnly && <button className="btn" onClick={toggleClosed}>{loan.closed_on ? 'Reopen' : 'Close loan'}</button>}
           <div className="spacer" />
-          <button className="btn" onClick={onEdit}>Edit</button>
+          {!readOnly && <button className="btn" onClick={onEdit}>Edit</button>}
           <button className="btn primary" onClick={onClose}>Done</button>
         </div>
       </div>
@@ -337,14 +352,14 @@ function LoanSheet({ loan, onClose, onEdit, onChanged }) {
   )
 }
 
-function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
+function LoanForm({ loan, householdId, households = [], canShare, onClose, onSaved, onDeleted }) {
   const dialog = useDialog()
   const [f, setF] = useState(() => ({
     kind: loan?.kind || 'home', name: loan?.name || '', lender: loan?.lender || '', principal: loan ? String(loan.principal) : '',
     coverEmi: (() => { const ce = coverEvent(loan || {}); return ce?.emi ? String(ce.emi) : ce?.amount ? String(Math.round(pmt(ce.amount, loan.rate, loan.tenure_months))) : '' })(),
     rate: loan ? String(loan.rate) : '', tenure_months: loan?.tenure_months ? String(loan.tenure_months) : '', emi: loan?.emi ? String(loan.emi) : '',
     start_date: loan?.start_date || today(), interest_only: loan ? loan.interest_only : false, due_date: loan?.due_date || '',
-    grams: loan?.grams ? String(loan.grams) : '', note: loan?.note || '',
+    grams: loan?.grams ? String(loan.grams) : '', note: loan?.note || '', shared_with: loan?.shared_with || [],
   }))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -397,6 +412,8 @@ function LoanForm({ loan, householdId, onClose, onSaved, onDeleted }) {
           </>
         )}
         <label>Note <span className="muted">(optional)</span><input value={f.note} onChange={set('note')} /></label>
+        {canShare && <ShareChips households={households} homeId={householdId} value={f.shared_with} onChange={(shared_with) => setF((x) => ({ ...x, shared_with }))} />}
+        {canShare && f.shared_with.length > 0 && <p className="muted small" style={{ margin: 0 }}>Those households can see this loan but not change it. It stays out of their totals.</p>}
         {error && <div className="alert error">{error}</div>}
         <div className="actions">
           {loan && <button type="button" className="btn icon" aria-label="Delete loan" onClick={remove}><TrashIcon /></button>}

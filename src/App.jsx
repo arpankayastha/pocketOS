@@ -346,7 +346,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
-            {(tab === 'loans' || tab === 'deals') && <Loans key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} view={tab} />}
+            {(tab === 'loans' || tab === 'deals') && <Loans key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} households={data.households} member={member} view={tab} />}
             {tab === 'settings' && <Settings {...data} email={email} demo={demo} member={member} appLock={appLock} vault={vault} />}
           </Suspense>
         )}

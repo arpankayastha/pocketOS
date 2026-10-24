@@ -1532,3 +1532,9 @@ drop policy if exists "approved only" on public.lists;
 create policy "approved only" on public.lists as restrictive for all to authenticated using ((select private.is_approved())) with check ((select private.is_approved()));
 drop policy if exists "approved only" on public.list_items;
 create policy "approved only" on public.list_items as restrictive for all to authenticated using ((select private.is_approved())) with check ((select private.is_approved()));
+
+-- Loans can be shared (read-only) with the owner's other households, like Lists and Vault items.
+alter table public.loans add column if not exists shared_with uuid[] not null default '{}';
+create index if not exists loans_shared_with_idx on public.loans using gin (shared_with);
+drop policy if exists "shared loans read" on public.loans;
+create policy "shared loans read" on public.loans for select to authenticated using (shared_with && array(select private.my_household_ids()));

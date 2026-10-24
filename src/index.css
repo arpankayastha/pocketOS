@@ -1092,3 +1092,5 @@ input.ls-switch:checked::after { transform: translateX(16px); }
   .hh-chip { gap: 6px; padding: 3px 8px 3px 3px; }
   .topbar-right .btn.icon { min-width: 36px; padding: 6px; }
 }
+
+.loans-shared-head { margin: 22px 0 10px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
