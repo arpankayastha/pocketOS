@@ -8,7 +8,7 @@ import { clearVaultSession } from './lib/vaultSession'
 import Auth from './components/Auth'
 import PendingApproval from './components/PendingApproval'
 import ErrorBoundary from './components/ErrorBoundary'
-import { loadSignupRequests, useApproval } from './lib/signups'
+import { useApproval, useWaitingSignups } from './lib/signups'
 import TransactionForm from './components/TransactionForm'
 import TransferForm from './components/TransferForm'
 import VaultGate, { RecoveryCode } from './components/VaultGate'
@@ -271,14 +271,7 @@ function BudgetModule({ topbar, email, fullName = '', member, appLock, vault, st
   const dialog = useDialog()
   const household = data.households.find((h) => h.id === data.activeHouseholdId)
   // The owner sees a dot on ⚙ while someone is waiting for approval.
-  const [waiting, setWaiting] = useState(0)
-  useEffect(() => {
-    if (member || demo) return
-    const load = () => loadSignupRequests().then((r) => setWaiting(r.isAdmin ? r.rows.filter((x) => x.status === 'pending').length : 0)).catch(() => {})
-    load()
-    window.addEventListener('signups-changed', load)
-    return () => window.removeEventListener('signups-changed', load)
-  }, [member, demo, tab])
+  const waiting = useWaitingSignups(member || demo)
   const home = member ? startTab : household?.start_tab || 'dashboard'
   useBackAction(tab !== home, () => setTab(home), 2)
   // Tapping a tab opens the screen last used in it (Month → Plan or Entries…).
@@ -316,7 +309,7 @@ function BudgetModule({ topbar, email, fullName = '', member, appLock, vault, st
             if (name) data.createHousehold(name)
           }}
           onManage={() => setTab('settings')} />
-        <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Accounts & Categories" title="Accounts & Categories"
+        <button className={`btn icon settings-btn ${tab === 'settings' ? 'on' : ''}`} aria-label="Settings" title="Settings"
           onClick={() => setTab(tab === 'settings' ? home : 'settings')}><SettingsIcon />{waiting > 0 && <span className="badge-dot" aria-label={`${waiting} waiting for approval`} />}</button>
       </>)}>
         <nav className="tabs">
@@ -349,7 +342,7 @@ function BudgetModule({ topbar, email, fullName = '', member, appLock, vault, st
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
             {tab === 'dues' && <Dues {...data} onChanged={() => { setDataVersion((v) => v + 1); data.refresh() }} />}
             {(tab === 'loans' || tab === 'deals') && <Loans key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} households={data.households} member={member} view={tab} />}
-            {tab === 'settings' && <Settings {...data} email={email} demo={demo} member={member} appLock={appLock} vault={vault} />}
+            {tab === 'settings' && <Settings {...data} email={email} fullName={fullName} demo={demo} member={member} appLock={appLock} vault={vault} />}
           </Suspense>
           </ErrorBoundary>
         )}

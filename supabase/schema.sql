@@ -1538,3 +1538,9 @@ alter table public.loans add column if not exists shared_with uuid[] not null de
 create index if not exists loans_shared_with_idx on public.loans using gin (shared_with);
 drop policy if exists "shared loans read" on public.loans;
 create policy "shared loans read" on public.loans for select to authenticated using (shared_with && array(select private.my_household_ids()));
+
+-- "Your app opens on": Loans and Deals join the other pages (the Budget tab ids are screen ids, see BUDGET_GROUPS in App.jsx).
+alter table public.households drop constraint if exists households_start_tab_check;
+alter table public.households add constraint households_start_tab_check check (start_tab in ('dashboard','transactions','plan','dues','loans','deals','hisab'));
+alter table public.household_members drop constraint if exists household_members_start_tab_check;
+alter table public.household_members add constraint household_members_start_tab_check check (start_tab in ('dashboard','transactions','plan','dues','loans','deals','hisab'));

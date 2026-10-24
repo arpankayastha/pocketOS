@@ -56,3 +56,17 @@ export function useIsAdmin(skip) {
   }, [skip])
   return admin && !skip
 }
+
+// How many people wait for the owner's approval (0 for everyone else). Refreshes after each decision.
+export function useWaitingSignups(skip) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (skip) return
+    let alive = true
+    const load = () => loadSignupRequests().then((r) => alive && setN(r.isAdmin ? r.rows.filter((x) => x.status === 'pending').length : 0)).catch(() => {})
+    load()
+    window.addEventListener('signups-changed', load)
+    return () => { alive = false; window.removeEventListener('signups-changed', load) }
+  }, [skip])
+  return skip ? 0 : n
+}

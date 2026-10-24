@@ -16,70 +16,105 @@ import { backupCall, requestDriveCode } from '../lib/backup'
 import { HOME_CARDS, homeCardsOff, setHomeCardOn } from '../lib/homeCards'
 import { leaveDemo, switchToDemo } from '../lib/demo'
 import SwipeRow from './SwipeRow'
-import { decideSignup, loadSignupRequests, useIsAdmin } from '../lib/signups'
+import { decideSignup, loadSignupRequests, useIsAdmin, useWaitingSignups } from '../lib/signups'
 
-export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, demo, member, appLock, vault }) {
+const SETTINGS_PAGE_KEY = 'pocketos.settingsPage'
+
+// Settings, grouped by what they are for (the user's request: "club them accordingly"):
+//   You          your profile (top, always), how it looks, Home cards, how it locks, passkeys
+//   Money        accounts, categories, Hisab categories
+//   Family       households and their logins, sign-up requests, guest view (owner)
+//   Phone        the Android quick-add widget and the Google Drive backup
+// The last page you used is remembered for this visit.
+export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, fullName, demo, member, appLock, vault }) {
   const dialog = useDialog()
   const isOwner = useIsAdmin(member || demo)
+  const waiting = useWaitingSignups(member || demo)
+  const pages = [
+    ['you', 'You', 'Your profile, how eChopdo looks, and how it locks.'],
+    ['money', 'Money', 'The accounts and categories your entries use.'],
+    !member && ['family', 'Family', 'Households, their logins, and who may join.'],
+    ['phone', 'Phone', 'The Android quick-add widget and your weekly Google Drive backup.'],
+  ].filter(Boolean)
+  const [page, setPageState] = useState(() => {
+    try { const p = sessionStorage.getItem(SETTINGS_PAGE_KEY); return pages.some(([id]) => id === p) ? p : 'you' } catch { return 'you' }
+  })
+  const setPage = (id) => { setPageState(id); try { sessionStorage.setItem(SETTINGS_PAGE_KEY, id) } catch { /* ignore */ } }
+  const info = pages.find(([id]) => id === page) || pages[0]
+  const full = (node) => <div style={{ gridColumn: '1 / -1' }}>{node}</div>
+
   return (
-    <section className="grid2">
-      <div style={{ gridColumn: '1 / -1' }}>
-        {member ? (appLock ? <FingerprintCard appLock={appLock} /> : null)
-          : <Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} vault={vault} />}
+    <section className="settings">
+      <ProfileCard email={email} fullName={fullName} member={member} demo={demo} isOwner={isOwner} appLock={appLock} />
+      <div className="subnav" role="tablist" aria-label="Settings sections">
+        {pages.map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={info[0] === id} className={info[0] === id ? 'on' : ''} onClick={() => setPage(id)}>{label}{id === 'family' && waiting > 0 && <span className="tab-dot" aria-label={`${waiting} waiting for approval`} />}</button>
+        ))}
       </div>
-      {!member && !demo && <SignupRequests />}
-      <div style={{ gridColumn: '1 / -1' }}>
-        <Appearance />
-      </div>
-      <div style={{ gridColumn: '1 / -1' }}>
-        <HomeCardsCard />
-      </div>
-      {vault?.status === 'unlocked' && (
-        <div style={{ gridColumn: '1 / -1' }}>
-          <SecurityCard vault={vault} member={member} />
-        </div>
-      )}
-      {!member && (
-        <div style={{ gridColumn: '1 / -1' }}>
-          <BackupCard />
-        </div>
-      )}
-      <div style={{ gridColumn: '1 / -1' }}>
-        <PhoneWidget Collapsible={Collapsible} households={households} activeHouseholdId={activeHouseholdId} member={member} />
-      </div>
-      <div style={{ gridColumn: '1 / -1' }}>
-        <Passkeys />
-      </div>
-      <Accounts accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
-      {!member && activeHouseholdId && (
-        <div style={{ gridColumn: '1 / -1' }}>
-          <HisabCategories key={activeHouseholdId} householdId={activeHouseholdId} householdName={households.find((h) => h.id === activeHouseholdId)?.name} />
-        </div>
-      )}
-      <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
-      {isOwner && (
-        <div className="card" style={{ gridColumn: '1 / -1' }}>
-          <h3>Guest view</h3>
-          <p className="muted small">A clean workspace with every feature and none of your data, for showing the app to others. Exit from the Account card below, or just close and reopen the app.</p>
-          <div className="line">
-            <span className="muted small">Your own login stays on this phone</span>
-            <button className="btn small" onClick={() => switchToDemo().catch((err) => dialog.alert(err.message))}>Enter guest view</button>
-          </div>
-        </div>
-      )}
-      <div className="card" style={{ gridColumn: '1 / -1' }}>
-        <h3>Account</h3>
-        <div className="line">
-          <span className="muted small grow" style={{ overflowWrap: 'anywhere' }}>Signed in as {email}</span>
-          <button className="btn small ghost" onClick={async () => {
-            if (demo) return leaveDemo() // back to the real login, no questions
-            if (!await dialog.confirm({ title: 'Sign out?', message: member ? 'You can sign back in with your username and PIN.' : 'You can sign back in with Google or a passkey.', confirmLabel: 'Sign out', danger: false })) return
-            if (member) appLock?.disable()
-            supabase.auth.signOut()
-          }}>{demo ? 'Exit guest view' : 'Sign out'}</button>
-        </div>
+      <p className="muted small settings-intro">{info[2]}</p>
+
+      <div className="grid2">
+        {info[0] === 'you' && (<>
+          {member && appLock && full(<FingerprintCard appLock={appLock} />)}
+          {full(<Appearance />)}
+          {full(<HomeCardsCard />)}
+          {vault?.status === 'unlocked' && full(<SecurityCard vault={vault} member={member} />)}
+          {full(<Passkeys />)}
+        </>)}
+
+        {info[0] === 'money' && (<>
+          <Accounts accounts={accounts} activeHouseholdId={activeHouseholdId} refresh={refresh} />
+          {!member && activeHouseholdId && full(
+            <HisabCategories key={activeHouseholdId} householdId={activeHouseholdId} householdName={households.find((h) => h.id === activeHouseholdId)?.name} />
+          )}
+          <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
+        </>)}
+
+        {info[0] === 'family' && (<>
+          {full(<Households households={households} activeHouseholdId={activeHouseholdId} setActiveHouseholdId={setActiveHouseholdId} createHousehold={createHousehold} refresh={refresh} vault={vault} />)}
+          {!member && !demo && <SignupRequests />}
+          {isOwner && (
+            <div className="card" style={{ gridColumn: '1 / -1' }}>
+              <h3>Guest view</h3>
+              <p className="muted small">A clean workspace with every feature and none of your data, for showing the app to others. Exit from the profile card at the top of Settings, or just close and reopen the app.</p>
+              <div className="line">
+                <span className="muted small">Your own login stays on this phone</span>
+                <button className="btn small" onClick={() => switchToDemo().catch((err) => dialog.alert(err.message))}>Enter guest view</button>
+              </div>
+            </div>
+          )}
+        </>)}
+
+        {info[0] === 'phone' && (<>
+          {full(<PhoneWidget Collapsible={Collapsible} households={households} activeHouseholdId={activeHouseholdId} member={member} />)}
+          {!member && full(<BackupCard />)}
+        </>)}
       </div>
     </section>
+  )
+}
+
+// Who is signed in, what kind of login it is, and Sign out — at the top of every Settings page.
+function ProfileCard({ email, fullName, member, demo, isOwner, appLock }) {
+  const dialog = useDialog()
+  const name = demo ? 'Guest view' : (!member && fullName) || email
+  const role = demo ? 'Guest view' : member ? 'Household login' : isOwner ? 'Owner' : 'Your own workspace'
+  async function signOut() {
+    if (demo) return leaveDemo() // back to the real login, no questions
+    if (!await dialog.confirm({ title: 'Sign out?', message: member ? 'You can sign back in with your username and PIN.' : 'You can sign back in with Google or a passkey.', confirmLabel: 'Sign out', danger: false })) return
+    if (member) appLock?.disable()
+    supabase.auth.signOut()
+  }
+  return (
+    <div className="card profile">
+      <span className="profile-av" aria-hidden="true">{String(name || '?').trim().slice(0, 1).toUpperCase()}</span>
+      <div className="grow">
+        <b className="profile-name">{name}</b>
+        {!demo && email && email !== name && <div className="muted small profile-mail">{email}</div>}
+        <span className="pill">{role}</span>
+      </div>
+      <button type="button" className="btn small ghost" onClick={signOut}>{demo ? 'Exit guest view' : 'Sign out'}</button>
+    </div>
   )
 }
 
@@ -556,7 +591,7 @@ function Households({ households, activeHouseholdId, setActiveHouseholdId, creat
 }
 
 // Screens the app can open on (saved values are screen ids; the database only allows these five). The tab each lives in is shown.
-const START_TABS = [['dashboard', 'Home'], ['plan', 'Month › Plan'], ['transactions', 'Month › Entries'], ['dues', 'Loans › Dues'], ['hisab', 'Hisab']]
+const START_TABS = [['dashboard', 'Home'], ['plan', 'Month › Plan'], ['transactions', 'Month › Entries'], ['loans', 'Loans › Loans'], ['dues', 'Loans › Dues'], ['deals', 'Loans › Deals'], ['hisab', 'Hisab']]
 
 function LoginBadge({ member, loading }) {
   if (loading) return null

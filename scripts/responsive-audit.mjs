@@ -208,7 +208,13 @@ for (const w of widths) {
   await page.evaluate(() => document.querySelector('.hh-backdrop')?.click())
   // settings, every card opened
   await step(page, w, 'settings', async () => { await clickBy(page, '.settings-btn', '') })
-  await step(page, w, 'settings · all cards open', async () => { await page.evaluate(() => document.querySelectorAll('.coll:not(.open) .coll-toggle').forEach((b) => b.click())) })
+  // every Settings section, with all its cards opened
+  for (const label of await page.$$eval('.settings .subnav button', (bs) => bs.map((b) => b.textContent.trim())).catch(() => [])) {
+    await step(page, w, `settings · ${label} · all cards open`, async () => {
+      await clickBy(page, '.settings .subnav button', label); await page.waitForTimeout(300)
+      await page.evaluate(() => document.querySelectorAll('.coll:not(.open) .coll-toggle').forEach((b) => b.click()))
+    })
+  }
   // other modules
   await step(page, w, 'Vault', async () => { await clickBy(page, '.module-switch button', 'Vault') })
   await step(page, w, 'Lists', async () => { await clickBy(page, '.module-switch button', 'Lists') })

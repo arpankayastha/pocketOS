@@ -1133,3 +1133,13 @@ input.ls-switch:checked::after { transform: translateX(16px); }
 /* A whole card as a swipe row: the card's own margin moves out so the buttons behind are exactly as tall as the card */
 .sw-card { border-radius: 20px; margin-bottom: 16px; }
 .sw-card > .sw-top > .card { margin-bottom: 0; }
+
+/* Settings: profile card, section bar, one-line intro */
+.profile { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.profile-av { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; flex: none; font-size: 19px; font-weight: 700; background: var(--accent-2); color: var(--accent); }
+.profile .grow { display: grid; gap: 3px; justify-items: start; }
+.profile-name, .profile-mail { overflow-wrap: anywhere; }
+.profile .btn { margin-left: auto; }
+.settings-intro { margin: -4px 2px 14px; }
+.subnav button { position: relative; }
+.tab-dot { position: absolute; top: 9px; right: 8px; width: 8px; height: 8px; border-radius: 99px; background: var(--warn); }
