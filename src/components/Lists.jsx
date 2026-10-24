@@ -9,6 +9,8 @@ import ListView from './lists/ListView'
 import OccasionView from './lists/OccasionView'
 import SettingsSheet from './lists/SettingsSheet'
 import NewSheet from './lists/NewSheet'
+import SwipeRow from './SwipeRow'
+import { TrashIcon } from '../lib/icons'
 import TemplatesPanel from './lists/TemplatesSheet'
 
 const VIEW_KEY = 'pocketos.listsView'
@@ -51,6 +53,12 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
     if (fields.archived !== undefined) setOpenId(null)
     load()
   }
+  // Swipe a list card left: Archive (or Use again, in the Archive tab) · Delete. Members can't delete the owner's lists.
+  const archiveList = async (l) => { try { await updateList(l.id, { archived: true }); load() } catch (e) { dialog.alert(e.message || String(e)) } }
+  const removeList = async (l) => {
+    if (!await dialog.confirm({ title: `Delete "${l.name}"?`, message: 'The list and everything on it is deleted for good.', confirmLabel: 'Delete' })) return
+    try { await deleteList(l.id); load() } catch (e) { dialog.alert(e.message || String(e)) }
+  }
   const changed = (row) => setLists((cur) => cur.map((l) => (l.id === row.id ? row : l)))
 
   if (open) {
@@ -90,7 +98,11 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
           ? [l.event_date ? shortDate(l.event_date) : 'No date yet', counts[l.id] ? `${counts[l.id].done} of ${counts[l.id].total} done` : ''].filter(Boolean).join(' · ')
           : tab === 'archive' ? 'archived' : openCount(l) ? `${openCount(l)} to buy` : 'all done'
         return (
-          <div key={l.id} className="ls-card">
+          <SwipeRow key={l.id} className="ls-swipe" right={member ? [] : [
+            tab === 'archive' ? { key: 'again', label: 'Use again', tone: 'accent', run: () => setReuse(l) } : { key: 'arch', label: 'Archive', tone: 'accent', run: () => archiveList(l) },
+            { key: 'del', label: 'Delete', icon: <TrashIcon />, tone: 'neg', run: () => removeList(l) },
+          ]}>
+          <div className="ls-card">
             <button type="button" className="ls-card-main" onClick={() => setOpenId(l.id)}>
               <span className="ls-ic">{l.icon}</span>
               <span className="ls-card-t"><b>{l.name}</b><small>{sub}</small></span>
@@ -98,6 +110,7 @@ export default function Lists({ homeHouseholdId, member, openId, setOpenId, newO
             </button>
             {tab === 'archive' && !member && <button type="button" className="ls-linkbtn" onClick={() => setReuse(l)}>Use again ›</button>}
           </div>
+          </SwipeRow>
         )
       })}
       {lists && !sorted.length && (

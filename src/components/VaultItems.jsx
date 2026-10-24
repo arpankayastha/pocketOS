@@ -7,6 +7,7 @@ import { CopyIcon, EyeIcon, DiceIcon, PencilIcon, TrashIcon } from '../lib/icons
 import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
 import ShareSheet from './ShareSheet'
+import SwipeRow from './SwipeRow'
 import { noteShareText } from '../lib/listShare'
 
 // Row/sharing info added by useVault, never encrypted into the item.
@@ -114,8 +115,12 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
   const row = (i) => {
     const t = typeOf(i)
     const qc = quickCopyField(i)
+    const canEdit = !(member && !i.mine) && !i.corrupt
     return (
-      <div className="txn vault-row" key={i.id} role="button" tabIndex={0} onClick={() => setOpen(i)} onKeyDown={(e) => e.key === 'Enter' && setOpen(i)}>
+      <SwipeRow key={i.id}
+        left={[qc && { key: 'copy', label: `Copy ${qc.label.toLowerCase()}`, icon: <CopyIcon />, tone: 'pos', run: () => copy(i[qc.key], qc.label) }]}
+        right={[canEdit && { key: 'edit', label: 'Edit', icon: <PencilIcon />, tone: 'accent', run: () => setEditing(i) }]}>
+      <div className="txn vault-row" role="button" tabIndex={0} onClick={() => setOpen(i)} onKeyDown={(e) => e.key === 'Enter' && setOpen(i)}>
         <TypeBadge item={i} />
         <span className="grow">
           <div className="ellipsis">{itemTitle(i)}</div>
@@ -126,6 +131,7 @@ export default function VaultItems({ vault, member, open: openRaw, setOpen, edit
           <button className="btn icon" title={`Copy ${qc.label.toLowerCase()}`} aria-label={`Copy ${qc.label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); copy(i[qc.key], qc.label) }}><CopyIcon /></button>
         )}
       </div>
+      </SwipeRow>
     )
   }
 

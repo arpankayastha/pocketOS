@@ -124,13 +124,15 @@ async function check(page, w, label) {
   if (r.tall) warns.push('sheet taller than screen and not scrollable')
   if (r.nsmall) warns.push(`${r.nsmall} small tap target(s) e.g. ${r.small.join(', ')}`)
   results.push({ w, label, fail, detail: fail ? `scrollWidth ${r.sw} > ${r.iw}; ${r.bad.join(' | ')}` : '', warns })
-  if (fail || warns.length) await page.screenshot({ path: path.join(shots, `w${w}-${label.replace(/\W+/g, '_')}.png`) })
+  if (fail || warns.length || process.env.AUDIT_ALL_SHOTS) await page.screenshot({ path: path.join(shots, `w${w}-${label.replace(/\W+/g, '_')}.png`) })
 }
 const errorsOf = new WeakMap()
 const watch = (page) => { const errs = []; errorsOf.set(page, errs); page.on('pageerror', (e) => errs.push(e.message.split('\n')[0].slice(0, 110))) }
 const step = async (page, w, label, fn, { measure = true } = {}) => {
   try {
     await fn(); if (measure) await check(page, w, label)
+    await page.evaluate(() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))) // closes any swiped-open row
+    await page.waitForTimeout(250)
     const errs = errorsOf.get(page) || []
     if (errs.length) { results.push({ w, label, fail: true, detail: `script error on this screen: ${errs.join(' | ')}`, warns: [] }); errs.length = 0 }
   } catch (e) {
@@ -142,6 +144,20 @@ const clickBy = (page, sel, text) => page.evaluate(([sel, text]) => {
   const el = [...document.querySelectorAll(sel)].find((e) => !text || e.textContent.trim().toLowerCase().includes(text.toLowerCase()))
   if (!el) throw new Error(`no ${sel} "${text || ''}"`); el.click()
 }, [sel, text])
+// Swipe a row with real touch events (Chrome DevTools protocol), then require its quick-action buttons to be showing.
+async function swipeOpen(page, sel, dx) {
+  await page.waitForSelector(sel, { timeout: 6000 })
+  const box = await page.evaluate((sel) => { const el = document.querySelector(sel); if (!el) return null; el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 } }, sel)
+  if (!box) throw new Error(`no ${sel}`)
+  const cdp = await page.context().newCDPSession(page)
+  const touch = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: box.y }] })
+  await touch('touchStart', box.x)
+  for (let i = 1; i <= 8; i++) await touch('touchMove', box.x + (dx * i) / 8)
+  await touch('touchEnd', box.x + dx)
+  await page.waitForTimeout(400)
+  const shown = await page.evaluate(() => [...document.querySelectorAll('.sw-under')].filter((u) => u.style.visibility === 'visible').reduce((n, u) => n + u.querySelectorAll('.sw-act').length, 0))
+  if (!shown) throw new Error('the swipe did not reveal any action')
+}
 const closeTop = (page) => page.evaluate(() => { const m = [...document.querySelectorAll('.modal-bg, .dialog-bg')].pop(); m?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })) })
 
 const browser = await chromium.launch()
@@ -183,6 +199,11 @@ for (const w of widths) {
   await closeTop(page)
   await step(page, w, 'Entries · add expense', async () => { await clickBy(page, '.pill-bar button', 'Month'); await page.click('.fab', { force: true }); await clickBy(page, '.fab-option', 'Expense'); await page.waitForSelector('.modal') })
   await closeTop(page)
+  await step(page, w, 'swipe · Hisab entry', async () => { await clickBy(page, '.pill-bar button', 'Hisab'); await page.waitForTimeout(500); await swipeOpen(page, '.hb-entry', -170) })
+  await step(page, w, 'swipe · Entry', async () => { await clickBy(page, '.pill-bar button', 'Month'); await clickBy(page, '.subnav button', 'Entries'); await swipeOpen(page, '.txn', -170) })
+  await step(page, w, 'swipe · Plan line (right)', async () => { await clickBy(page, '.subnav button', 'Plan'); await swipeOpen(page, '.txn', 120) })
+  await step(page, w, 'swipe · Loan card', async () => { await clickBy(page, '.pill-bar button', 'Loans'); await clickBy(page, '.subnav button', 'Loans'); await swipeOpen(page, '.due-card', -170) })
+  await step(page, w, 'swipe · Due card (right)', async () => { await clickBy(page, '.subnav button', 'Dues'); await swipeOpen(page, '.due-card', 120) })
   await step(page, w, 'household menu', async () => { await clickBy(page, '.hh-chip', ''); await page.waitForSelector('.hh-menu') })
   await page.evaluate(() => document.querySelector('.hh-backdrop')?.click())
   // settings, every card opened
@@ -193,7 +214,10 @@ for (const w of widths) {
   await step(page, w, 'Lists', async () => { await clickBy(page, '.module-switch button', 'Lists') })
   await step(page, w, 'Lists · new', async () => { await page.click('.fab', { force: true }); await page.waitForSelector('.modal') })
   await closeTop(page)
+  await step(page, w, 'swipe · Lists card', async () => { await swipeOpen(page, '.ls-card', -170) })
   await step(page, w, 'Lists · a list', async () => { await clickBy(page, '.ls-card-main', 'Groceries') })
+  await step(page, w, 'swipe · list item (left)', async () => { await swipeOpen(page, '.ls-row', -170) })
+  await step(page, w, 'swipe · list item (right)', async () => { await swipeOpen(page, '.ls-row', 130) })
   await step(page, w, 'Lists · share list', async () => { await clickBy(page, 'button', 'Share'); await page.waitForSelector('.share-sheet') })
   await closeTop(page)
   await step(page, w, 'Lists · an occasion', async () => { await clickBy(page, '.ls-back', 'Lists'); await clickBy(page, '.ls-seg button', 'Occasions'); await clickBy(page, '.ls-card-main', 'Griha') })

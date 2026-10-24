@@ -4,7 +4,8 @@ import { currentMonth, money, shiftMonth } from '../lib/format'
 import { loadMonthMoney } from '../lib/runway'
 import { MonthPicker } from './Transactions'
 import { useMonthSwipe } from '../lib/useSwipe'
-import { TrashIcon } from '../lib/icons'
+import { CheckIcon, TrashIcon } from '../lib/icons'
+import SwipeRow from './SwipeRow'
 import { SkeletonRows } from './Skeleton'
 import { useDialog } from '../lib/dialog'
 import { addEntry } from '../lib/dues'
@@ -88,6 +89,9 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
             : `${cat?.name || 'Uncategorised'}${it.day_of_month ? ` · due ${it.day_of_month}` : ''}${actual?.fromHisab ? ` · paid${it.onCard ? ' by card' : ''} (Hisab)` : ''}`
           return (
             <Fragment key={it.id}>
+              <SwipeRow
+                left={[!actual && !it.auto_loan && { key: 'log', label: it.kind === 'income' ? 'Received' : 'Paid', icon: <CheckIcon />, tone: 'pos', run: () => setLogging(it.id) }]}
+                right={[!it.auto_card && !it.auto_loan && { key: 'del', label: 'Remove', icon: <TrashIcon />, tone: 'neg', run: () => removeItem(it) }]}>
               <div className={`txn ${it.auto_card ? 'plan-card' : ''}`} onClick={it.auto_card && bill?.count ? () => setOpen(open === it.id ? null : it.id) : undefined}>
                 <span className="dot" style={{ background: it.auto_card ? (accounts.find((a) => a.id === it.account_id)?.color || '#8b5cf6') : cat?.color || '#94a3b8' }} />
                 <div className="grow">
@@ -102,6 +106,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
                 )}
                 {!it.auto_card && !it.auto_loan && <button type="button" className="btn icon" title="Remove" onClick={(e) => { e.stopPropagation(); removeItem(it) }}><TrashIcon /></button>}
               </div>
+              </SwipeRow>
               {open === it.id && bill && (
                 <div className="plan-spends">
                   {bill.spends.map((s) => (

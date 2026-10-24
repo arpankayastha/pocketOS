@@ -7,6 +7,8 @@ import { loadEntries, iconFor } from '../../lib/hisab'
 import { today } from '../../lib/format'
 import { useDialog } from '../../lib/dialog'
 import { AddBar, Group, Row } from './ListParts'
+import SwipeRow from '../SwipeRow'
+import { PencilIcon, TrashIcon } from '../../lib/icons'
 import ItemSheet from './ItemSheet'
 import ShareSheet from '../ShareSheet'
 import { occasionShareText } from '../../lib/listShare'
@@ -75,7 +77,7 @@ function Tasks({ L, tasks, setEditing }) {
     <AddBar placeholder="Add a task…" parse={false} onAdd={(v) => L.add({ tab: 'tasks', name: v.name })} />
     {groups.map((g) => (
       <Group key={g.label} title={g.label} count={g.items.length} action={g.label === 'Done' ? <> · <span role="button" tabIndex={0} className="ls-clear" onClick={() => L.clear('tasks')}>Clear</span></> : null}>
-        {g.items.map((t) => <Row key={t.id} item={t} onTick={L.tick} onOpen={setEditing} sub={t.assignee || ''} right={t.due_date ? <span className="ls-q">{shortDate(t.due_date).replace(/^\w+,? /, '')}</span> : null} />)}
+        {g.items.map((t) => <Row key={t.id} item={t} onTick={L.tick} onOpen={setEditing} onRemove={(x) => L.remove(x.id)} sub={t.assignee || ''} right={t.due_date ? <span className="ls-q">{shortDate(t.due_date).replace(/^\w+,? /, '')}</span> : null} />)}
       </Group>
     ))}
     {!tasks.length && <div className="ls-empty">No tasks yet. Add the first one above.</div>}
@@ -90,12 +92,12 @@ function Samagri({ L, rows, setEditing }) {
     <AddBar placeholder="Add a samagri item… (ghee 500 g)" onAdd={(v) => L.add({ tab: 'samagri', name: v.name, qty: v.qty || null })} />
     {groupBySection(open, sections, 'Other').map((g) => (
       <Group key={g.section} title={g.section} count={g.items.length}>
-        {g.items.map((it) => <Row key={it.id} item={it} onTick={L.tick} onOpen={setEditing} sub={it.assignee ? `${it.note ? `${it.note} · ` : ''}${it.assignee}` : ''} />)}
+        {g.items.map((it) => <Row key={it.id} item={it} onTick={L.tick} onOpen={setEditing} onRemove={(x) => L.remove(x.id)} sub={it.assignee ? `${it.note ? `${it.note} · ` : ''}${it.assignee}` : ''} />)}
       </Group>
     ))}
     {got.length > 0 && (
       <Group title="✓ Got it" count={got.length} action={<> · <span role="button" tabIndex={0} className="ls-clear" onClick={() => L.clear('samagri')}>Clear</span></>}>
-        {got.map((it) => <Row key={it.id} item={it} onTick={L.tick} onOpen={setEditing} />)}
+        {got.map((it) => <Row key={it.id} item={it} onTick={L.tick} onOpen={setEditing} onRemove={(x) => L.remove(x.id)} />)}
       </Group>
     )}
     {!rows.length && <div className="ls-empty">No samagri yet. Add what you need above.</div>}
@@ -112,10 +114,12 @@ function People({ L, rows, setEditing }) {
     {groups.map((g) => (
       <Group key={g.section} title={g.section} count={g.items.length}>
         {g.items.map((p) => (
-          <div key={p.id} className="ls-row">
-            <button type="button" className="ls-n" onClick={() => setEditing(p)}><span>{p.name}</span>{p.note && <small>{p.note}</small>}</button>
-            <button type="button" className={`ls-rsvp ${p.rsvp || ''}`} onClick={() => L.save(p.id, { rsvp: RSVP_NEXT[p.rsvp ?? null] })}>{label[p.rsvp] || 'Not asked'}</button>
-          </div>
+          <SwipeRow key={p.id} right={[{ key: 'edit', label: 'Edit', icon: <PencilIcon />, tone: 'accent', run: () => setEditing(p) }, { key: 'del', label: 'Delete', icon: <TrashIcon />, tone: 'neg', run: () => L.remove(p.id) }]}>
+            <div className="ls-row">
+              <button type="button" className="ls-n" onClick={() => setEditing(p)}><span>{p.name}</span>{p.note && <small>{p.note}</small>}</button>
+              <button type="button" className={`ls-rsvp ${p.rsvp || ''}`} onClick={() => L.save(p.id, { rsvp: RSVP_NEXT[p.rsvp ?? null] })}>{label[p.rsvp] || 'Not asked'}</button>
+            </div>
+          </SwipeRow>
         ))}
       </Group>
     ))}

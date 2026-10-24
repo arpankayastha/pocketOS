@@ -1112,3 +1112,24 @@ input.ls-switch:checked::after { transform: translateX(16px); }
   .hh { position: static; }
   .hh-menu { right: 12px; width: min(340px, calc(100vw - 24px)); max-width: none; min-width: 0; }
 }
+
+/* Swipe rows (SwipeRow.jsx): quick actions behind a row or card */
+.sw { position: relative; overflow: hidden; }
+.sw-top { position: relative; z-index: 1; background: var(--sw-bg, var(--card)); touch-action: pan-y; transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
+.sw-top.drag { transition: none; }
+.sw-under { position: absolute; top: 0; bottom: 0; display: flex; overflow: hidden; }
+.sw-l { left: 0; } .sw-r { right: 0; }
+.sw-act { flex: 1 1 0; min-width: 0; border: none; border-radius: 0; display: grid; place-content: center; justify-items: center; gap: 3px; padding: 0 4px;
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--card-2); color: var(--text); }
+.sw-act svg { width: 18px; height: 18px; }
+.sw-act span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw-act.pos { background: var(--pos); color: var(--bg); }
+.sw-act.neg { background: var(--neg); color: var(--bg); }
+.sw-act.warn { background: var(--warn); color: var(--bg); }
+.sw-act.accent { background: var(--accent-bg); color: var(--on-accent); }
+@media (prefers-reduced-motion: reduce) { .sw-top { transition: none; } }
+.ls-swipe { border-radius: 16px; }
+
+/* A whole card as a swipe row: the card's own margin moves out so the buttons behind are exactly as tall as the card */
+.sw-card { border-radius: 20px; margin-bottom: 16px; }
+.sw-card > .sw-top > .card { margin-bottom: 0; }

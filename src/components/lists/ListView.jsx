@@ -53,13 +53,13 @@ export default function ListView({ list, store, onMenu, onBack }) {
       )}
       {shown.map((g) => (
         <Group key={g.section} title={g.section} count={g.items.length}>
-          {g.items.map((it) => <Row key={it.id} item={it} onTick={L.tick} onOpen={setEditing} />)}
+          {g.items.map((it) => <Row key={it.id} item={it} onTick={L.tick} onOpen={setEditing} onRemove={(x) => L.remove(x.id)} />)}
         </Group>
       ))}
       {!open.length && <div className="ls-empty">{got.length ? 'Everything is bought 🎉' : 'Nothing here yet. Add the first item above.'}</div>}
       {got.length > 0 && (
         <Group title={`✓ Got it`} count={got.length} action={<> · <span role="button" tabIndex={0} className="ls-clear" onClick={() => L.clear()}>Clear</span></>}>
-          {(showGot ? got : got.slice(0, 0)).map((it) => <Row key={it.id} item={it} onTick={L.tick} onOpen={setEditing} />)}
+          {(showGot ? got : got.slice(0, 0)).map((it) => <Row key={it.id} item={it} onTick={L.tick} onOpen={setEditing} onRemove={(x) => L.remove(x.id)} />)}
           <button type="button" className="ls-linkbtn" onClick={() => setShowGot((v) => !v)}>{showGot ? 'Hide' : `Show ${got.length}`}</button>
         </Group>
       )}

@@ -5,6 +5,7 @@ import { useDialog } from '../lib/dialog'
 import { PencilIcon, TrashIcon, DuesIcon } from '../lib/icons'
 import { SkeletonRows } from './Skeleton'
 import AmountInput from './AmountInput'
+import SwipeRow from './SwipeRow'
 
 const fmtDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'}`
@@ -15,6 +16,7 @@ export default function Dues({ households, activeHouseholdId, accounts, onChange
   const [error, setError] = useState(null)
   const [show, setShow] = useState('open') // open | settled
   const [openId, setOpenId] = useState(null)
+  const [quick, setQuick] = useState(null) // an entry form to open straight away, from a swipe on a card
   const [editing, setEditing] = useState(null) // {} new, or a due to edit
   const household = households.find((h) => h.id === activeHouseholdId)
 
@@ -69,11 +71,11 @@ export default function Dues({ households, activeHouseholdId, accounts, onChange
         </div>
       ) : (
         <div className="due-list">
-          {list.map((d) => <DueCard key={d.id} due={d} onOpen={() => setOpenId(d.id)} />)}
+          {list.map((d) => <DueCard key={d.id} due={d} onOpen={() => setOpenId(d.id)} onQuick={(form) => { setQuick(form); setOpenId(d.id) }} />)}
         </div>
       )}
 
-      {current && <DueSheet due={current} households={households} accounts={accounts} onClose={() => setOpenId(null)}
+      {current && <DueSheet due={current} households={households} accounts={accounts} initialForm={quick} onClose={() => { setOpenId(null); setQuick(null) }}
         onEdit={() => setEditing(current)} onChanged={changed} />}
       {editing && <DueForm due={editing.id ? editing : null} households={households} household={household} accounts={accounts}
         onClose={() => setEditing(null)}
@@ -100,11 +102,13 @@ function Balance({ balance }) {
   )
 }
 
-function DueCard({ due, onOpen }) {
+function DueCard({ due, onOpen, onQuick }) {
+  const [primary] = actionsFor(due.balance) // swipe a card: the most likely entry (Pay back / Received / Lend…), form ready
   const last = due.entries[due.entries.length - 1]
   const first = due.entries[0]
   const pct = progressOf(due)
   return (
+    <SwipeRow className="sw-card" left={[{ key: 'quick', label: primary.label, tone: 'pos', run: () => onQuick({ direction: primary.direction, label: primary.label }) }]}>
     <button className="card due-card" onClick={onOpen}>
       <div className="due-top">
         <span className="due-avatar">{due.person.slice(0, 1).toUpperCase()}</span>
@@ -127,11 +131,12 @@ function DueCard({ due, onOpen }) {
         </>
       )}
     </button>
+    </SwipeRow>
   )
 }
 
-function DueSheet({ due, households, accounts, onClose, onEdit, onChanged }) {
-  const [entryForm, setEntryForm] = useState(null) // { direction } new, or { entry } edit
+function DueSheet({ due, households, accounts, initialForm = null, onClose, onEdit, onChanged }) {
+  const [entryForm, setEntryForm] = useState(initialForm) // { direction } new, or { entry } edit
   const first = due.entries[0]
   const other = households.find((h) => h.id === due.person_household_id)
   const [primary, secondary] = actionsFor(due.balance)

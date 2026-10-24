@@ -15,6 +15,7 @@ import { setThemePref, themePref } from '../lib/theme'
 import { backupCall, requestDriveCode } from '../lib/backup'
 import { HOME_CARDS, homeCardsOff, setHomeCardOn } from '../lib/homeCards'
 import { leaveDemo, switchToDemo } from '../lib/demo'
+import SwipeRow from './SwipeRow'
 import { decideSignup, loadSignupRequests, useIsAdmin } from '../lib/signups'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, demo, member, appLock, vault }) {
@@ -69,7 +70,7 @@ export default function Settings({ accounts, categories, refresh, households, ac
       <div className="card" style={{ gridColumn: '1 / -1' }}>
         <h3>Account</h3>
         <div className="line">
-          <span className="muted small">Signed in as {email}</span>
+          <span className="muted small grow" style={{ overflowWrap: 'anywhere' }}>Signed in as {email}</span>
           <button className="btn small ghost" onClick={async () => {
             if (demo) return leaveDemo() // back to the real login, no questions
             if (!await dialog.confirm({ title: 'Sign out?', message: member ? 'You can sign back in with your username and PIN.' : 'You can sign back in with Google or a passkey.', confirmLabel: 'Sign out', danger: false })) return
@@ -107,7 +108,10 @@ function SignupRequests() {
   const others = info.rows.filter((r) => r.status !== 'pending')
   const when = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
   const row = (r) => (
-    <div className="req-row" key={r.user_id}>
+    <SwipeRow key={r.user_id}
+      left={[r.status !== 'approved' && { key: 'ok', label: 'Approve', tone: 'pos', run: () => decide(r, true) }]}
+      right={[r.status !== 'rejected' && { key: 'no', label: r.status === 'approved' ? 'Remove' : 'Reject', tone: 'neg', run: () => decide(r, false) }]}>
+    <div className="req-row">
       <div className="req-name">{r.name || r.email}</div>
       <div className="muted small req-meta">{r.name ? `${r.email} · ` : ''}{r.status === 'pending' ? `asked ${when(r.created_at)}` : `${r.status} ${when(r.decided_at || r.created_at)}`}</div>
       <div className="req-actions">
@@ -115,6 +119,7 @@ function SignupRequests() {
         {r.status !== 'rejected' && <button className="btn small ghost" disabled={!!busy} onClick={() => decide(r, false)}>{r.status === 'approved' ? 'Remove access' : 'Reject'}</button>}
       </div>
     </div>
+    </SwipeRow>
   )
   return (
     <div style={{ gridColumn: '1 / -1' }}>

@@ -105,6 +105,11 @@ export async function saveDeal({ id, householdId, ...f }) {
   return data
 }
 
+export async function setDealArchived(deal, archived) {
+  const { error } = await supabase.from('property_deals').update({ archived }).eq('id', deal.id)
+  if (error) throw error
+}
+
 export async function deleteDeal(id) {
   const { error } = await supabase.from('property_deals').delete().eq('id', id)
   if (error) throw error

@@ -1,9 +1,18 @@
 import { useState } from 'react'
 import { parseQuick } from '../../lib/listLogic'
+import SwipeRow from '../SwipeRow'
+import { CheckIcon, PencilIcon, TrashIcon } from '../../lib/icons'
+
+// Swipe actions of a checklist row: swipe right = tick / untick (a long swipe does it), swipe left = Edit · Delete.
+const itemSwipe = ({ item, onTick, onOpen, onRemove }) => ({
+  left: [{ key: 'tick', label: item.done ? 'Undo' : 'Done', icon: <CheckIcon />, tone: 'pos', full: true, run: () => onTick(item) }],
+  right: [{ key: 'edit', label: 'Edit', icon: <PencilIcon />, tone: 'accent', run: () => onOpen(item) }, onRemove && { key: 'del', label: 'Delete', icon: <TrashIcon />, tone: 'neg', run: () => onRemove(item) }],
+})
 
 // One compact checklist row: tick, name (+ small note), quantity / right-hand text. Tapping the name opens the item.
-export function Row({ item, onTick, onOpen, right, sub }) {
+export function Row({ item, onTick, onOpen, onRemove, right, sub }) {
   return (
+    <SwipeRow {...itemSwipe({ item, onTick, onOpen, onRemove })}>
     <div className={`ls-row ${item.done ? 'done' : ''}`}>
       <button type="button" className={`ls-cb ${item.done ? 'on' : ''}`} aria-label={item.done ? `Untick ${item.name}` : `Tick ${item.name}`} onClick={() => onTick(item)}>{item.done ? '✓' : ''}</button>
       <button type="button" className="ls-n" onClick={() => onOpen(item)}>
@@ -12,6 +21,7 @@ export function Row({ item, onTick, onOpen, right, sub }) {
       </button>
       {right !== undefined ? right : item.qty ? <span className="ls-q">{item.qty}</span> : null}
     </div>
+    </SwipeRow>
   )
 }
 

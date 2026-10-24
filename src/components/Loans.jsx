@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { today } from '../lib/format'
 import {
   KINDS, kindLabel, summaryOf, prepaySavings, interestUntil, costSplit, coverEvent, fyTable, emiOf, pmt, setLoanEvents, setLoanClosed, saveLoan, deleteLoan,
-  loadLoans, loadDeals, saveDeal, deleteDeal, starterChecklist,
+  loadLoans, loadDeals, saveDeal, deleteDeal, setDealArchived, starterChecklist,
 } from '../lib/loans'
 import { loadDues } from '../lib/dues'
 import { useDialog } from '../lib/dialog'
@@ -11,6 +11,7 @@ import { LoansIcon, TrashIcon } from '../lib/icons'
 import { SkeletonRows } from './Skeleton'
 import AmountInput from './AmountInput'
 import { ShareChips } from './lists/ListParts'
+import SwipeRow from './SwipeRow'
 
 const money = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}` // loan amounts read better in whole rupees
 const fmtDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -43,6 +44,14 @@ export default function Loans({ activeHouseholdId, households = [], member = fal
     } catch (err) { setError(err.message) }
   }, [activeHouseholdId])
   useEffect(() => { load() }, [load])
+
+  // Quick actions from swiping a card: close / reopen a loan, archive / restore a deal.
+  const dialog = useDialog()
+  const quickClose = async (l) => {
+    if (!l.closed_on && !await dialog.confirm({ title: `Close ${l.name}?`, message: 'It moves to Closed and stops counting in your totals. You can reopen it later.', confirmLabel: 'Close loan', danger: false })) return
+    try { await setLoanClosed(l, l.closed_on ? null : day); load() } catch (err) { setError(err.message) }
+  }
+  const quickArchive = async (d) => { try { await setDealArchived(d, !d.archived); load() } catch (err) { setError(err.message) } }
 
   const withSummary = useMemo(() => (loans || []).map((l) => ({ ...l, s: summaryOf(l, day) })), [loans, day])
   // Loans shared with this household by another one are listed apart and stay out of its totals.
@@ -95,7 +104,7 @@ export default function Loans({ activeHouseholdId, households = [], member = fal
         </div>
       ) : (
         <div className="due-list">
-          {list.map((l) => <LoanCard key={l.id} loan={l} onOpen={() => setOpenLoanId(l.id)} />)}
+          {list.map((l) => <LoanCard key={l.id} loan={l} onOpen={() => setOpenLoanId(l.id)} onToggleClosed={() => quickClose(l)} />)}
         </div>
       )}
       {show === 'open' && sharedIn.length > 0 && (
@@ -120,13 +129,13 @@ export default function Loans({ activeHouseholdId, households = [], member = fal
         <p className="muted small">Buying or selling a property? A deal keeps the price, what you have spent, what is still due to the builder and a checklist of papers together. Archive it when it closes.</p>
       ) : (
         <div className="due-list">
-          {liveDeals.map((d) => <DealCard key={d.id} deal={d} dues={dues} loans={withSummary} onOpen={() => setDealSheet(d)} />)}
+          {liveDeals.map((d) => <DealCard key={d.id} deal={d} dues={dues} loans={withSummary} onOpen={() => setDealSheet(d)} onArchive={() => quickArchive(d)} />)}
         </div>
       )}
       {archivedDeals.length > 0 && (
         <>
           <button className="btn link small" onClick={() => setShowArchived((v) => !v)}>{showArchived ? 'Hide' : 'Show'} {archivedDeals.length} archived</button>
-          {showArchived && <div className="due-list">{archivedDeals.map((d) => <DealCard key={d.id} deal={d} dues={dues} loans={withSummary} onOpen={() => setDealSheet(d)} />)}</div>}
+          {showArchived && <div className="due-list">{archivedDeals.map((d) => <DealCard key={d.id} deal={d} dues={dues} loans={withSummary} onOpen={() => setDealSheet(d)} onArchive={() => quickArchive(d)} />)}</div>}
         </>
       )}
         </>
@@ -142,9 +151,10 @@ export default function Loans({ activeHouseholdId, households = [], member = fal
   )
 }
 
-function LoanCard({ loan, from, onOpen }) {
+function LoanCard({ loan, from, onOpen, onToggleClosed }) {
   const s = loan.s
   return (
+    <SwipeRow className="sw-card" right={loan.shared ? [] : [{ key: 'close', label: loan.closed_on ? 'Reopen' : 'Close loan', tone: loan.closed_on ? 'accent' : 'warn', run: onToggleClosed }]}>
     <button className="card due-card" onClick={onOpen}>
       <div className="due-top">
         <span className="due-avatar">{loan.kind === 'gold' ? 'Au' : loan.kind === 'home' ? '🏠' : '₹'}</span>
@@ -171,6 +181,7 @@ function LoanCard({ loan, from, onOpen }) {
         </>
       )}
     </button>
+    </SwipeRow>
   )
 }
 
@@ -428,12 +439,13 @@ function LoanForm({ loan, householdId, households = [], canShare, onClose, onSav
 
 // ── Property deals ──────────────────────────────────────────────────────────────────────────────────────
 
-function DealCard({ deal, dues, loans, onOpen }) {
+function DealCard({ deal, dues, loans, onOpen, onArchive }) {
   const due = dues.find((d) => d.id === deal.due_id)
   const loan = loans.find((l) => l.id === deal.loan_id)
   const done = (deal.checklist || []).filter((c) => c.done).length
   const total = (deal.checklist || []).length
   return (
+    <SwipeRow className="sw-card" right={[{ key: 'arch', label: deal.archived ? 'Restore' : 'Archive', tone: deal.archived ? 'accent' : 'warn', run: onArchive }]}>
     <button className="card due-card" onClick={onOpen}>
       <div className="due-top">
         <span className="due-avatar">{deal.kind === 'sell' ? '₹' : '🏠'}</span>
@@ -454,6 +466,7 @@ function DealCard({ deal, dues, loans, onOpen }) {
         </>
       )}
     </button>
+    </SwipeRow>
   )
 }
 

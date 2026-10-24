@@ -9,6 +9,7 @@ import { deleteTransfer, transferCounterparts } from '../lib/transfers'
 import { useDialog } from '../lib/dialog'
 import { SkeletonRows } from './Skeleton'
 import { PencilIcon, TrashIcon } from '../lib/icons'
+import SwipeRow from './SwipeRow'
 
 export default function Transactions({ accounts, categories, activeHouseholdId, households }) {
   const [month, setMonth] = useState(currentMonth())
@@ -104,7 +105,8 @@ export default function Transactions({ accounts, categories, activeHouseholdId, 
         {loading ? <SkeletonRows rows={5} /> : rows.length === 0 ? (
           <div className="muted pad">No transactions in {monthLabel(month)}.</div>
         ) : rows.map((r) => (
-          <div className="txn" key={r.id}>
+          <SwipeRow key={r.id} right={[{ key: 'edit', label: 'Edit', icon: <PencilIcon />, tone: 'accent', run: () => setEditing(r) }, { key: 'del', label: 'Delete', icon: <TrashIcon />, tone: 'neg', run: () => remove(r) }]}>
+          <div className="txn">
             <span className="dot" style={{ background: r.category?.color || '#94a3b8' }} />
             <div className="grow">
               <div>{r.note || (r.transfer_id ? 'Home transfer' : r.category?.name || 'Uncategorised')}</div>
@@ -114,6 +116,7 @@ export default function Transactions({ accounts, categories, activeHouseholdId, 
             <button className="btn icon" title="Edit" onClick={() => setEditing(r)}><PencilIcon /></button>
             <button className="btn icon" title="Delete" onClick={() => remove(r)}><TrashIcon /></button>
           </div>
+          </SwipeRow>
         ))}
       </div>
 

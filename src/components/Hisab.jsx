@@ -7,6 +7,7 @@ import { useMonthSwipe, useSwipe } from '../lib/useSwipe'
 import { useDialog } from '../lib/dialog'
 import { BookIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { MonthPicker } from './Transactions'
+import SwipeRow from './SwipeRow'
 import { supabase } from '../lib/supabase'
 import { instrumentLabel } from '../lib/instruments'
 import { SkeletonRows } from './Skeleton'
@@ -142,6 +143,12 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
   }, [addReq])
 
   const changed = () => { load(); onChanged() }
+  const dialog = useDialog()
+  // Swipe an entry left: Edit · Delete (asks first, like the button inside the entry).
+  async function removeEntry(e) {
+    if (!await dialog.confirm({ title: 'Delete this entry?', message: `${e.category || 'Entry'} · ${money(e.amount)}${e.note ? ` · ${e.note}` : ''}. This can't be undone.`, confirmLabel: 'Delete' })) return
+    try { await deleteEntry(e.id); changed() } catch (err) { dialog.alert(err.message || String(err)) }
+  }
   const shown = useMemo(() => (entries || []).filter((e) => !isDaily || e.occurred_on.startsWith(month)), [entries, isDaily, month])
   const out = sum(shown, 'out'), inn = sum(shown, 'in')
   // Most-used first, for the category/source pickers.
@@ -223,7 +230,7 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
       {!entries ? <div className="card"><SkeletonRows rows={4} /></div> : view === 'daily' ? (
         shown.length === 0 ? (
           <div className="card empty-module"><BookIcon /><b>Nothing logged{isDaily ? ` in ${monthLabel(month)}` : ' yet'}</b><p className="muted small">Tap + to add your first entry.</p></div>
-        ) : <DayGroups entries={shown} onOpen={setSheet} />
+        ) : <DayGroups entries={shown} onOpen={setSheet} onDelete={removeEntry} />
       ) : view === 'calendar' ? (
         <CalendarView month={cal} setMonth={isDaily ? setMonth : setCalMonth} entries={entries} onOpen={setSheet} />
       ) : <SummaryView entries={shown} />}
@@ -236,7 +243,7 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
   )
 }
 
-function DayGroups({ entries, onOpen }) {
+function DayGroups({ entries, onOpen, onDelete }) {
   const days = []
   for (const e of entries) {
     const last = days[days.length - 1]
@@ -250,14 +257,15 @@ function DayGroups({ entries, onOpen }) {
           <b>{dayHead(d.date)}</b>
           <span className="small">{out > 0 && <span className="neg">−{money(out)}</span>}{inn > 0 && <span className="pos"> +{money(inn)}</span>}</span>
         </div>
-        {d.rows.map((e) => <EntryRow key={e.id} e={e} onOpen={onOpen} />)}
+        {d.rows.map((e) => <EntryRow key={e.id} e={e} onOpen={onOpen} onDelete={onDelete} />)}
       </div>
     )
   })
 }
 
-function EntryRow({ e, onOpen }) {
+function EntryRow({ e, onOpen, onDelete }) {
   return (
+    <SwipeRow right={[{ key: 'edit', label: 'Edit', icon: <PencilIcon />, tone: 'accent', run: () => onOpen(e) }, onDelete && { key: 'del', label: 'Delete', icon: <TrashIcon />, tone: 'neg', run: () => onDelete(e) }]}>
     <button className="hb-entry" onClick={() => onOpen(e)}>
       <span className="hb-cat">{iconFor(e.category)}</span>
       <div className="grow">
@@ -269,6 +277,7 @@ function EntryRow({ e, onOpen }) {
         {entryTime(e) && <span className="muted small">{entryTime(e)}</span>}
       </div>
     </button>
+    </SwipeRow>
   )
 }
 
