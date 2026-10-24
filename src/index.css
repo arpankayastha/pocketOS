@@ -237,7 +237,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .inline-form select { width: auto; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; padding: 4px 6px 4px 10px; border: 1px solid var(--line); border-radius: 99px; font-size: 13px; }
-.line-btn { flex: 1; min-width: 0; text-align: left; border: none; background: none; padding: 4px 0; cursor: pointer; color: var(--text); font-size: 15px; }
+.line-btn { flex: 1; min-width: 0; text-align: left; border: none; background: none; padding: 11px 0; cursor: pointer; color: var(--text); font-size: 15px; }
 .line-btn:hover { color: var(--accent); }
 .chip-btn { gap: 6px; padding: 4px 10px; background: none; color: var(--text); cursor: pointer; min-height: 32px; transition: border-color .15s, background-color .15s; }
 .chip-btn:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--card-2); }
@@ -997,7 +997,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 .ls-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ls-head h1 { margin: 0; font-size: 22px; flex: 1 1 auto; min-width: 0; }
 .ls-grow { flex: 1; }
-.ls-back { background: none; border: none; color: var(--muted); font: inherit; font-size: 14px; padding: 6px 0; cursor: pointer; flex-basis: 100%; text-align: left; }
+.ls-back { background: none; border: none; color: var(--muted); font: inherit; font-size: 14px; padding: 12px 0; cursor: pointer; flex-basis: 100%; text-align: left; }
 .ls-head .ls-back { flex-basis: auto; }
 .ls-head:has(h1) .ls-back { flex-basis: 100%; }
 .ls-pill { padding: 3px 10px; border-radius: 99px; background: var(--card); border: 1px solid var(--line); font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -1009,7 +1009,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 .ls-again button, .ls-chip, .ls-chips button { flex: 0 0 auto; padding: 6px 12px; min-height: 34px; border: 1px dashed var(--line); border-radius: 99px; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .ls-again button.more { border-style: solid; color: var(--accent); }
 .ls-chip { border-style: solid; color: var(--accent); }
-.ls-linkbtn { background: none; border: none; color: var(--accent); font: inherit; font-size: 13px; padding: 6px 12px; text-align: left; cursor: pointer; }
+.ls-linkbtn { background: none; border: none; color: var(--accent); font: inherit; font-size: 13px; padding: 12px 12px; text-align: left; cursor: pointer; }
 .ls-box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .ls-sh { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--bg); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .ls-sh b { margin-left: auto; font-weight: 600; text-transform: none; letter-spacing: 0; }
@@ -1019,7 +1019,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 .ls-cb { width: 22px; height: 22px; flex: none; border-radius: 7px; border: 2px solid var(--line); background: none; display: grid; place-items: center; font-size: 13px; color: var(--on-accent); cursor: pointer; padding: 0; position: relative; }
 .ls-cb::after { content: ''; position: absolute; inset: -11px; } /* 44px tap target */
 .ls-cb.on { background: var(--pos); border-color: var(--pos); font-weight: 700; }
-.ls-n { flex: 1; min-width: 0; display: grid; text-align: left; background: none; border: none; color: inherit; font: inherit; padding: 6px 0; cursor: pointer; }
+.ls-n { flex: 1; min-width: 0; display: grid; align-self: stretch; align-content: center; text-align: left; background: none; border: none; color: inherit; font: inherit; padding: 6px 0; cursor: pointer; }
 span.ls-n { cursor: default; }
 .ls-n small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ls-n i { color: var(--muted); font-style: normal; font-size: 12px; }

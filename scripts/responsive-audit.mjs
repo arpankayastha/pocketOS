@@ -69,6 +69,7 @@ async function newContext(browser, w, { signedIn = true, status = 'approved' } =
     const json = (body, code = 200) => route.fulfill({ status: code, contentType: 'application/json', headers: cors, body: JSON.stringify(body) })
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors })
     if (p.startsWith('/auth/v1/user')) return json(user)
+    if (p.includes('passkey')) return json([])
     if (p.startsWith('/auth/v1')) return json({ ...session })
     if (p.startsWith('/rest/v1/rpc/')) return json([])
     if (p.startsWith('/functions/')) return json({})
@@ -108,7 +109,13 @@ async function check(page, w, label) {
     const small = [...document.querySelectorAll('button, a[href], input:not([type=hidden]), select, textarea, [role=button]')].filter(visible).filter((el) => {
       const b = el.getBoundingClientRect(); const t = el.type
       if (t === 'checkbox' || t === 'radio' || t === 'range') return false
-      return b.height < 32 || b.width < 32
+      // a big invisible hit area drawn with ::after / ::before counts (e.g. the 22 px tick box has a 44 px one)
+      let w = b.width, h = b.height
+      for (const ps of ['::after', '::before']) {
+        const c = getComputedStyle(el, ps)
+        if (c.content !== 'none' && c.position === 'absolute') { w = Math.max(w, parseFloat(c.width) || 0); h = Math.max(h, parseFloat(c.height) || 0) }
+      }
+      return h < 32 || w < 32
     }).map((el) => `${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]}:${Math.round(el.getBoundingClientRect().width)}x${Math.round(el.getBoundingClientRect().height)}`)
     return { iw, sw: document.documentElement.scrollWidth, bad: bad.slice(0, 3), tall, small: [...new Set(small)].slice(0, 4), nsmall: small.length }
   })
@@ -119,8 +126,14 @@ async function check(page, w, label) {
   results.push({ w, label, fail, detail: fail ? `scrollWidth ${r.sw} > ${r.iw}; ${r.bad.join(' | ')}` : '', warns })
   if (fail || warns.length) await page.screenshot({ path: path.join(shots, `w${w}-${label.replace(/\W+/g, '_')}.png`) })
 }
+const errorsOf = new WeakMap()
+const watch = (page) => { const errs = []; errorsOf.set(page, errs); page.on('pageerror', (e) => errs.push(e.message.split('\n')[0].slice(0, 110))) }
 const step = async (page, w, label, fn, { measure = true } = {}) => {
-  try { await fn(); if (measure) await check(page, w, label) } catch (e) {
+  try {
+    await fn(); if (measure) await check(page, w, label)
+    const errs = errorsOf.get(page) || []
+    if (errs.length) { results.push({ w, label, fail: true, detail: `script error on this screen: ${errs.join(' | ')}`, warns: [] }); errs.length = 0 }
+  } catch (e) {
     const seen = process.env.AUDIT_DEBUG ? ' | page: ' + (await page.evaluate(() => document.body.innerText).catch(() => '')).replace(/\s+/g, ' ').slice(0, 120) : ''
     results.push({ w, label, fail: false, detail: '', warns: [`couldn't reach this step (${e.message.split('\n')[0].slice(0, 60)})${seen}`] })
   }
@@ -143,7 +156,7 @@ for (const w of widths) {
   await step(page, w, 'waiting for approval', async () => { await page.waitForSelector('.auth') })
   await ctx.close()
 
-  ctx = await newContext(browser, w); page = await ctx.newPage(); await page.goto(base)
+  ctx = await newContext(browser, w); page = await ctx.newPage(); watch(page); await page.goto(base)
   const appUp = await page.waitForSelector('.pill-bar', { timeout: 15000 }).then(() => true).catch(() => false)
   if (!appUp) {
     const seen = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 140)

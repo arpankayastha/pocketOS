@@ -7,6 +7,7 @@ import { useAppLock } from './lib/useAppLock'
 import { clearVaultSession } from './lib/vaultSession'
 import Auth from './components/Auth'
 import PendingApproval from './components/PendingApproval'
+import ErrorBoundary from './components/ErrorBoundary'
 import { loadSignupRequests, useApproval } from './lib/signups'
 import TransactionForm from './components/TransactionForm'
 import TransferForm from './components/TransferForm'
@@ -336,6 +337,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
         )}
         {data.error && <div className="alert error">Database error: {data.error}. Did you run <code>supabase/schema.sql</code>?</div>}
         {data.loading ? (tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />) : (
+          <ErrorBoundary resetKey={tab}>
           <Suspense fallback={tab === 'dashboard' ? <DashboardSkeleton /> : <ListSkeleton />}>
             {['dashboard', 'transactions', 'hisab'].includes(tab) && data.activeHouseholdId && (
               <CaptureInbox householdId={data.activeHouseholdId} categories={data.categories} accounts={data.accounts}
@@ -349,6 +351,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
             {(tab === 'loans' || tab === 'deals') && <Loans key={data.activeHouseholdId} activeHouseholdId={data.activeHouseholdId} households={data.households} member={member} view={tab} />}
             {tab === 'settings' && <Settings {...data} email={email} demo={demo} member={member} appLock={appLock} vault={vault} />}
           </Suspense>
+          </ErrorBoundary>
         )}
       </main>
 
@@ -395,9 +398,9 @@ function ListsModule({ topbar, member, homeHouseholdId }) {
         <button className={`btn icon settings-btn ${settingsOpen ? 'on' : ''}`} aria-label="Lists settings" title="Lists settings"
           onClick={() => { setOpenId(null); setSettingsOpen((v) => !v) }}><SettingsIcon /></button>
       )}><div className="spacer" /></Topbar>
-      <main className="content fade-in"><Suspense fallback={<ListSkeleton />}>
+      <main className="content fade-in"><ErrorBoundary resetKey={`${openId}:${settingsOpen}`}><Suspense fallback={<ListSkeleton />}>
         <Lists homeHouseholdId={homeId} member={member} openId={openId} setOpenId={setOpenId} newOpen={newOpen} setNewOpen={setNewOpen} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
-      </Suspense></main>
+      </Suspense></ErrorBoundary></main>
       {!openId && !settingsOpen && <div className="fab-wrap"><button className="fab" aria-label="New list or occasion" onClick={() => setNewOpen(true)}><PlusIcon /></button></div>}
     </div>
   )
@@ -446,7 +449,7 @@ function VaultModule({ topbar, vault, mustResetPassword, setMustResetPassword, m
           </nav>
         ) : <div className="spacer" />}
       </Topbar>
-      <main className="content fade-in"><Suspense fallback={<ListSkeleton />}>{body}</Suspense></main>
+      <main className="content fade-in"><ErrorBoundary resetKey={tab}><Suspense fallback={<ListSkeleton />}>{body}</Suspense></ErrorBoundary></main>
 
       {ready && (
         <PillNav tabs={VAULT_TABS} tab={tab} setTab={setTab} withFab={tab === 'items'} />

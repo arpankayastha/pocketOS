@@ -256,7 +256,7 @@ function Passkeys() {
   const load = useCallback(async () => {
     const { data, error } = await supabase.auth.passkey.list()
     if (error) return setError(error.message)
-    setPasskeys(data || [])
+    setPasskeys(Array.isArray(data) ? data : [])
   }, [])
 
   useEffect(() => { load() }, [load])
