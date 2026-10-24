@@ -148,7 +148,8 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hh-icon svg { width: 18px; height: 18px; }
 .hh-sep { height: 1px; background: var(--line); margin: 6px 4px; }
 .btn.icon.lock-btn { border: 1px solid var(--line); background: var(--card-2); border-radius: 99px; }
-.btn.icon.settings-btn { border: 1px solid var(--line); background: var(--card-2); border-radius: 99px; }
+.btn.icon.settings-btn { position: relative; border: 1px solid var(--line); background: var(--card-2); border-radius: 99px; }
+.badge-dot { position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 99px; background: var(--warn); border: 2px solid var(--bg); }
 .btn.icon.settings-btn.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .empty-module { display: grid; justify-items: center; gap: 4px; text-align: center; padding: 40px 20px; margin-top: 24px; }
 .empty-module svg { width: 36px; height: 36px; color: var(--accent); margin-bottom: 8px; }
