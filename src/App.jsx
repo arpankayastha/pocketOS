@@ -273,7 +273,10 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
   const [waiting, setWaiting] = useState(0)
   useEffect(() => {
     if (member || demo) return
-    loadSignupRequests().then((r) => setWaiting(r.isAdmin ? r.rows.filter((x) => x.status === 'pending').length : 0)).catch(() => {})
+    const load = () => loadSignupRequests().then((r) => setWaiting(r.isAdmin ? r.rows.filter((x) => x.status === 'pending').length : 0)).catch(() => {})
+    load()
+    window.addEventListener('signups-changed', load)
+    return () => window.removeEventListener('signups-changed', load)
   }, [member, demo, tab])
   const home = member ? startTab : household?.start_tab || 'dashboard'
   useBackAction(tab !== home, () => setTab(home), 2)

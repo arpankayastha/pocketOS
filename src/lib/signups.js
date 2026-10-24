@@ -34,10 +34,13 @@ export async function loadSignupRequests() {
   const { data, error } = await supabase.from('signup_requests').select('*').order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   const me = (data || []).find((r) => r.user_id === session?.user?.id)
-  return { isAdmin: !!me?.is_admin, rows: (data || []).filter((r) => !r.is_admin) }
+  // Household logins and the guest login aren't sign-ups; only real Google requests are listed.
+  const isSignup = (r) => !r.is_admin && !r.email.endsWith('@members.echopdo.vercel.app') && r.email !== 'demo@echopdo.vercel.app'
+  return { isAdmin: !!me?.is_admin, rows: (data || []).filter(isSignup) }
 }
 
 export async function decideSignup(userId, approve) {
   const { error } = await supabase.rpc('decide_signup', { p_user: userId, p_approve: approve })
   if (error) throw new Error(error.message)
+  window.dispatchEvent(new Event('signups-changed')) // refreshes the dot on ⚙
 }

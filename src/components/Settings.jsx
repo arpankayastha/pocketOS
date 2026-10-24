@@ -106,13 +106,13 @@ function SignupRequests() {
   const others = info.rows.filter((r) => r.status !== 'pending')
   const when = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
   const row = (r) => (
-    <div className="sec-row" key={r.user_id}>
-      <div className="grow">
-        <div>{r.name || r.email}</div>
-        <div className="muted small">{r.name ? `${r.email} · ` : ''}{r.status === 'pending' ? `asked ${when(r.created_at)}` : `${r.status} ${when(r.decided_at || r.created_at)}`}</div>
+    <div className="req-row" key={r.user_id}>
+      <div className="req-name">{r.name || r.email}</div>
+      <div className="muted small req-meta">{r.name ? `${r.email} · ` : ''}{r.status === 'pending' ? `asked ${when(r.created_at)}` : `${r.status} ${when(r.decided_at || r.created_at)}`}</div>
+      <div className="req-actions">
+        {r.status !== 'approved' && <button className="btn small primary" disabled={!!busy} onClick={() => decide(r, true)}>{busy === r.user_id ? '…' : 'Approve'}</button>}
+        {r.status !== 'rejected' && <button className="btn small ghost" disabled={!!busy} onClick={() => decide(r, false)}>{r.status === 'approved' ? 'Remove access' : 'Reject'}</button>}
       </div>
-      {r.status !== 'approved' && <button className="btn small primary" disabled={!!busy} onClick={() => decide(r, true)}>{busy === r.user_id ? '…' : 'Approve'}</button>}
-      {r.status !== 'rejected' && <button className="btn small ghost" disabled={!!busy} onClick={() => decide(r, false)}>{r.status === 'approved' ? 'Remove' : 'Reject'}</button>}
     </div>
   )
   return (
@@ -123,7 +123,7 @@ function SignupRequests() {
         {error && <div className="alert error">{error}</div>}
         {pending.length === 0 && <div className="muted small">Nobody is waiting.</div>}
         {pending.map(row)}
-        {others.length > 0 && <div className="muted small" style={{ margin: '12px 0 0' }}>Decided</div>}
+        {others.length > 0 && <div className="req-head">Decided</div>}
         {others.map(row)}
       </Collapsible>
     </div>
