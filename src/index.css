@@ -1101,3 +1101,7 @@ input.ls-switch:checked::after { transform: translateX(16px); }
   input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),
   select, textarea { font-size: 16px !important; }
 }
+
+/* Share sheet (lists, occasions, secure notes) */
+.share-text { width: 100%; min-height: 220px; font-family: var(--font-mono); font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.share-sheet .actions { flex-wrap: wrap; }

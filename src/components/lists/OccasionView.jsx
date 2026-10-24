@@ -8,6 +8,8 @@ import { today } from '../../lib/format'
 import { useDialog } from '../../lib/dialog'
 import { AddBar, Group, Row } from './ListParts'
 import ItemSheet from './ItemSheet'
+import ShareSheet from '../ShareSheet'
+import { occasionShareText } from '../../lib/listShare'
 
 const rs = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`
 
@@ -17,6 +19,8 @@ export default function OccasionView({ list, member, onMenu, onBack, onListChang
   const tabs = OCCASION_TABS.filter((t) => (list.tabs || []).includes(t.id))
   const [tab, setTab] = useState(tabs[0]?.id || 'tasks')
   const [editing, setEditing] = useState(null)
+  const [sharing, setSharing] = useState(false)
+  const [parts, setParts] = useState(['tasks', 'samagri', 'people'])
   const items = useMemo(() => L.items || [], [L.items])
   const by = (t) => items.filter((i) => i.tab === t && !i.cleared)
 
@@ -33,6 +37,7 @@ export default function OccasionView({ list, member, onMenu, onBack, onListChang
       <div className="ls-head">
         <button type="button" className="ls-back" onClick={onBack}>‹ Lists</button>
         <span className="ls-grow" />
+        <button type="button" className="btn small" onClick={() => setSharing(true)}>Share</button>
         <button type="button" className="btn icon" aria-label="Occasion settings" onClick={onMenu}>⋮</button>
       </div>
       <div className="ls-hero">
@@ -52,6 +57,12 @@ export default function OccasionView({ list, member, onMenu, onBack, onListChang
       {tab === 'people' && <People L={L} rows={people} setEditing={setEditing} />}
       {tab === 'money' && <Money list={list} member={member} onListChanged={onListChanged} />}
 
+      {sharing && (
+        <ShareSheet key={parts.join()} title={`Share ${list.name}`} text={occasionShareText(list, items, { today: today(), parts })} onClose={() => setSharing(false)}
+          extra={<div className="ls-chips">{tabs.filter((t) => t.id !== 'money').map((t) => (
+            <button key={t.id} type="button" className={parts.includes(t.id) ? 'on' : ''}
+              onClick={() => setParts((p) => (p.includes(t.id) ? p.filter((x) => x !== t.id) : [...p, t.id]))}>{parts.includes(t.id) ? '✓ ' : ''}{t.label}</button>))}</div>} />
+      )}
       {editing && <ItemSheet item={editing} tab={editing.tab} sections={[...new Set(by(editing.tab).map((i) => i.section).filter(Boolean))]}
         onSave={(f) => L.save(editing.id, f)} onRemove={() => L.remove(editing.id)} onClose={() => setEditing(null)} />}
     </section>

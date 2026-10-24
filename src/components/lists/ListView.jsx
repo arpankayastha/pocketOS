@@ -3,6 +3,8 @@ import { useListItems } from '../../lib/useListItems'
 import { gotItems, groupBySection, historyOf, openItems } from '../../lib/listLogic'
 import { AddBar, Group, Row } from './ListParts'
 import ItemSheet from './ItemSheet'
+import ShareSheet from '../ShareSheet'
+import { listShareText } from '../../lib/listShare'
 
 // An everyday list (groceries, shopping, to-do): compact rows grouped by section, ticked items collapse into "Got it",
 // and everything bought before is one tap away in history.
@@ -12,6 +14,7 @@ export default function ListView({ list, store, onMenu, onBack }) {
   const [editing, setEditing] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [showGot, setShowGot] = useState(true)
+  const [sharing, setSharing] = useState(false)
   const sections = useMemo(() => list.sections || [], [list.sections])
 
   const items = useMemo(() => L.items || [], [L.items])
@@ -28,7 +31,7 @@ export default function ListView({ list, store, onMenu, onBack }) {
 
   return (
     <section className="ls-view fade-in">
-      <Head list={list} onBack={onBack} onMenu={onMenu} count={open.length ? `${open.length} to buy` : 'all done'} />
+      <Head list={list} onBack={onBack} onMenu={onMenu} onShare={() => setSharing(true)} count={open.length ? `${open.length} to buy` : 'all done'} />
       {L.error && <div className="alert error">{L.error}</div>}
       <AddBar onAdd={(v) => addNamed(v)} />
       {often.length > 0 && (
@@ -55,17 +58,19 @@ export default function ListView({ list, store, onMenu, onBack }) {
       )}
       {editing && <ItemSheet item={editing} tab="items" sections={sections} onSave={(f) => L.save(editing.id, f)} onRemove={() => L.remove(editing.id)} onClose={() => setEditing(null)} />}
       {showHistory && <History rows={history} onAdd={(h) => addNamed({ name: h.name, qty: h.qty }, h.section)} onClose={() => setShowHistory(false)} />}
+      {sharing && <ShareSheet title={`Share ${list.name}`} text={listShareText(list, items)} onClose={() => setSharing(false)} />}
       {store}
     </section>
   )
 }
 
-function Head({ list, onBack, onMenu, count }) {
+function Head({ list, onBack, onMenu, onShare, count }) {
   return (
     <div className="ls-head">
       <button type="button" className="ls-back" onClick={onBack}>‹ Lists</button>
       <h1>{list.name} <span aria-hidden>{list.icon}</span></h1>
       <span className="ls-pill">{count}</span>
+      {onShare && <button type="button" className="btn small" onClick={onShare}>Share</button>}
       <button type="button" className="btn icon" aria-label="List settings" onClick={onMenu}>⋮</button>
     </div>
   )

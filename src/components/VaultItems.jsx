@@ -6,6 +6,8 @@ import { VAULT_TYPES, typeOf, itemTitle, itemSubtitle, searchText, formatMonth }
 import { CopyIcon, EyeIcon, DiceIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { StrengthMeter } from './VaultGate'
 import { useDialog } from '../lib/dialog'
+import ShareSheet from './ShareSheet'
+import { noteShareText } from '../lib/listShare'
 
 // Row/sharing info added by useVault, never encrypted into the item.
 const META = ['id', 'created_at', 'updated_at', 'corrupt', 'owner_id', 'household_ids', 'mine']
@@ -292,6 +294,11 @@ export function ShareWith({ item, share, by }) {
 
 function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, sharedBy, by, share, folders = [], onMove }) {
   const t = typeOf(item)
+  const dialog = useDialog()
+  const [sharing, setSharing] = useState(false)
+  async function shareNote() {
+    if (await dialog.confirm({ title: 'Share this note?', message: 'It leaves the vault as plain text. Anyone you send it to, and any chat backup, will keep a readable copy.', confirmLabel: 'Continue', danger: false })) setSharing(true)
+  }
   const [breach, setBreach] = useState(null) // null | 'checking' | number | error text
 
   async function check() {
@@ -342,9 +349,11 @@ function ItemView({ item, copy, onClose, onEdit, onDelete, readOnly, sharedBy, b
         )}
         {share && !item.corrupt && <ShareWith item={item} share={share} by={by} />}
         {readOnly && <div className="muted small">Shared by {sharedBy || 'the family admin'}</div>}
+        {sharing && <ShareSheet secret title={`Share ${itemTitle(item)}`} text={noteShareText(itemTitle(item), item.notes)} onClose={() => setSharing(false)} />}
         <div className="actions">
           {!readOnly && <button type="button" className="btn icon" aria-label="Delete" onClick={onDelete}><TrashIcon /></button>}
           <span className="spacer" />
+          {item.type === 'note' && !item.corrupt && <button type="button" className="btn" onClick={shareNote}>Share</button>}
           <button type="button" className="btn ghost" onClick={onClose}>Close</button>
           {!item.corrupt && !readOnly && <button type="button" className="btn primary" onClick={onEdit}><PencilIcon /> Edit</button>}
         </div>
