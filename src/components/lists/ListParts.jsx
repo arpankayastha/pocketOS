@@ -25,7 +25,8 @@ export function Group({ title, count, children, action }) {
 }
 
 // The "Add an item…" bar. `parse` turns "milk 2 L" into name + quantity; `onAdd({ name, qty })` may return a promise.
-export function AddBar({ placeholder = 'Add an item…', parse = true, onAdd }) {
+// With `sections` (and `section` / `onSection`) a small picker sets where the next item goes; "Auto" leaves it to the list.
+export function AddBar({ placeholder = 'Add an item…', parse = true, onAdd, sections = [], section = '', onSection }) {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   async function submit(e) {
@@ -38,6 +39,12 @@ export function AddBar({ placeholder = 'Add an item…', parse = true, onAdd }) 
   return (
     <form className="ls-add" onSubmit={submit}>
       <input value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} enterKeyHint="done" autoComplete="off" />
+      {sections.length > 0 && onSection && (
+        <select className="ls-secsel" value={section} onChange={(e) => onSection(e.target.value)} aria-label="Section for the next item">
+          <option value="">Auto</option>
+          {sections.map((x) => <option key={x} value={x}>{x}</option>)}
+        </select>
+      )}
       <button className="btn primary" type="submit" aria-label="Add" disabled={busy || !text.trim()}>＋</button>
     </form>
   )

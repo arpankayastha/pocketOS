@@ -11,6 +11,9 @@ export function parseQuick(text) {
   if (tail) return { name: cap(tail[1]), qty: tail[2].replace(/(\d)([a-z])/i, '$1 $2') }
   const head = t.match(new RegExp(`^(\\d+(?:\\.\\d+)?\\s?${UNITS})\\s+(.+)$`, 'i'))
   if (head) return { name: cap(head[2]), qty: head[1].replace(/(\d)([a-z])/i, '$1 $2') }
+  // a bare leading number is the quantity: "4 kela" -> Kela, 4
+  const bare = t.match(/^(\d+(?:\.\d+)?)\s+(.+)$/)
+  if (bare) return { name: cap(bare[2]), qty: bare[1] }
   return { name: cap(t), qty: '' }
 }
 

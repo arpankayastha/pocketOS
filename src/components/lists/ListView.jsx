@@ -11,6 +11,7 @@ import { listShareText } from '../../lib/listShare'
 export default function ListView({ list, store, onMenu, onBack }) {
   const L = useListItems(list)
   const [filter, setFilter] = useState('All')
+  const [target, setTarget] = useState('') // the quick-add section picker; '' = Auto
   const [editing, setEditing] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [showGot, setShowGot] = useState(true)
@@ -26,7 +27,12 @@ export default function ListView({ list, store, onMenu, onBack }) {
   const groups = useMemo(() => groupBySection(open, sections, sections.length ? 'Other' : 'To buy'), [open, sections])
   const chips = ['All', ...groups.map((g) => g.section)]
   const shown = filter === 'All' ? groups : groups.filter((g) => g.section === filter)
-  const addNamed = (v, section) => L.add({ tab: 'items', name: v.name, qty: v.qty || null, section: section || (filter !== 'All' && filter !== 'Other' ? filter : null) })
+  // Where a new item goes: the picker, else where this name was bought before, else the section chip you are viewing.
+  const addNamed = (v, section) => L.add({
+    tab: 'items', name: v.name, qty: v.qty || null,
+    section: section || target || history.find((h) => h.name.toLowerCase() === v.name.toLowerCase())?.section
+      || (filter !== 'All' && filter !== 'Other' && filter !== 'To buy' ? filter : null),
+  })
 
   if (!L.items) return <section className="ls-view"><Head list={list} onBack={onBack} onMenu={onMenu} count="…" /><div className="ls-empty">{L.error ? `Couldn’t load: ${L.error}` : 'Loading…'}</div></section>
 
@@ -34,7 +40,7 @@ export default function ListView({ list, store, onMenu, onBack }) {
     <section className="ls-view fade-in">
       <Head list={list} onBack={onBack} onMenu={onMenu} onShare={() => setSharing(true)} count={open.length ? `${open.length} to buy` : 'all done'} />
       {L.error && <div className="alert error">{L.error}</div>}
-      <AddBar onAdd={(v) => addNamed(v)} />
+      <AddBar onAdd={(v) => addNamed(v)} sections={sections} section={target} onSection={setTarget} />
       {often.length > 0 && (
         <div className="ls-again">
           {often.map((h) => <button key={h.name} type="button" onClick={() => addNamed({ name: h.name, qty: h.qty }, h.section)}>＋ {h.name}</button>)}
@@ -43,7 +49,7 @@ export default function ListView({ list, store, onMenu, onBack }) {
       )}
       {often.length === 0 && history.length > 0 && <button type="button" className="ls-linkbtn" onClick={() => setShowHistory(true)}>Add from history ›</button>}
       {chips.length > 2 && (
-        <div className="ls-filter">{chips.map((c) => <button key={c} type="button" className={filter === c ? 'on' : ''} onClick={() => setFilter(c)}>{c}</button>)}</div>
+        <div className="ls-filter">{chips.map((c) => <button key={c} type="button" className={filter === c ? 'on' : ''} onClick={() => { setFilter(c); setTarget(sections.includes(c) ? c : '') }}>{c}</button>)}</div>
       )}
       {shown.map((g) => (
         <Group key={g.section} title={g.section} count={g.items.length}>

@@ -1003,6 +1003,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 .ls-pill { padding: 3px 10px; border-radius: 99px; background: var(--card); border: 1px solid var(--line); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .ls-add { display: flex; gap: 8px; }
 .ls-add input { flex: 1; min-width: 0; }
+.ls-add .ls-secsel { flex: none; width: auto; max-width: 112px; padding-left: 8px; padding-right: 6px; font-size: 14px; }
 .ls-add .btn { min-width: 46px; font-size: 22px; line-height: 1; padding: 0; }
 .ls-again { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .ls-again button, .ls-chip, .ls-chips button { flex: 0 0 auto; padding: 6px 12px; min-height: 34px; border: 1px dashed var(--line); border-radius: 99px; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
