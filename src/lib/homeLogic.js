@@ -9,8 +9,9 @@ export const greeting = (now) => {
 export const greetingEmoji = (now) => { const h = now.getHours(); return h >= 21 || h < 5 ? '🌙' : '🙏' }
 
 // "arpan@alchemytech.ca" → "Arpan"; "pinu" → "Pinu".
+// "Vaibhav Kayasth" -> Vaibhav (the Google profile name); "first.last@x.com" -> First (an email, when there is no name).
 export function firstName(label) {
-  const base = String(label || '').split('@')[0].split(/[._\-\d]/)[0]
+  const base = String(label || '').trim().split('@')[0].split(/[\s._\-\d]/)[0]
   return base ? base[0].toUpperCase() + base.slice(1) : ''
 }
 

@@ -164,7 +164,7 @@ function Shell({ session }) {
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
         : module === 'lists' ? <ListsModule topbar={topbar} />
         : module === 'will' ? <Suspense fallback={<Splash />}><WillModule topbar={topbar} vault={vault} /></Suspense>
-        : <BudgetModule topbar={topbar} email={isDemo(session) ? demoOwnerEmail() : session.user.email} vault={vault} demo={isDemo(session)} />}
+        : <BudgetModule topbar={topbar} email={isDemo(session) ? demoOwnerEmail() : session.user.email} fullName={isDemo(session) ? '' : session.user.user_metadata?.full_name || session.user.user_metadata?.name || ''} vault={vault} demo={isDemo(session)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
@@ -257,7 +257,7 @@ function UnlockScreen({ vault, onRecovered }) {
   )
 }
 
-function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashboard', hisabOnly = false, demo = false }) {
+function BudgetModule({ topbar, email, fullName = '', member, appLock, vault, startTab = 'dashboard', hisabOnly = false, demo = false }) {
   // A member login the owner set to "Only Hisab" sees just that tab (⚙ stays for their own settings).
   const tabs = hisabOnly ? BUDGET_GROUPS.filter((g) => g.id === 'hisab') : BUDGET_GROUPS
   // The "home" tab: where the app opens and where Android back returns to. A member's comes from
@@ -343,7 +343,7 @@ function BudgetModule({ topbar, email, member, appLock, vault, startTab = 'dashb
               <CaptureInbox householdId={data.activeHouseholdId} categories={data.categories} accounts={data.accounts}
                 onFiled={() => { setDataVersion((v) => v + 1); data.refresh() }} />
             )}
-            {tab === 'dashboard' && <Home key={dataVersion} {...data} name={firstName(email)} go={setTab} />}
+            {tab === 'dashboard' && <Home key={dataVersion} {...data} name={firstName(fullName || email)} go={setTab} />}
             {tab === 'transactions' && <Transactions key={dataVersion} {...data} />}
             {tab === 'plan' && <Plan {...data} />}
             {tab === 'hisab' && <Hisab key={`${data.activeHouseholdId}:${dataVersion}`} activeHouseholdId={data.activeHouseholdId} accounts={data.accounts} addSignal={hisabAdd} />}
