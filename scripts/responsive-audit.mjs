@@ -48,7 +48,7 @@ const dataFor = (status) => ({
   transactions: [{ id: 't1', household_id: H, kind: 'expense', amount: 1250000, date: today, category_id: 'c1', account_id: 'a1', note: 'A long note about groceries from the weekly market trip and more', created_at: today }],
   recurring_items: [{ id: 'r1', household_id: H, name: 'House rent for the flat', kind: 'expense', category: 'Rent', expected_amount: 25000, day_of_month: 5, active: true }],
   hisab_books: [{ id: 'b1', household_id: H, name: 'Daily', kind: 'daily', created_at: today }, { id: 'b2', household_id: H, name: 'Diwali shopping and sweets', kind: 'occasion', target: 50000, created_at: today }],
-  hisab_entries: [{ id: 'e1', household_id: H, book_id: 'b1', direction: 'out', amount: 450.5, date: today, category: 'Food', source: 'UPI', note: 'Lunch with a really long note that keeps going on', created_at: today }],
+  hisab_entries: [{ id: 'e1', household_id: H, book_id: 'b1', direction: 'out', amount: 450.5, occurred_on: today, category: 'Food', source: 'UPI', note: 'Lunch with a really long note that keeps going on', created_at: today }],
   hisab_categories: [{ id: 'hc1', household_id: H, direction: 'out', name: 'Food', icon: '🍽️', position: 0 }, { id: 'hc2', household_id: H, direction: 'in', name: 'Salary', icon: '💼', position: 0 }],
   dues: [{ id: 'd1', household_id: H, person: 'Ramesh Kumar', created_at: today }],
   due_entries: [{ id: 'de1', household_id: H, due_id: 'd1', direction: 'out', amount: 50000, date: today }],
@@ -120,7 +120,10 @@ async function check(page, w, label) {
   if (fail || warns.length) await page.screenshot({ path: path.join(shots, `w${w}-${label.replace(/\W+/g, '_')}.png`) })
 }
 const step = async (page, w, label, fn, { measure = true } = {}) => {
-  try { await fn(); if (measure) await check(page, w, label) } catch (e) { results.push({ w, label, fail: false, detail: '', warns: [`couldn't reach this step (${e.message.split('\n')[0].slice(0, 60)})`] }) }
+  try { await fn(); if (measure) await check(page, w, label) } catch (e) {
+    const seen = process.env.AUDIT_DEBUG ? ' | page: ' + (await page.evaluate(() => document.body.innerText).catch(() => '')).replace(/\s+/g, ' ').slice(0, 120) : ''
+    results.push({ w, label, fail: false, detail: '', warns: [`couldn't reach this step (${e.message.split('\n')[0].slice(0, 60)})${seen}`] })
+  }
 }
 const clickBy = (page, sel, text) => page.evaluate(([sel, text]) => {
   const el = [...document.querySelectorAll(sel)].find((e) => !text || e.textContent.trim().toLowerCase().includes(text.toLowerCase()))

@@ -167,7 +167,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .month-label { animation: fade-in .2s ease-out; }
 .month .btn.icon:disabled { visibility: hidden; }
 .filters { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-.summary { display: flex; gap: 20px; margin: 4px 0 12px; font-size: 14px; color: var(--muted); }
+.summary { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 4px 0 12px; font-size: 14px; color: var(--muted); }
 .summary b { margin-left: 4px; font-family: var(--font-mono); }
 
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -913,7 +913,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 .subnav button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
 
 /* Home (components/Home.jsx) */
-.home { display: grid; gap: 12px; }
+.home { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; } /* minmax(0, …): one long line must never stretch the page */
 .home-hello { padding: 2px 2px 0; }
 .home-date { color: var(--muted); font-size: 13px; }
 .home-title { font-size: 26px; font-weight: 700; margin: 2px 0 0; line-height: 1.2; }
@@ -931,7 +931,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 .home-hd h3 { margin: 0; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-ic { width: 32px; height: 32px; border-radius: 50%; background: var(--card-2); display: grid; place-items: center; font-size: 16px; flex: none; }
 .home-r { color: var(--muted); font-size: 12.5px; flex: none; }
-.home-list { display: grid; }
+.home-list { display: grid; grid-template-columns: minmax(0, 1fr); }
 .home-it { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
 .home-it:first-child { border-top: none; padding-top: 2px; }
 .home-dt { width: 46px; flex: none; border-radius: 12px; background: var(--card-2); text-align: center; padding: 6px 0; line-height: 1.05; }
@@ -1106,3 +1106,9 @@ input.ls-switch:checked::after { transform: translateX(16px); }
 /* Share sheet (lists, occasions, secure notes) */
 .share-text { width: 100%; min-height: 220px; font-family: var(--font-mono); font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
 .share-sheet .actions { flex-wrap: wrap; }
+
+/* Phones: the household menu hangs from the top bar (not from its chip, which sits mid-screen), so a long name can't push it off the left edge. */
+@media (max-width: 800px) {
+  .hh { position: static; }
+  .hh-menu { right: 12px; width: min(340px, calc(100vw - 24px)); max-width: none; min-width: 0; }
+}
