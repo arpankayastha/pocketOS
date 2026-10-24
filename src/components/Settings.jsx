@@ -15,10 +15,11 @@ import { setThemePref, themePref } from '../lib/theme'
 import { backupCall, requestDriveCode } from '../lib/backup'
 import { HOME_CARDS, homeCardsOff, setHomeCardOn } from '../lib/homeCards'
 import { leaveDemo, switchToDemo } from '../lib/demo'
-import { decideSignup, loadSignupRequests } from '../lib/signups'
+import { decideSignup, loadSignupRequests, useIsAdmin } from '../lib/signups'
 
 export default function Settings({ accounts, categories, refresh, households, activeHouseholdId, setActiveHouseholdId, createHousehold, email, demo, member, appLock, vault }) {
   const dialog = useDialog()
+  const isOwner = useIsAdmin(member || demo)
   return (
     <section className="grid2">
       <div style={{ gridColumn: '1 / -1' }}>
@@ -55,7 +56,7 @@ export default function Settings({ accounts, categories, refresh, households, ac
         </div>
       )}
       <Categories categories={categories} activeHouseholdId={activeHouseholdId} refresh={refresh} />
-      {!member && !demo && (
+      {isOwner && (
         <div className="card" style={{ gridColumn: '1 / -1' }}>
           <h3>Guest view</h3>
           <p className="muted small">A clean workspace with every feature and none of your data, for showing the app to others. Exit from the Account card below, or just close and reopen the app.</p>

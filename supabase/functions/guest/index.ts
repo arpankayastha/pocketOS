@@ -1,6 +1,6 @@
 // Guest view (Settings → Guest view): lets the signed-in OWNER open the empty demo account without typing a
 // password. Returns a one-time token for demo@echopdo.vercel.app, which the app exchanges with
-// supabase.auth.verifyOtp({ token_hash, type: 'magiclink' }). Household members and the demo login itself are refused.
+// supabase.auth.verifyOtp({ token_hash, type: 'magiclink' }). Household members, the demo login itself and other approved sign-ups (anyone who isn't the admin) are refused.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const DEMO_EMAIL = 'demo@echopdo.vercel.app'
@@ -20,6 +20,9 @@ Deno.serve(async (req) => {
   const { data: { user } } = await admin.auth.getUser(token)
   if (!user) return json({ error: 'Not signed in.' }, 401)
   if (user.app_metadata?.role === 'member' || user.email === DEMO_EMAIL) return json({ error: 'Only the owner can open guest view.' }, 403)
+  // The owner is the one admin in signup_requests; other approved sign-ups are separate people with their own data.
+  const { data: me } = await admin.from('signup_requests').select('is_admin').eq('user_id', user.id).maybeSingle()
+  if (!me?.is_admin) return json({ error: 'Only the owner can open guest view.' }, 403)
 
   const { data, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email: DEMO_EMAIL })
   if (error || !data?.properties?.hashed_token) return json({ error: error?.message || 'Could not open guest view.' }, 500)

@@ -44,3 +44,15 @@ export async function decideSignup(userId, approve) {
   if (error) throw new Error(error.message)
   window.dispatchEvent(new Event('signups-changed')) // refreshes the dot on ⚙
 }
+
+// Is the signed-in login the owner (the admin)? Guest view and the sign-up requests card are for the owner only.
+export function useIsAdmin(skip) {
+  const [admin, setAdmin] = useState(false)
+  useEffect(() => {
+    if (skip) return
+    let alive = true
+    loadSignupRequests().then((r) => alive && setAdmin(r.isAdmin)).catch(() => {})
+    return () => { alive = false }
+  }, [skip])
+  return admin && !skip
+}
