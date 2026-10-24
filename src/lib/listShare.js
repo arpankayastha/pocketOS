@@ -10,7 +10,8 @@ export function listShareText(list, items) {
   const open = openItems(items)
   const got = gotItems(items)
   const out = [`*${list.name}* ${list.icon || ''}`.trim(), `_${open.length ? `${open.length} to get` : 'all done'}_`]
-  for (const g of groupBySection(open, list.sections || [])) {
+  const sections = list.sections || []
+  for (const g of groupBySection(open, sections, sections.length ? 'Other' : 'To buy')) {
     out.push('', `*${g.section}*`, ...g.items.map((it) => line('☐', it)))
   }
   if (got.length) out.push('', `*✓ Got it*`, ...got.map((it) => line('✓', it)))

@@ -13,6 +13,9 @@ assert.equal(listShareText(list, items), [
   '*Groceries* 🛒', '_3 to get_', '', '*Vegetables*', '☐ Onions — 2 kg', '', '*Dairy*', '☐ Milk — 2 L', '', '*Other*', '☐ Soap', '', '*✓ Got it*', '✓ Bread',
 ].join('\n'))
 
+// a list with no sections of its own: one "To buy" group, not "Other"
+assert.ok(listShareText({ name: 'Quick', icon: '', sections: [] }, [{ id: 9, name: 'Kela', done: false }]).includes('*To buy*\n☐ Kela'))
+
 const occ = { name: 'Griha pravesh', icon: '🏠', event_date: '2026-12-12', event_time: '07:00', place: 'New flat' }
 const oi = [
   { tab: 'tasks', name: 'Book pandit', due_date: '2026-12-01', assignee: 'Asha', done: false },

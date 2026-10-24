@@ -22,7 +22,8 @@ export default function ListView({ list, store, onMenu, onBack }) {
   const got = gotItems(items)
   const history = useMemo(() => historyOf(items), [items])
   const often = history.filter((h) => !h.onList && h.times > 1).slice(0, 8)
-  const groups = useMemo(() => groupBySection(open, sections), [open, sections])
+  // Without sections of its own, a list's items are simply "To buy" ("Other" only makes sense next to named sections).
+  const groups = useMemo(() => groupBySection(open, sections, sections.length ? 'Other' : 'To buy'), [open, sections])
   const chips = ['All', ...groups.map((g) => g.section)]
   const shown = filter === 'All' ? groups : groups.filter((g) => g.section === filter)
   const addNamed = (v, section) => L.add({ tab: 'items', name: v.name, qty: v.qty || null, section: section || (filter !== 'All' && filter !== 'Other' ? filter : null) })
