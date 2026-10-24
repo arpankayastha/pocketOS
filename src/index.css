@@ -110,7 +110,9 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
   background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
   border-bottom: 1px solid transparent; transition: border-color .2s, box-shadow .2s, background-color .2s; }
 .topbar.scrolled { border-bottom-color: var(--line); box-shadow: var(--shadow-md); background: color-mix(in srgb, var(--card) 88%, transparent); }
-.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 1; min-width: 0; }
+.topbar-right .hh { min-width: 0; flex-shrink: 1; }
+.topbar-right .btn { flex-shrink: 0; }
 .topbar .brand-mark { width: 30px; height: 30px; border-radius: 9px; }
 
 /* Module switcher: segmented pill with a sliding thumb */
@@ -126,12 +128,12 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 
 /* Household chip + menu */
 .hh { position: relative; }
-.hh-chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--card-2); color: var(--text);
+.hh-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--card-2); color: var(--text);
   padding: 4px 10px 4px 4px; min-height: 40px; border-radius: 99px; cursor: pointer; font-weight: 600; font-size: 13px; transition: border-color .15s, background-color .15s; }
 .hh-chip:hover, .hh-chip.open { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .hh-chip svg { color: var(--muted); transition: transform .2s; }
 .hh-chip.open svg { transform: rotate(180deg); }
-.hh-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hh-name { max-width: 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hh-dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: 13px; font-weight: 700;
   --c: var(--accent); background: color-mix(in srgb, var(--c) 22%, var(--card)); color: var(--c); }
 .hh-backdrop { position: fixed; inset: 0; z-index: 30; }
@@ -715,6 +717,7 @@ details.section[open] .chev { transform: rotate(90deg); }
   .module-switch button:not(.on) .module-label { max-width: 0; opacity: 0; margin-left: -6px; }
   .module-switch button { padding: 0 10px; }
   .hh-name { max-width: 96px; }
+  .hh-chip svg:last-child { flex-shrink: 0; }
   .content { padding-bottom: calc(160px + var(--safe-b)); }
   /* While typing, the on-screen keyboard pushes fixed elements up over the form — hide them. */
   body:has(:is(input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file]), textarea):focus) :is(.fab-wrap, .pill-nav) { display: none; }
@@ -1079,3 +1082,13 @@ input.ls-switch:checked::after { transform: translateX(16px); }
 .req-actions { display: flex; gap: 8px; margin-top: 10px; }
 .req-actions .btn { flex: 1; min-width: 0; }
 .req-head { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* Narrow phones (A34 / S21 FE / S24 at 360–400 px): the top bar must never be wider than the screen,
+   or Chrome shrinks the whole page and you have to zoom. The household chip gives way first. */
+@media (max-width: 420px) {
+  .topbar { padding-left: 12px; padding-right: 12px; gap: 6px; }
+  .topbar-right { gap: 6px; }
+  .module-switch button { padding: 0 8px; }
+  .hh-chip { gap: 6px; padding: 3px 8px 3px 3px; }
+  .topbar-right .btn.icon { min-width: 36px; padding: 6px; }
+}
