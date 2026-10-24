@@ -1094,3 +1094,10 @@ input.ls-switch:checked::after { transform: translateX(16px); }
 }
 
 .loans-shared-head { margin: 22px 0 10px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+/* iPhone Safari zooms into any field whose text is under 16 px (and stays zoomed). Only iOS matches
+   -webkit-touch-callout, so Android and desktop keep their sizes. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),
+  select, textarea { font-size: 16px !important; }
+}
