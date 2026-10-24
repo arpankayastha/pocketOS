@@ -6,7 +6,7 @@ import { loadDeals, loadLoans, summaryOf } from '../lib/loans'
 import { loadDues } from '../lib/dues'
 import { householdColor } from '../lib/colors'
 import { homeCardsOff } from '../lib/homeCards'
-import { dealProgress, greeting, greetingEmoji, loanJourney, mood, peopleSummary, spendByHousehold, weekItems } from '../lib/homeLogic'
+import { dealProgress, greeting, greetingEmoji, greetName, loanJourney, mood, peopleSummary, spendByHousehold, weekItems } from '../lib/homeLogic'
 import { DashboardSkeleton } from './Skeleton'
 
 // The old Home (month picker, left to spend, Coming up, where the money went) lives on, folded away under
@@ -61,6 +61,7 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
   if (!view) return <DashboardSkeleton />
   const { month, feel, week, dealCards, journeys, people, spend } = view
   const weekTotal = week.filter((r) => r.kind === 'expense').reduce((s, r) => s + r.amount, 0)
+  const hello = greetName(households.find((h) => h.id === activeHouseholdId)?.name, name)
   const catName = (id) => categories.find((c) => c.id === id)?.name
   const accName = (id) => accounts.find((a) => a.id === id)?.name?.trim()
 
@@ -68,7 +69,7 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
     <section className="home fade-in">
       <div className="home-hello">
         <div className="home-date">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-        <h1 className="home-title">{greeting(new Date())}{name ? `, ${name}` : ''} {greetingEmoji(new Date())}</h1>
+        <h1 className="home-title">{greeting(new Date())}{hello ? `, ${hello}` : ''} {greetingEmoji(new Date())}</h1>
       </div>
 
       {month && feel && (

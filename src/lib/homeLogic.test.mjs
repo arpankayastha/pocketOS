@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { greeting, greetingEmoji, firstName, addDays, mood, dueDateOf, weekItems, dealProgress, loanJourney, spendByHousehold, peopleSummary } from './homeLogic.js'
+import { greeting, greetingEmoji, firstName, greetName, addDays, mood, dueDateOf, weekItems, dealProgress, loanJourney, spendByHousehold, peopleSummary } from './homeLogic.js'
 
 for (const [h, want] of [[0, 'Good night'], [1, 'Good night'], [4, 'Good night'], [5, 'Good morning'], [8, 'Good morning'], [11, 'Good morning'], [12, 'Good afternoon'], [16, 'Good afternoon'], [17, 'Good evening'], [20, 'Good evening'], [21, 'Good night'], [23, 'Good night']]) {
   assert.equal(greeting(new Date(2026, 9, 22, h)), want, `hour ${h}`)
@@ -14,6 +14,12 @@ assert.equal(firstName('first.last@x.com'), 'First')
 assert.equal(firstName('Vaibhav Kayasth'), 'Vaibhav')
 assert.equal(firstName('vkayasth09@gmail.com'), 'Vkayasth')
 assert.equal(firstName(''), '')
+assert.equal(greetName('Pinu', 'Vaibhav'), 'Pinu')
+assert.equal(greetName('  Mummy ', ''), 'Mummy')
+assert.equal(greetName('Home', 'Vaibhav'), 'Vaibhav')
+assert.equal(greetName('my home', 'Vaibhav'), 'Vaibhav')
+assert.equal(greetName('', 'Vaibhav'), 'Vaibhav')
+assert.equal(greetName(undefined, ''), '')
 assert.equal(addDays('2026-10-28', 7), '2026-11-04')
 assert.equal(addDays('2026-12-30', 3), '2027-01-02')
 

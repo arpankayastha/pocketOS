@@ -15,6 +15,13 @@ export function firstName(label) {
   return base ? base[0].toUpperCase() + base.slice(1) : ''
 }
 
+// The name in the greeting: the household being viewed ("Arpan", "Mummy"…), unless it is still the generic default
+// ("Home"), then the person's own first name (`fallback`).
+export function greetName(householdName, fallback) {
+  const n = String(householdName || '').trim()
+  return n && !/^(my )?home$/i.test(n) ? n : fallback || ''
+}
+
 const pad = (n) => String(n).padStart(2, '0')
 export const addDays = (iso, n) => {
   const [y, m, d] = iso.split('-').map(Number)
