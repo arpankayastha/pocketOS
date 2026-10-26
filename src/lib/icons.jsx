@@ -248,3 +248,11 @@ export function LoansIcon() {
 export function BookIcon() {
   return <svg {...base}><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z" /><path d="M4 19V5M8 7h7M8 11h5" /></svg>
 }
+
+export function SearchIcon() {
+  return (
+    <svg {...base}>
+      <circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" />
+    </svg>
+  )
+}

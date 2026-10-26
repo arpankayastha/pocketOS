@@ -8,6 +8,8 @@ import { useDialog } from '../lib/dialog'
 import { BookIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { MonthPicker } from './Transactions'
 import SwipeRow from './SwipeRow'
+import HisabSearch from './HisabSearch'
+import { SearchIcon } from '../lib/icons'
 import { supabase } from '../lib/supabase'
 import { instrumentLabel } from '../lib/instruments'
 import { SkeletonRows } from './Skeleton'
@@ -34,6 +36,8 @@ export default function Hisab({ activeHouseholdId, accounts = [], addSignal }) {
     try { if (id) sessionStorage.setItem('pocketos.hisabBook', JSON.stringify({ hid: activeHouseholdId, id })); else sessionStorage.removeItem('pocketos.hisabBook') } catch { /* private mode */ }
   }
   const [addReq, setAddReq] = useState(0)
+  const [searching, setSearching] = useState(false)
+  const [jump, setJump] = useState(null) // an entry picked in search: open its book and the entry
   const [showOccasions, setShowOccasions] = useState(false)
   const [editingBook, setEditingBook] = useState(null) // {} new, or a book
   const [error, setError] = useState(null)
@@ -64,9 +68,14 @@ export default function Hisab({ activeHouseholdId, accounts = [], addSignal }) {
   return (
     <>
       <BookView key={book.id} book={book} books={books} accounts={accounts} categories={categories} addReq={addReq} occasions={occasions}
+        onSearch={() => setSearching(true)} jump={jump} onJumped={() => setJump(null)}
         onCategoryAdded={() => loadCategories(activeHouseholdId).then(setCategories)}
         onOccasions={() => setShowOccasions(true)} onOpenBook={open}
         onBack={() => setBookId(null)} onChanged={load} onEdit={() => setEditingBook(book)} />
+      {searching && (
+        <HisabSearch householdId={activeHouseholdId} books={books} onClose={() => setSearching(false)}
+          onPick={(e) => { setSearching(false); setJump(e); setBookId(e.book_id === daily?.id ? null : e.book_id) }} />
+      )}
       {showOccasions && <OccasionsSheet occasions={occasions} onOpen={open} onClose={() => setShowOccasions(false)}
         onNew={() => { setShowOccasions(false); setEditingBook({}) }} />}
       {editingBook && <BookForm book={editingBook.id ? editingBook : null} householdId={activeHouseholdId} onClose={() => setEditingBook(null)}
@@ -124,7 +133,7 @@ function TargetBar({ spent, target }) {
   )
 }
 
-function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit }) {
+function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, occasions, onOccasions, onOpenBook, onBack, onChanged, onEdit, onSearch, jump, onJumped }) {
   const [entries, setEntries] = useState(null)
   const [view, setView] = useState('daily') // daily | calendar | summary
   const [month, setMonth] = useState(currentMonth)
@@ -141,6 +150,14 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
   useEffect(() => {
     if (addReq !== lastAdd.current) { lastAdd.current = addReq; setSheet({}) }
   }, [addReq])
+
+  // Arrived from a search result: show that entry (its month, if this is the Daily book) and open it.
+  useEffect(() => {
+    if (!jump || !entries || jump.book_id !== book.id) return
+    const hit = entries.find((x) => x.id === jump.id)
+    if (hit) { if (isDaily) setMonth(hit.occurred_on.slice(0, 7)); setView('daily'); setSheet(hit) }
+    onJumped()
+  }, [jump, entries, book.id, isDaily, onJumped])
 
   const changed = () => { load(); onChanged() }
   const dialog = useDialog()
@@ -221,10 +238,13 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
       )}
 
       <div className="hb-swipe" {...viewSwipe}>
-      <div className="seg seg3 hb-views">
-        {[['daily', 'Daily'], ['calendar', 'Calendar'], ['summary', 'Summary']].map(([id, label]) => (
-          <button key={id} className={view === id ? 'on' : ''} onClick={() => setView(id)}>{label}</button>
-        ))}
+      <div className="hb-viewrow">
+        <div className="seg seg3 hb-views">
+          {[['daily', 'Daily'], ['calendar', 'Calendar'], ['summary', 'Summary']].map(([id, label]) => (
+            <button key={id} className={view === id ? 'on' : ''} onClick={() => setView(id)}>{label}</button>
+          ))}
+        </div>
+        <button type="button" className="btn icon hb-searchbtn" aria-label="Search Hisab" title="Search Hisab" onClick={onSearch}><SearchIcon /></button>
       </div>
 
       {!entries ? <div className="card"><SkeletonRows rows={4} /></div> : view === 'daily' ? (
