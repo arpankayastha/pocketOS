@@ -1204,3 +1204,18 @@ button.hb-more { width: 100%; border: none; background: none; color: inherit; fo
 .hb-search-name { display: block; font-weight: 600; overflow-wrap: anywhere; }
 .hb-search-name mark { background: color-mix(in srgb, var(--warn) 35%, transparent); color: inherit; border-radius: 4px; padding: 0 2px; }
 .hb-search-sub { display: block; }
+
+/* Split a payment */
+.hb-splitline { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); font-size: 13px; min-height: 52px; }
+.hb-splitline .grow { overflow-wrap: anywhere; }
+.hb-split { display: grid; gap: 12px; }
+.hb-split-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.hb-split-rows { display: grid; gap: 8px; }
+.hb-split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 132px) auto; gap: 8px; align-items: center; }
+.hb-split-row:not(:has(.btn.icon)) { grid-template-columns: minmax(0, 1fr) minmax(0, 132px); }
+.hb-split-row input { text-align: right; font-family: var(--font-mono); font-weight: 600; }
+.hb-split-add { width: 100%; border-style: dashed; color: var(--accent); }
+.hb-split-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; font-size: 14px; font-weight: 600;
+  background: color-mix(in srgb, var(--warn) 14%, var(--card)); color: var(--warn); }
+.hb-split-status.ok { background: color-mix(in srgb, var(--pos) 14%, var(--card)); color: var(--pos); }
+.hb-split-fill { border: none; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; padding: 8px 0; cursor: pointer; text-decoration: underline; }

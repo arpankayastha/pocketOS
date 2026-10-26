@@ -15,7 +15,8 @@
     "test:responsive": "node scripts/responsive-audit.mjs",
     "test:swipe": "node src/lib/swipeLogic.test.mjs",
     "test:hisabcal": "node src/lib/hisabCalendar.test.mjs",
-    "test:hisabsearch": "node src/lib/hisabSearch.test.mjs"
+    "test:hisabsearch": "node src/lib/hisabSearch.test.mjs",
+    "test:split": "node src/lib/splitLogic.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

@@ -9,6 +9,8 @@ import { BookIcon, PencilIcon, TrashIcon } from '../lib/icons'
 import { MonthPicker } from './Transactions'
 import SwipeRow from './SwipeRow'
 import HisabSearch from './HisabSearch'
+import SplitSheet from './HisabSplit'
+import { paise } from '../lib/splitLogic'
 import { SearchIcon } from '../lib/icons'
 import { supabase } from '../lib/supabase'
 import { instrumentLabel } from '../lib/instruments'
@@ -437,6 +439,10 @@ function EntrySheet({ book, books, accounts = [], categories, onCategoryAdded, e
   const [error, setError] = useState(null)
   const [saved, setSaved] = useState(null) // last "Save & next" summary
   const amount = evaluate(expr)
+  // A split of the amount across categories ([{ category, amount }]); it only counts while it still adds up to the amount typed.
+  const [split, setSplit] = useState(null)
+  const [splitOpen, setSplitOpen] = useState(false)
+  const parts = split && amount && split.reduce((t, r) => t + paise(r.amount), 0) === paise(amount) ? split : null
   const hasOps = /[+−×]/.test(expr)
 
   // The household's managed list (⚙ → Hisab categories); an entry's own category stays pickable when editing.
@@ -477,9 +483,12 @@ function EntrySheet({ book, books, accounts = [], categories, onCategoryAdded, e
     if (!amount || amount <= 0) return setError('Enter an amount.')
     setBusy(true); setError(null)
     try {
-      await saveEntry(target, { id: entry?.id, direction: dir, amount, occurredOn: date, category: category || 'Other', source, note: note.trim(), accountId, recurringItemId: planId })
+      // A split saves one entry per category, all with the same date, note and way of paying.
+      for (const part of parts || [{ category: category || 'Other', amount }]) {
+        await saveEntry(target, { id: parts ? undefined : entry?.id, direction: dir, amount: part.amount, occurredOn: date, category: part.category, source, note: note.trim(), accountId, recurringItemId: planId })
+      }
       onSaved()
-      if (next) { setSaved(`${money(amount)} · ${category || 'Other'}${target.id !== book.id ? ` → ${target.name}` : ''}`); setExpr(''); setNote(''); setBusy(false) }
+      if (next) { setSaved(`${money(amount)} · ${parts ? `split in ${parts.length}` : category || 'Other'}${target.id !== book.id ? ` → ${target.name}` : ''}`); setExpr(''); setNote(''); setSplit(null); setBusy(false) }
       else onClose()
     } catch (err) { setError(err.message); setBusy(false) }
   }
@@ -496,8 +505,8 @@ function EntrySheet({ book, books, accounts = [], categories, onCategoryAdded, e
             payment chips and the Plan link in one scrolling row. */}
         <div className="hb-sheet-top">
           <div className="seg hb-dir">
-            <button type="button" className={dir === 'out' ? 'on expense' : ''} onClick={() => { setDir('out'); setCategory('') }}>Spent</button>
-            <button type="button" className={dir === 'in' ? 'on income' : ''} onClick={() => { setDir('in'); setCategory('') }}>Received</button>
+            <button type="button" className={dir === 'out' ? 'on expense' : ''} onClick={() => { setDir('out'); setCategory(''); setSplit(null) }}>Spent</button>
+            <button type="button" className={dir === 'in' ? 'on income' : ''} onClick={() => { setDir('in'); setCategory(''); setSplit(null) }}>Received</button>
           </div>
           <div className={`hb-display ${dir === 'out' ? 'neg' : 'pos'}`} aria-live="polite">
             <span className="hb-expr"><span>{expr ? `₹${groupExpr(expr)}` : <span className="muted">₹0</span>}</span></span>
@@ -516,17 +525,27 @@ function EntrySheet({ book, books, accounts = [], categories, onCategoryAdded, e
         )}
         {entry && target.id !== book.id && <div className="muted small">Moves this entry to <b>{target.name}</b></div>}
 
-        <CategoryPicker cats={cats} used={used.categories} value={category} onChange={setCategory}
-          onAdd={async (name) => {
-            const row = await addCategory(book.household_id, dir, name, categories)
-            setExtraCats((x) => [...x, { ...row, direction: dir }]); setCategory(row.name); onCategoryAdded?.()
-          }} />
+        {parts ? (
+          <div className="hb-splitline">
+            <span className="grow">✂ Split in {parts.length}: {parts.map((r) => `${r.category} ${money(r.amount)}`).join(' · ')}</span>
+            <button type="button" className="btn small" onClick={() => setSplitOpen(true)}>Edit</button>
+            <button type="button" className="btn small ghost" onClick={() => setSplit(null)}>Undo</button>
+          </div>
+        ) : (
+          <CategoryPicker cats={cats} used={used.categories} value={category} onChange={setCategory}
+            onAdd={async (name) => {
+              const row = await addCategory(book.household_id, dir, name, categories)
+              setExtraCats((x) => [...x, { ...row, direction: dir }]); setCategory(row.name); onCategoryAdded?.()
+            }} />
+        )}
 
         <div className="hb-sources" aria-label="Paid with">
           {sources.map((s) => (
             <button type="button" key={s} className={`chip chip-btn ${source === s ? 'on' : ''}`} onClick={() => setSource(source === s ? '' : s)}>{s}</button>
           ))}
           <button type="button" className="chip chip-btn" onClick={addSource}>+ Other</button>
+          {!entry && <button type="button" className={`chip chip-btn ${parts ? 'on' : ''}`} disabled={!amount || amount <= 0 || !!planId} onClick={() => setSplitOpen(true)}
+            title={planId ? 'A payment linked to a Plan line can’t be split' : 'Divide this bill across categories'}>✂ {parts ? `Split · ${parts.length}` : 'Split'}</button>}
           {instruments.length > 0 && <span className="hb-sep" aria-hidden="true" />}
           {instruments.map((a) => (
             <button type="button" key={a.id} role="radio" aria-checked={accountId === a.id} className={`chip chip-btn ${accountId === a.id ? 'on' : ''}`}
@@ -565,6 +584,13 @@ function EntrySheet({ book, books, accounts = [], categories, onCategoryAdded, e
           <button type="button" className="btn primary" disabled={busy} onClick={() => save(false)}>{busy ? 'Saving…' : entry ? 'Save' : 'Save & close'}</button>
         </div>
       </div>
+      {splitOpen && amount > 0 && (
+        <SplitSheet total={amount} dir={dir} cats={cats} picked={category} initial={parts} onClose={() => setSplitOpen(false)}
+          onDone={(rows) => {
+            setSplitOpen(false)
+            if (rows.length === 1) { setSplit(null); setCategory(rows[0].category) } else { setSplit(rows); setCategory('') }
+          }} />
+      )}
     </div>
   )
 }

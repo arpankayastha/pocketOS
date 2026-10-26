@@ -55,7 +55,7 @@ const dataFor = (status) => ({
     { id: 'rent', household_id: H, book_id: 'b1', direction: 'out', amount: 25000, occurred_on: today.slice(0, 8) + '05', category: 'Housing', source: 'UPI', note: 'House rent', recurring_item_id: 'r1', created_at: today },
     { id: 'in1', household_id: H, book_id: 'b1', direction: 'in', amount: 5000, occurred_on: today.slice(0, 8) + '08', category: 'Refund', source: 'Cash', note: 'Returned', created_at: today },
   ],
-  hisab_categories: [{ id: 'hc1', household_id: H, direction: 'out', name: 'Food', icon: '🍽️', position: 0 }, { id: 'hc2', household_id: H, direction: 'in', name: 'Salary', icon: '💼', position: 0 }],
+  hisab_categories: [{ id: 'hc1', household_id: H, direction: 'out', name: 'Food', icon: '🍽️', position: 0 }, { id: 'hc3', household_id: H, direction: 'out', name: 'Groceries', icon: '🛒', position: 1 }, { id: 'hc4', household_id: H, direction: 'out', name: 'Household', icon: '🏠', position: 2 }, { id: 'hc2', household_id: H, direction: 'in', name: 'Salary', icon: '💼', position: 0 }],
   dues: [{ id: 'd1', household_id: H, person: 'Ramesh Kumar', created_at: today }],
   due_entries: [{ id: 'de1', household_id: H, due_id: 'd1', direction: 'out', amount: 50000, date: today }],
   loans: [{ id: 'l1', household_id: H, user_id: 'u1', kind: 'home', name: 'Home loan', lender: 'Some Bank', principal: 5000000, rate: 8.5, tenure_months: 240, emi: 43391, start_date: '2025-01-10', interest_only: false, events: [], shared_with: [], created_at: today }, { id: 'l2', household_id: H, user_id: 'u1', kind: 'gold', name: 'Gold loan', lender: 'Another Bank', principal: 300000, rate: 9, start_date: '2025-06-01', interest_only: true, due_date: '2026-12-01', grams: 40, events: [], shared_with: [], created_at: today }],
@@ -194,6 +194,15 @@ for (const w of widths) {
   }
   // sheets and forms
   await step(page, w, 'Hisab · add entry', async () => { await clickBy(page, '.pill-bar button', 'Hisab'); await page.waitForTimeout(500); await page.click('.fab', { force: true }); await page.waitForSelector('.modal') })
+  await step(page, w, 'Hisab · entry with an amount', async () => { for (const k of ['2', '4', '0', '0']) await clickBy(page, '.hb-keys button', k) })
+  await step(page, w, 'Hisab · split sheet', async () => { await clickBy(page, '.hb-sources button', 'Split'); await page.waitForSelector('.hb-split') })
+  await step(page, w, 'Hisab · split divided', async () => {
+    const inputs = await page.$$('.hb-split-row input')
+    await inputs[0].fill('1600'); await inputs[1].fill('800'); await page.waitForTimeout(200)
+    const done = await page.$eval('.hb-split .btn.primary', (b) => !b.disabled)
+    if (!done) throw new Error('Done stayed disabled for a split that adds up')
+  })
+  await step(page, w, 'Hisab · split applied', async () => { await clickBy(page, '.hb-split .btn.primary', 'Done'); await page.waitForSelector('.hb-splitline') })
   await closeTop(page)
   await step(page, w, 'Loans · new loan', async () => { await clickBy(page, '.pill-bar button', 'Loans'); await clickBy(page, '.subnav button', 'Loans'); await clickBy(page, 'button', '+ New loan'); await page.waitForSelector('.modal') })
   await closeTop(page)
