@@ -1219,3 +1219,9 @@ button.hb-more { width: 100%; border: none; background: none; color: inherit; fo
   background: color-mix(in srgb, var(--warn) 14%, var(--card)); color: var(--warn); }
 .hb-split-status.ok { background: color-mix(in srgb, var(--pos) 14%, var(--card)); color: var(--pos); }
 .hb-split-fill { border: none; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; padding: 8px 0; cursor: pointer; text-decoration: underline; }
+
+/* Plan: repeats we noticed */
+.rp { display: grid; gap: 8px; margin-bottom: 16px; }
+.rp-head { display: flex; align-items: baseline; gap: 8px; padding: 0 4px; }
+.rp-row { display: flex; align-items: center; gap: 8px; padding: 10px 6px 10px 14px; border-radius: 16px; border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
+.rp-name { font-weight: 600; overflow-wrap: anywhere; }

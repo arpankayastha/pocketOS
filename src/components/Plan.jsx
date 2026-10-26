@@ -1,6 +1,6 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { currentMonth, money, shiftMonth } from '../lib/format'
+import { currentMonth, money, shiftMonth, today } from '../lib/format'
 import { loadMonthMoney } from '../lib/runway'
 import { MonthPicker } from './Transactions'
 import { useMonthSwipe } from '../lib/useSwipe'
@@ -10,6 +10,7 @@ import { SkeletonRows } from './Skeleton'
 import { useDialog } from '../lib/dialog'
 import { addEntry } from '../lib/dues'
 import AmountInput from './AmountInput'
+import { findRepeats, ordinal, REPEAT_LOOKBACK_DAYS } from '../lib/repeats'
 
 export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [month, setMonth] = useState(() => shiftMonth(currentMonth(), 1))
@@ -19,6 +20,8 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
   const [showForm, setShowForm] = useState(false)
   const [showLeft, setShowLeft] = useState(false)
   const [error, setError] = useState(null)
+  const [history, setHistory] = useState([]) // recent Hisab spends, to notice what repeats
+  const [hiddenKeys, setHiddenKeys] = useState(() => { try { return JSON.parse(localStorage.getItem(`pocketos.repeatsHidden:${activeHouseholdId}`) || '[]') } catch { return [] } })
   const dialog = useDialog()
   const isNow = month === currentMonth()
 
@@ -28,7 +31,26 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
   }, [activeHouseholdId, month, accounts])
 
   useEffect(() => { load() }, [load])
-  const items = money_?.items || []
+  useEffect(() => {
+    if (!activeHouseholdId) return
+    const from = new Date(Date.now() - REPEAT_LOOKBACK_DAYS * 864e5).toISOString().slice(0, 10)
+    supabase.from('hisab_entries').select('direction, amount, occurred_on, note, category, recurring_item_id').eq('household_id', activeHouseholdId).eq('direction', 'out')
+      .gte('occurred_on', from).limit(5000).then(({ data }) => setHistory(data || []))
+  }, [activeHouseholdId])
+  const items = useMemo(() => money_?.items || [], [money_])
+  // Payments that keep coming back and aren't on the Plan yet (a suggestion to add, never a reminder).
+  const repeats = useMemo(() => findRepeats({ entries: history, planItems: items.filter((i) => !i.auto_card && !i.auto_loan), today: today(), hidden: hiddenKeys }), [history, items, hiddenKeys])
+  async function addRepeat(r) {
+    const cat = categories.find((c) => c.kind === 'expense' && r.category && c.name.trim().toLowerCase() === r.category.trim().toLowerCase())
+    const { error } = await supabase.from('recurring_items').insert({ household_id: activeHouseholdId, name: r.name, kind: 'expense', category_id: cat?.id || null, expected_amount: r.amount, day_of_month: r.day })
+    if (error) return setError(error.message)
+    load()
+  }
+  function hideRepeat(r) {
+    const next = [...hiddenKeys, r.key]
+    setHiddenKeys(next)
+    try { localStorage.setItem(`pocketos.repeatsHidden:${activeHouseholdId}`, JSON.stringify(next)) } catch { /* ignore */ }
+  }
   const loaded = !!money_
 
   async function removeItem(it) {
@@ -123,6 +145,22 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
           )
         })}
       </div>
+
+      {loaded && repeats.length > 0 && (
+        <div className="rp">
+          <div className="rp-head"><b>Repeats we noticed</b><span className="muted small">from your payments</span></div>
+          {repeats.map((r) => (
+            <div className="rp-row" key={r.key}>
+              <div className="grow">
+                <div className="rp-name">{r.name} <span className="mono">{money(r.amount)}</span></div>
+                <div className="muted small">about monthly · around the {ordinal(r.day)} · found in {r.months} months</div>
+              </div>
+              <button type="button" className="btn small primary" onClick={() => addRepeat(r)}>Add to Plan</button>
+              <button type="button" className="btn icon" aria-label={`Not ${r.name}`} title="Not this one" onClick={() => hideRepeat(r)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {showLeft && loaded && <LeftSheet m={money_} accName={accName} onClose={() => setShowLeft(false)} />}
     </section>

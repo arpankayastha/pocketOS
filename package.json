@@ -16,7 +16,8 @@
     "test:swipe": "node src/lib/swipeLogic.test.mjs",
     "test:hisabcal": "node src/lib/hisabCalendar.test.mjs",
     "test:hisabsearch": "node src/lib/hisabSearch.test.mjs",
-    "test:split": "node src/lib/splitLogic.test.mjs"
+    "test:split": "node src/lib/splitLogic.test.mjs",
+    "test:repeats": "node src/lib/repeats.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

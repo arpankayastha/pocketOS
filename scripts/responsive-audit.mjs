@@ -52,6 +52,8 @@ const dataFor = (status) => ({
     { id: 'e1', household_id: H, book_id: 'b1', direction: 'out', amount: 450.5, occurred_on: today, category: 'Food', source: 'UPI', note: 'Lunch with a really long note that keeps going on', created_at: today },
     ...[[1, 1850, 'Food'], [3, 420, 'Fuel'], [4, 3200, 'Shopping'], [6, 640, 'Food'], [9, 1200, 'Food'], [10, 2800, 'Medical'], [12, 540, 'Fuel'], [15, 8900, 'Travel'], [16, 1450, 'Food'], [19, 2100, 'Shopping']]
       .map(([d, a, c], i) => ({ id: 'x' + i, household_id: H, book_id: 'b1', direction: 'out', amount: a, occurred_on: today.slice(0, 8) + String(d).padStart(2, '0'), category: c, source: 'UPI', note: c, created_at: today })),
+    // a payment that repeats monthly (shows up under "Repeats we noticed" in Plan)
+    ...[1, 2, 3].map((back) => { const d = new Date(); d.setUTCDate(16); d.setUTCMonth(d.getUTCMonth() - back); return { id: 'el' + back, household_id: H, book_id: 'b1', direction: 'out', amount: 1840, occurred_on: d.toISOString().slice(0, 10), category: 'Housing', source: 'UPI', note: 'Electric Co', created_at: today } }),
     { id: 'rent', household_id: H, book_id: 'b1', direction: 'out', amount: 25000, occurred_on: today.slice(0, 8) + '05', category: 'Housing', source: 'UPI', note: 'House rent', recurring_item_id: 'r1', created_at: today },
     { id: 'in1', household_id: H, book_id: 'b1', direction: 'in', amount: 5000, occurred_on: today.slice(0, 8) + '08', category: 'Refund', source: 'Cash', note: 'Returned', created_at: today },
   ],
