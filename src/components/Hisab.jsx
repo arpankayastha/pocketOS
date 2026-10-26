@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DonutChart } from './LazyCharts'
+import { calendarDays } from '../lib/hisabCalendar'
 import { currentMonth, money, moneyShort, monthLabel, shiftMonth, today } from '../lib/format'
 import { SOURCES, addCategory, entryTime, loadCategories, colorFor, deleteBook, deleteEntry, evaluate, iconFor, loadBooks, loadEntries, saveBook, saveEntry } from '../lib/hisab'
 import { useBackAction } from '../lib/backNav'
@@ -232,7 +232,7 @@ function BookView({ book, books, accounts, categories, onCategoryAdded, addReq, 
           <div className="card empty-module"><BookIcon /><b>Nothing logged{isDaily ? ` in ${monthLabel(month)}` : ' yet'}</b><p className="muted small">Tap + to add your first entry.</p></div>
         ) : <DayGroups entries={shown} onOpen={setSheet} onDelete={removeEntry} />
       ) : view === 'calendar' ? (
-        <CalendarView month={cal} setMonth={isDaily ? setMonth : setCalMonth} entries={entries} onOpen={setSheet} />
+        <CalendarView month={cal} setMonth={isDaily ? setMonth : setCalMonth} entries={entries} onOpen={setSheet} isDaily={isDaily} />
       ) : <SummaryView entries={shown} />}
       </div>
 
@@ -281,21 +281,22 @@ function EntryRow({ e, onOpen, onDelete }) {
   )
 }
 
-function CalendarView({ month, setMonth, entries, onOpen }) {
+// The month as bubbles (the user's pick from the Spend Map look): a bigger bubble is a bigger spending day, coloured by that
+// day's biggest category; a ring means a Plan commitment was paid that day; a green circle is a day with no spending.
+function CalendarView({ month, setMonth, entries, onOpen, isDaily }) {
   const [picked, setPicked] = useState(null)
   const [y, m] = month.split('-').map(Number)
-  const days = new Date(y, m, 0).getDate()
   const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7 // Monday first
-  const byDay = {}
-  for (const e of entries) {
-    if (!e.occurred_on.startsWith(month)) continue
-    const d = Number(e.occurred_on.slice(8, 10))
-    const t = byDay[d] || (byDay[d] = { out: 0, in: 0 })
-    t[e.direction] += Number(e.amount)
-  }
-  const max = Math.max(1, ...Object.values(byDay).map((t) => t.out))
-  const pickedDate = picked && `${month}-${String(picked).padStart(2, '0')}`
   const todayStr = today()
+  const { days, quiet } = useMemo(() => calendarDays({ month, entries, today: todayStr, trackQuiet: isDaily }), [month, entries, todayStr, isDaily])
+  // Colours follow the month's biggest categories first, like the Summary.
+  const order = useMemo(() => {
+    const t = {}
+    for (const e of entries) if (e.direction === 'out' && e.occurred_on.startsWith(month)) t[e.category || 'Other'] = (t[e.category || 'Other'] || 0) + Number(e.amount)
+    return Object.entries(t).sort((a, b) => b[1] - a[1]).map(([c]) => c)
+  }, [entries, month])
+  const pickedDate = picked && `${month}-${String(picked).padStart(2, '0')}`
+  const live = month === currentMonth()
   return (
     <>
       <div className="card hb-cal">
@@ -307,20 +308,23 @@ function CalendarView({ month, setMonth, entries, onOpen }) {
         <div className="hb-cal-grid">
           {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <span key={i} className="hb-cal-dow">{d}</span>)}
           {Array.from({ length: lead }, (_, i) => <span key={`b${i}`} />)}
-          {Array.from({ length: days }, (_, i) => {
-            const d = i + 1, t = byDay[d]
-            const date = `${month}-${String(d).padStart(2, '0')}`
-            return (
-              <button key={d} className={`hb-cal-day ${picked === d ? 'on' : ''} ${date === todayStr ? 'today' : ''}`} onClick={() => setPicked(picked === d ? null : d)}
-                style={t?.out ? { '--heat': `${Math.round(12 + (t.out / max) * 40)}%` } : undefined}>
-                <span className="hb-cal-num">{d}</span>
-                {t?.out > 0 && <span className="hb-cal-amt neg">{moneyShort(t.out).replace('₹', '')}</span>}
-                {t?.in > 0 && <span className="hb-cal-amt pos">+{moneyShort(t.in).replace('₹', '')}</span>}
-              </button>
-            )
-          })}
+          {days.map((d) => (
+            <button key={d.day} className={`hb-cal-day ${picked === d.day ? 'on' : ''} ${d.date === todayStr ? 'today' : ''}`} onClick={() => setPicked(picked === d.day ? null : d.day)}
+              aria-label={`${d.day} ${monthLabel(month)}${d.out ? `, spent ${money(d.out)}${d.bill ? ', a bill was paid' : ''}` : d.quiet ? ', no spending' : d.future ? '' : ', nothing logged'}${d.in ? `, received ${money(d.in)}` : ''}`}>
+              <span className="hb-cal-num">{d.day}</span>
+              <span className="hb-cal-slot">
+                {d.out > 0 ? <i className={`hb-bubble ${d.bill ? 'bill' : ''}`} style={{ width: d.size, height: d.size, background: colorFor(d.top, order) }} />
+                  : d.quiet ? <i className="hb-quietdot" /> : null}
+              </span>
+              {d.in > 0 && <span className="hb-cal-in" aria-hidden="true">+</span>}
+            </button>
+          ))}
         </div>
+        <div className="hb-cal-key muted small">Bigger bubble, bigger day{isDaily && ' · green circle: no spending'} · ring: a bill was paid</div>
       </div>
+      {isDaily && quiet > 0 && (
+        <div className="hb-quiet" role="status">🌱 <span>{quiet} {quiet === 1 ? 'day' : 'days'} with no spending {live ? 'so far this month' : 'this month'}</span></div>
+      )}
       {pickedDate && (() => {
         const rows = entries.filter((e) => e.occurred_on === pickedDate)
         return rows.length ? <DayGroups entries={rows} onOpen={onOpen} /> : <div className="muted small pad">Nothing on {dayHead(pickedDate)}.</div>
@@ -330,6 +334,7 @@ function CalendarView({ month, setMonth, entries, onOpen }) {
 }
 
 function SummaryView({ entries }) {
+  const [all, setAll] = useState(false)
   const outs = entries.filter((e) => e.direction === 'out')
   const group = (rows, key) => Object.entries(rows.reduce((m, e) => ({ ...m, [e[key] || 'Other']: (m[e[key] || 'Other'] || 0) + Number(e.amount) }), {}))
     .map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
@@ -338,22 +343,31 @@ function SummaryView({ entries }) {
   const bySource = group(outs, 'source')
   const inByCat = group(entries.filter((e) => e.direction === 'in'), 'category')
   const total = byCat.reduce((s, c) => s + c.value, 0)
+  // The bar names the top three; the rest are one grey slice, opened with a tap.
+  const top = byCat.slice(0, 3), rest = byCat.slice(3), restTotal = rest.reduce((s, c) => s + c.value, 0)
   if (!entries.length) return <div className="card muted pad">No entries to sum up yet.</div>
   return (
     <>
       {total > 0 && (
         <div className="card">
           <h3>Where it went</h3>
-          <div className="hb-donut">
-            <DonutChart data={byCat.map((c) => ({ ...c, key: c.name, color: colorFor(c.name, order) }))} height={200} inner={58} outer={88} />
-            <div className="hb-donut-mid"><span className="muted small">Spent</span><b>{moneyShort(total)}</b></div>
+          <div className="hb-total"><b>{money(total)}</b> <span className="muted small">out</span></div>
+          <div className="hb-stack" role="img" aria-label={`${top.map((c) => `${c.name} ${Math.round((c.value / total) * 100)} percent`).join(', ')}${rest.length ? `, everything else ${Math.round((restTotal / total) * 100)} percent` : ''}`}>
+            {top.map((c) => <i key={c.name} style={{ width: `${(c.value / total) * 100}%`, background: colorFor(c.name, order) }} />)}
+            {rest.length > 0 && <i style={{ width: `${(restTotal / total) * 100}%`, background: 'var(--line)' }} />}
           </div>
-          {byCat.map((c) => (
+          <div className="muted small hb-stack-note">{top[0].name} is the most this month, about {Math.round((top[0].value / total) * 100)}%.</div>
+          {(all ? byCat : top).map((c) => (
             <div className="line" key={c.name}>
               <span><span className="dot" style={{ background: colorFor(c.name, order) }} />{iconFor(c.name)} {c.name}</span>
               <span><b>{money(c.value)}</b> <span className="muted small">{Math.round((c.value / total) * 100)}%</span></span>
             </div>
           ))}
+          {rest.length > 0 && !all && (
+            <button type="button" className="line hb-more" onClick={() => setAll(true)}>
+              <span>{rest.length} more</span><span><b>{money(restTotal)}</b> <span className="muted small">{Math.round((restTotal / total) * 100)}% ›</span></span>
+            </button>
+          )}
         </div>
       )}
       {bySource.length > 0 && total > 0 && (

@@ -13,7 +13,8 @@
     "test:lists": "node src/lib/listLogic.test.mjs && node src/lib/listShare.test.mjs",
     "test:loans": "node src/lib/loanMath.test.mjs && node src/lib/amount.test.mjs && node src/lib/quickDevices.test.mjs",
     "test:responsive": "node scripts/responsive-audit.mjs",
-    "test:swipe": "node src/lib/swipeLogic.test.mjs"
+    "test:swipe": "node src/lib/swipeLogic.test.mjs",
+    "test:hisabcal": "node src/lib/hisabCalendar.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

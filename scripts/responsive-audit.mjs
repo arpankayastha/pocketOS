@@ -48,7 +48,13 @@ const dataFor = (status) => ({
   transactions: [{ id: 't1', household_id: H, kind: 'expense', amount: 1250, date: today, category_id: 'c1', account_id: 'a1', note: 'A long note about groceries from the weekly market trip and more', created_at: today }],
   recurring_items: [{ id: 'r0', household_id: H, name: 'Salary', kind: 'income', category: 'Salary', expected_amount: 90000, day_of_month: 1, active: true }, { id: 'r1', household_id: H, name: 'House rent for the flat', kind: 'expense', category: 'Rent', expected_amount: 25000, day_of_month: 5, active: true }],
   hisab_books: [{ id: 'b1', household_id: H, name: 'Daily', kind: 'daily', created_at: today }, { id: 'b2', household_id: H, name: 'Diwali shopping and sweets', kind: 'occasion', target: 50000, created_at: today }],
-  hisab_entries: [{ id: 'e1', household_id: H, book_id: 'b1', direction: 'out', amount: 450.5, occurred_on: today, category: 'Food', source: 'UPI', note: 'Lunch with a really long note that keeps going on', created_at: today }],
+  hisab_entries: [
+    { id: 'e1', household_id: H, book_id: 'b1', direction: 'out', amount: 450.5, occurred_on: today, category: 'Food', source: 'UPI', note: 'Lunch with a really long note that keeps going on', created_at: today },
+    ...[[1, 1850, 'Food'], [3, 420, 'Fuel'], [4, 3200, 'Shopping'], [6, 640, 'Food'], [9, 1200, 'Food'], [10, 2800, 'Medical'], [12, 540, 'Fuel'], [15, 8900, 'Travel'], [16, 1450, 'Food'], [19, 2100, 'Shopping']]
+      .map(([d, a, c], i) => ({ id: 'x' + i, household_id: H, book_id: 'b1', direction: 'out', amount: a, occurred_on: today.slice(0, 8) + String(d).padStart(2, '0'), category: c, source: 'UPI', note: c, created_at: today })),
+    { id: 'rent', household_id: H, book_id: 'b1', direction: 'out', amount: 25000, occurred_on: today.slice(0, 8) + '05', category: 'Housing', source: 'UPI', note: 'House rent', recurring_item_id: 'r1', created_at: today },
+    { id: 'in1', household_id: H, book_id: 'b1', direction: 'in', amount: 5000, occurred_on: today.slice(0, 8) + '08', category: 'Refund', source: 'Cash', note: 'Returned', created_at: today },
+  ],
   hisab_categories: [{ id: 'hc1', household_id: H, direction: 'out', name: 'Food', icon: '🍽️', position: 0 }, { id: 'hc2', household_id: H, direction: 'in', name: 'Salary', icon: '💼', position: 0 }],
   dues: [{ id: 'd1', household_id: H, person: 'Ramesh Kumar', created_at: today }],
   due_entries: [{ id: 'de1', household_id: H, due_id: 'd1', direction: 'out', amount: 50000, date: today }],
@@ -124,7 +130,7 @@ async function check(page, w, label) {
   if (r.tall) warns.push('sheet taller than screen and not scrollable')
   if (r.nsmall) warns.push(`${r.nsmall} small tap target(s) e.g. ${r.small.join(', ')}`)
   results.push({ w, label, fail, detail: fail ? `scrollWidth ${r.sw} > ${r.iw}; ${r.bad.join(' | ')}` : '', warns })
-  if (fail || warns.length || process.env.AUDIT_ALL_SHOTS) await page.screenshot({ path: path.join(shots, `w${w}-${label.replace(/\W+/g, '_')}.png`) })
+  if (fail || warns.length || process.env.AUDIT_ALL_SHOTS) await page.screenshot({ path: path.join(shots, `w${w}-${label.replace(/\W+/g, '_')}.png`), fullPage: !!process.env.AUDIT_FULL })
 }
 const errorsOf = new WeakMap()
 const watch = (page) => { const errs = []; errorsOf.set(page, errs); page.on('pageerror', (e) => errs.push(e.message.split('\n')[0].slice(0, 110))) }
@@ -199,6 +205,10 @@ for (const w of widths) {
   await closeTop(page)
   await step(page, w, 'Entries · add expense', async () => { await clickBy(page, '.pill-bar button', 'Month'); await page.click('.fab', { force: true }); await clickBy(page, '.fab-option', 'Expense'); await page.waitForSelector('.modal') })
   await closeTop(page)
+  await step(page, w, 'Hisab · calendar', async () => { await clickBy(page, '.pill-bar button', 'Hisab'); await page.waitForSelector('.hb-swipe'); await clickBy(page, '.hb-swipe button', 'Calendar'); await page.waitForSelector('.hb-cal-grid') })
+  await step(page, w, 'Hisab · calendar day', async () => { await clickBy(page, '.hb-cal-day.today', '') })
+  await step(page, w, 'Hisab · summary', async () => { await clickBy(page, '.hb-swipe button', 'Summary'); await page.waitForSelector('.hb-stack') })
+  await step(page, w, 'Hisab · back to daily', async () => { await clickBy(page, '.hb-swipe button', 'Daily') })
   await step(page, w, 'swipe · Hisab entry', async () => { await clickBy(page, '.pill-bar button', 'Hisab'); await page.waitForTimeout(500); await swipeOpen(page, '.hb-entry', -170) })
   await step(page, w, 'swipe · Entry', async () => { await clickBy(page, '.pill-bar button', 'Month'); await clickBy(page, '.subnav button', 'Entries'); await swipeOpen(page, '.txn', -170) })
   await step(page, w, 'swipe · Plan line (right)', async () => { await clickBy(page, '.subnav button', 'Plan'); await swipeOpen(page, '.txn', 120) })
