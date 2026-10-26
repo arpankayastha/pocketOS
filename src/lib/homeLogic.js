@@ -43,6 +43,39 @@ export function mood({ left, total, today }) {
   return { share, emoji: '🌱', text: `A little tight, take it easy · ${togo}` }
 }
 
+// How the rest of the month looks, for the hero: the share of the month's money still yours against the share of the
+// month still ahead (the marker on the bar), what an even day would be, and what is left of today's share.
+export function pace({ left, total, today, spentToday = 0 }) {
+  const day = Number(today.slice(8)), dim = daysInMonthOf(today), daysLeft = dim - day
+  const moneyShare = total > 0 ? Math.max(0, Math.min(1, left / total)) : null
+  const perDay = left > 0 ? left / Math.max(daysLeft, 1) : 0
+  // this morning's money shared over today and the days after it; what today has already used comes off that
+  const allowance = left > 0 || spentToday > 0 ? Math.max(0, (left + spentToday) / (daysLeft + 1)) : 0
+  return { daysLeft, dim, moneyShare, monthShare: daysLeft / dim, perDay, allowance, leftToday: Math.max(0, allowance - spentToday) }
+}
+export const togoText = (daysLeft) => (daysLeft <= 0 ? 'last day of the month' : daysLeft === 1 ? '1 day to go' : `${daysLeft} days to go`)
+
+// "Kept this month": what is left of this month's income after what has actually been spent so far (commitments paid,
+// Daily spends, one-offs), as a share of the income, with a gentle comparison to last month. Null when there is nothing
+// kind to say (no income, or nothing kept yet), so the card simply doesn't show.
+export function keptInfo(month, prev) {
+  const keptOf = (m) => { const total = m.income + m.received; return { total, kept: total - m.paid - m.spends - m.oneOffs } }
+  if (!month) return null
+  const { total, kept } = keptOf(month)
+  if (!(total > 0) || !(kept > 0)) return null
+  const share = kept / total
+  let points = null
+  if (prev) { const p = keptOf(prev); if (p.total > 0 && p.kept > 0) points = Math.round((share - p.kept / p.total) * 100) }
+  return { kept, spent: total - kept, total, share, points }
+}
+
+const dayNumber = (iso) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))) / 86400000
+// The next unpaid bill (an expense on the Plan, a card bill or a loan EMI) from today on, with how many days away it is.
+export function nextBill(byMonth, today) {
+  const row = weekItems(byMonth, today, 62).find((r) => r.kind === 'expense')
+  return row ? { name: row.name, amount: row.amount, date: row.date, days: dayNumber(row.date) - dayNumber(today), auto_loan: row.auto_loan, auto_card: row.auto_card } : null
+}
+
 // The date a Plan line falls due in `month` ('YYYY-MM'), or null when it has no date.
 export function dueDateOf(it, month) {
   if (it.auto_loan && it.loanDue) return it.loanDue

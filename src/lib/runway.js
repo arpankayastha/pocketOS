@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { monthEnd, monthStart } from './format'
+import { monthEnd, monthStart, today as todayIso } from './format'
 import { loadCardBills } from './cards'
 import { isCard } from './instruments'
 import { emiInMonth, loadLoans, matchEmiPayment } from './loans'
@@ -80,11 +80,16 @@ export async function loadMonthMoney(householdId, month, accounts) {
   const planIncome = new Set(items.filter((i) => i.kind === 'income').map((i) => Number(i.counted)))
   const hisabIn = (hz.data || []).filter((e) => e.direction === 'in' && dailyIds.has(e.book_id) && offCard(e.account_id) && !planIncome.has(Number(e.amount)))
   const received = hisabIn.reduce((s, e) => s + Number(e.amount), 0)
+  // Commitments already paid (for "kept this month") and what Daily spends and one-offs took today.
+  const paid = items.filter((i) => i.kind === 'expense' && i.actual).reduce((s, i) => s + i.counted, 0)
+  const day = todayIso()
+  const todaySpent = hisabOut.filter((e) => e.occurred_on === day).reduce((s, e) => s + Number(e.amount), 0)
+    + oneOffRows.filter((t) => t.occurred_on === day).reduce((s, t) => s + Number(t.amount), 0)
   // Bank spends by account (for the breakdown).
   const byAccount = {}
   for (const e of hisabOut) byAccount[e.account_id || 'none'] = (byAccount[e.account_id || 'none'] || 0) + Number(e.amount)
   return {
-    items, income, received, commitments, spends, oneOffs, byAccount,
+    items, income, received, commitments, paid, spends, oneOffs, todaySpent, byAccount,
     left: income + received - commitments - spends - oneOffs,
   }
 }

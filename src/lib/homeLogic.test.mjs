@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { greeting, greetingEmoji, firstName, greetName, addDays, mood, dueDateOf, weekItems, dealProgress, loanJourney, spendByHousehold, peopleSummary } from './homeLogic.js'
+import { greeting, greetingEmoji, firstName, greetName, pace, togoText, keptInfo, nextBill, addDays, mood, dueDateOf, weekItems, dealProgress, loanJourney, spendByHousehold, peopleSummary } from './homeLogic.js'
 
 for (const [h, want] of [[0, 'Good night'], [1, 'Good night'], [4, 'Good night'], [5, 'Good morning'], [8, 'Good morning'], [11, 'Good morning'], [12, 'Good afternoon'], [16, 'Good afternoon'], [17, 'Good evening'], [20, 'Good evening'], [21, 'Good night'], [23, 'Good night']]) {
   assert.equal(greeting(new Date(2026, 9, 22, h)), want, `hour ${h}`)
@@ -73,3 +73,29 @@ assert.equal(loanJourney(loan, { gold: true }, '2026-10-22'), null)
 assert.deepEqual(spendByHousehold([{ household_id: 'h1', direction: 'out', amount: 100, book_id: 'b1' }, { household_id: 'h1', direction: 'out', amount: 50, book_id: 'occ' }, { household_id: 'h2', direction: 'in', amount: 9, book_id: 'b2' }, { household_id: 'h2', direction: 'out', amount: 7, book_id: 'b2' }], new Set(['b1', 'b2'])), { h1: 100, h2: 7 })
 assert.deepEqual(peopleSummary([{ id: 1, balance: 2700 }, { id: 2, balance: -120000 }, { id: 3, balance: -7000000 }, { id: 4, balance: 0 }], new Set([3])), { lent: 2700, settling: 120000, open: 2 })
 console.log('home logic ok')
+
+// pace: 26 Oct has 5 days to go; ₹18,000 of ₹90,000 left is 20 % of the money against 16 % of the month
+const pc = pace({ left: 18000, total: 90000, today: '2026-10-26', spentToday: 320 })
+assert.equal(pc.daysLeft, 5)
+assert.equal(Math.round(pc.moneyShare * 100), 20)
+assert.equal(Math.round(pc.monthShare * 100), 16)
+assert.equal(pc.perDay, 3600)
+assert.equal(Math.round(pc.allowance), 3053)
+assert.equal(Math.round(pc.leftToday), 2733)
+assert.equal(pace({ left: 0, total: 0, today: '2026-10-31' }).perDay, 0)
+assert.equal(pace({ left: -50, total: 100, today: '2026-10-10' }).leftToday, 0)
+assert.equal(pace({ left: 100, total: 0, today: '2026-10-10' }).moneyShare, null)
+assert.equal(togoText(5), '5 days to go'); assert.equal(togoText(1), '1 day to go'); assert.equal(togoText(0), 'last day of the month')
+
+// kept: 90,000 in, 52,000 spent so far -> 38,000 kept, 42 %; last month 36 % -> 6 points more
+const m = { income: 80000, received: 10000, paid: 30000, spends: 18000, oneOffs: 4000 }
+const k = keptInfo(m, { income: 90000, received: 0, paid: 40000, spends: 17600, oneOffs: 0 })
+assert.equal(k.kept, 38000); assert.equal(k.spent, 52000); assert.equal(Math.round(k.share * 100), 42); assert.equal(k.points, 6)
+assert.equal(keptInfo(m, null).points, null)
+assert.equal(keptInfo({ income: 0, received: 0, paid: 0, spends: 0, oneOffs: 0 }, null), null)
+assert.equal(keptInfo({ income: 1000, received: 0, paid: 900, spends: 200, oneOffs: 0 }, null), null)
+
+// next bill: the soonest unpaid expense, skipping income and paid lines
+const nb = nextBill({ '2026-10': [{ id: 'a', name: 'Salary', kind: 'income', amount: 90000, day_of_month: 30 }, { id: 'b', name: 'Rent', kind: 'expense', amount: 25000, day_of_month: 31 }, { id: 'c', name: 'Paid', kind: 'expense', amount: 10, day_of_month: 27, actual: {} }], '2026-11': [{ id: 'd', name: 'EMI', kind: 'expense', amount: 47064, day_of_month: 2 }] }, '2026-10-26')
+assert.equal(nb.name, 'Rent'); assert.equal(nb.days, 5)
+assert.equal(nextBill({}, '2026-10-26'), null)

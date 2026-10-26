@@ -1143,3 +1143,27 @@ input.ls-switch:checked::after { transform: translateX(16px); }
 .settings-intro { margin: -4px 2px 14px; }
 .subnav button { position: relative; }
 .tab-dot { position: absolute; top: 9px; right: 8px; width: 8px; height: 8px; border-radius: 99px; background: var(--warn); }
+
+/* Home: hero pace marker, left today / next bill, kept this month, hide-amounts eye */
+.home-hello { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.home-eye { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--card-2); color: var(--muted); display: grid; place-items: center; flex: none; cursor: pointer; }
+.home-eye.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.home-eye svg { width: 22px; height: 22px; }
+.home-numrow { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.home-togo { font-size: 13px; color: var(--muted); }
+.home-track.marked { position: relative; height: 12px; overflow: visible; margin-top: 8px; }
+.home-track.marked i { border-radius: 99px; }
+.home-track.marked s { position: absolute; top: -5px; width: 2px; height: 22px; margin-left: -1px; border-radius: 1px; background: var(--text); }
+.home-split { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.home-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.home-two.one { grid-template-columns: minmax(0, 1fr); }
+.home-two .home-card { padding: 14px; border-radius: 18px; gap: 4px; align-content: start; }
+.home-sm { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.home-mid { font-size: 22px; font-weight: 700; font-family: var(--font-mono); overflow-wrap: anywhere; }
+.home-mid2 { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.home-kept { border-color: color-mix(in srgb, var(--pos) 35%, var(--line)); background: color-mix(in srgb, var(--pos) 8%, var(--card)); }
+.home-keptnum { font-size: 32px; font-weight: 700; font-family: var(--font-mono); color: var(--pos); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.home-keptbar { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: hidden; background: color-mix(in srgb, var(--text) 14%, transparent); }
+.home-keptbar i { display: block; height: 100%; background: var(--pos); }
+.home-keptbar b { flex: 1; }
+.home-keptnote { padding-top: 10px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--pos); }
