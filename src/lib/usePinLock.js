@@ -17,6 +17,7 @@ const fingerKey = (uid) => `gx.pinFinger.${uid}`
 export function usePinLock(session) {
   const uid = session.user.id
   const [state, setState] = useState('loading') // loading | setup | locked | open
+  const [reset, setReset] = useState(false) // setup after a lock-out
   const [finger, setFinger] = useState(() => { try { return localStorage.getItem(fingerKey(uid)) } catch { return null } })
   const [canFinger, setCanFinger] = useState(false)
   useEffect(() => { platformAuthenticatorAvailable().then(setCanFinger) }, [])
@@ -28,7 +29,11 @@ export function usePinLock(session) {
       if (error) { setState('open'); return } // never lock someone out because the check failed to load
       const s = read()
       if (!data.set) setState('setup')
-      else if (data.fresh) { supabase.rpc('app_pin_signed_in'); mark(uid); setState('open') }
+      // Just signed in after being locked out (5 wrong tries, or "Forgot PIN?") → set a new PIN; else open.
+      // The rpc must be awaited/then'd: an un-awaited supabase.rpc() never sends, so the wrong-try count
+      // stayed at 5 and every later PIN — even the right one — signed staff out again (Atharva, 28 Oct).
+      else if (data.fresh && data.blocked) { setReset(true); setState('setup') }
+      else if (data.fresh) { supabase.rpc('app_pin_signed_in').then(() => {}); mark(uid); setState('open') }
       else if (s?.uid === uid && Date.now() - s.active < IDLE_MS) { mark(uid); setState('open') }
       else setState('locked')
     })
@@ -75,5 +80,5 @@ export function usePinLock(session) {
   }, [session, uid])
   const disableFinger = useCallback(() => { try { localStorage.removeItem(fingerKey(uid)) } catch { /* ignore */ } setFinger(null) }, [uid])
 
-  return { state, unlock, setPin, lockNow: () => { clear(); setState('locked') }, finger: !!finger && canFinger, canFinger, unlockWithFinger, enableFinger, disableFinger }
+  return { state, reset, unlock, setPin, lockNow: () => { clear(); setState('locked') }, finger: !!finger && canFinger, canFinger, unlockWithFinger, enableFinger, disableFinger }
 }

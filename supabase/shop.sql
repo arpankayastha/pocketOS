@@ -1427,3 +1427,8 @@ create or replace trigger shop_sessions_push_reset before update on public.shop_
 -- public_tournament_entry + an optional partner (name + 10-digit mobile, not the same number), fee = entry_fee ×
 -- players. The Valorant event's entry_fee was set to 250 (per player) in the same migration.
 alter table public.shop_entries add column if not exists partner_name text, add column if not exists partner_phone text;
+-- App PIN lock-out fix (28 Oct: Atharva, Mohit and Yashneel were signed out after every PIN): the client never
+-- sent app_pin_signed_in (an un-awaited supabase.rpc() doesn't run), so fails stayed at 5 and check_app_pin
+-- refused even the right PIN. Migration app_pin_status_blocked: app_pin_status() also returns
+-- 'blocked' (fails >= 5); a fresh sign-in while blocked asks for a new PIN (set_app_pin resets fails).
+-- The three stuck counters were reset to 0.

@@ -49,7 +49,7 @@ export default function PinLock({ lock, session }) {
       <div className="card auth pin-lock">
         <div className="brand big"><BrandMark size={28} />GRANDXGAMER</div>
         <h2 style={{ margin: 0 }}>{setup ? (again === null ? 'Set your app PIN' : 'Enter it again') : `Hi ${name}`}</h2>
-        <p className="muted small" style={{ margin: 0 }}>{setup ? '4 digits, asked whenever the app is opened — so nobody else can open it on this PC or phone.' : 'Enter your 4-digit app PIN.'}</p>
+        <p className="muted small" style={{ margin: 0 }}>{setup ? (lock.reset ? 'Too many wrong tries before — set a new 4-digit app PIN.' : '4 digits, asked whenever the app is opened — so nobody else can open it on this PC or phone.') : 'Enter your 4-digit app PIN.'}</p>
         {/* A text box drawn as dots, not type="password": Chrome's password manager filled the password box with
             the saved 6-digit staff login PIN, and its first 4 digits counted as a wrong app PIN (Mayank, 13 Oct). */}
         <input ref={input} className="mono pin-input pin-masked" type="text" inputMode="numeric" pattern="[0-9]*" name="gx-app-pin" autoComplete="one-time-code"
