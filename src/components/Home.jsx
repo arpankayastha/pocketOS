@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { DAY_NAMES, eventImage, dayStart, durLabel, rs, timeLabel } from '../lib/shop'
 import { isCustomer, useMyStatus } from '../lib/mine'
 import PublicNav from './PublicNav'
+import Products from './Products'
 import { Profile } from './Me'
 
 // The café's public home page (the owner's brief, 12 Oct): "Welcome to GRANDXGAMER" over the owner's photo,
@@ -54,6 +55,8 @@ export default function Home({ session }) {
             <div className="home-events">{info.events.map((ev) => <EventCard key={ev.id} ev={ev} />)}</div>
           )}
         </section>
+
+        {info?.products?.length > 0 && <Products products={info.products} phone={info.phone} />}
 
         {info && (
           <section className="home-section home-two">

@@ -1432,3 +1432,24 @@ alter table public.shop_entries add column if not exists partner_name text, add 
 -- refused even the right PIN. Migration app_pin_status_blocked: app_pin_status() also returns
 -- 'blocked' (fails >= 5); a fresh sign-in while blocked asks for a new PIN (set_app_pin resets fails).
 -- The three stuck counters were reset to 0.
+
+-- PC parts for sale on the home page (owner, 29 Oct: "products sale ka … motherboard, CPU, GPU, only main
+-- components, call button for pricing, on the main page, format like MSI"), migration shop_products_for_sale:
+create table if not exists public.shop_products (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  category text not null check (category in ('cpu','gpu','motherboard','ram','storage','psu','cabinet','cooler')),
+  brand text not null check (length(brand) between 1 and 40),
+  name text not null check (length(name) between 2 and 120),
+  specs text,
+  image_url text,
+  in_stock boolean not null default true,
+  active boolean not null default true,
+  sort int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- RLS: "shop reads" (my_household_ids), "admin writes / updates / deletes" (my_admin_household_ids). Public
+-- visitors get the active ones through public_home() → 'products', plus 'phone' = shop_settings.contact_phone
+-- (new column, set in ⚙ → Home page) for Call for price / WhatsApp.
+alter table public.shop_settings add column if not exists contact_phone text;
