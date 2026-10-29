@@ -61,9 +61,9 @@ function ProductSheet({ product, householdId, onClose, onDone }) {
     if (error) setError(error.message); else onDone(isNew ? `${row.name} added` : `${row.name} saved`)
   }
   async function remove() {
-    if (!await dialog.confirm({ title: `Remove ${product.name}?`, message: 'It disappears from the home page. To hide it for a while, untick “Show on the home page” instead.', confirmLabel: 'Remove', danger: true })) return
+    if (!await dialog.confirm({ title: `Delete ${product.name}?`, message: 'It is deleted here and disappears from the home page. To hide it for a while instead, untick “Show on the home page”.', confirmLabel: 'Delete', danger: true })) return
     const { error } = await supabase.from('shop_products').delete().eq('id', product.id)
-    if (error) setError(error.message); else onDone(`${product.name} removed`)
+    if (error) setError(error.message); else onDone(`${product.name} deleted`)
   }
   return (
     <Sheet title={isNew ? 'Add a product' : 'Edit product'} sub="Shown on the home page · price on call" onClose={onClose} onSubmit={save}>
@@ -78,9 +78,10 @@ function ProductSheet({ product, householdId, onClose, onDone }) {
       <label>Product name<input value={v.name} onChange={set('name')} placeholder="e.g. GeForce RTX 4060 Ventus 2X 8G" maxLength={120} /></label>
       <label>Key specs · one per line<textarea rows={4} value={v.specs} onChange={set('specs')} placeholder={'8 GB GDDR6\nPCIe 4.0\n3 years warranty'} /></label>
       <label className="check"><input type="checkbox" checked={v.in_stock} onChange={(e) => setV({ ...v, in_stock: e.target.checked })} /> In stock (else shows “On order”)</label>
-      <label className="check"><input type="checkbox" checked={v.active} onChange={(e) => setV({ ...v, active: e.target.checked })} /> Show on the home page</label>
+      <label className="check"><input type="checkbox" checked={v.active} onChange={(e) => setV({ ...v, active: e.target.checked })} /> Show on the home page <span className="muted small">(untick to hide it, keep it here)</span></label>
+      {/* Owner, 29 Oct: delete was hidden under the sticky Cancel / Save row on phones — now a clear button above it. */}
+      {!isNew && <button type="button" className="btn danger block" onClick={remove}>Delete product</button>}
       <SheetActions onClose={onClose} busy={busy} label={isNew ? 'Add product' : 'Save'} />
-      {!isNew && <button type="button" className="btn link" style={{ justifySelf: 'start', color: 'var(--neg)' }} onClick={remove}>Remove product</button>}
     </Sheet>
   )
 }
