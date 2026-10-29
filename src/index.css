@@ -1456,3 +1456,38 @@ html:fullscreen .pill-nav { display: none; }
 @media (min-width: 1100px) { .home-prods { grid-template-columns: repeat(4, minmax(0, 1fr)); } .home-prod-cta { grid-template-columns: 1fr 1fr; } }
 .gx-prod-pic { display: flex; align-items: center; gap: 12px; }
 .gx-prod-pic img, .gx-prod-pic > span { width: 84px; height: 84px; border-radius: 12px; background: #fff; object-fit: contain; display: grid; place-items: center; }
+
+/* Admin portal (owner, 29 Oct): Dashboard tiles, month views, wide tables with Excel export, the phone "More" sheet. */
+.admin { display: grid; gap: 12px; }
+.admin .card { margin: 0; }
+.admin-sec, .admin-dash { display: grid; gap: 12px; min-width: 0; }
+.admin-embed { display: grid; gap: 12px; min-width: 0; }
+.admin-tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-tiles .gx-tile { margin: 0; text-align: left; }
+.admin-tiles .gx-tile.ending { border-color: var(--neg); }
+@media (min-width: 900px) { .admin-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.admin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px) { .admin-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.admin-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.admin-month { display: flex; align-items: center; gap: 6px; }
+.admin-month b { min-width: 128px; text-align: center; }
+.admin-search { flex: 1 1 200px; min-width: 0; }
+.admin-table-card { padding: 0; overflow-x: auto; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.admin-table th, .admin-table td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.admin-table th:first-child, .admin-table td:first-child { text-align: left; white-space: normal; }
+.admin-table th { font-size: 12px; font-weight: 600; color: var(--muted); position: sticky; top: 0; background: var(--card); }
+.admin-table tfoot td { font-weight: 700; border-bottom: 0; }
+.admin-table tr.muted td { color: var(--muted); }
+.admin-table.click tbody tr { cursor: pointer; }
+.admin-table.click tbody tr:hover { background: var(--card-2); }
+.admin-table .wide { display: none; }
+.admin-table .narrow { display: inline; }
+@media (min-width: 900px) { .admin-table .wide { display: table-cell; } .admin-table .narrow { display: none; } }
+.admin-bar { display: grid; gap: 4px; padding: 6px 0; }
+.admin-bar-top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.admin-bar-track { height: 6px; border-radius: 3px; background: var(--card-2); overflow: hidden; }
+.admin-bar-track i { display: block; height: 100%; background: var(--accent-bg); border-radius: 3px; }
+.admin-more { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-more-btn { display: flex; align-items: center; gap: 10px; padding: 14px 12px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.admin-more-btn.on { border-color: var(--accent-bg); color: var(--accent); }

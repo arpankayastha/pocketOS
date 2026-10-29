@@ -12,7 +12,8 @@ import ProductsAdmin from './ProductsAdmin'
 import { disablePush, enablePush, isIos, isStandalone, pushState, testPush } from '../../lib/push'
 
 // Shop ⚙: systems and the rate card (admin), then the per-login cards everyone has.
-export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, pinLock, toast }) {
+export default function ShopSettings({ shop, householdId, admin, email, member, appLock, vault, pinLock, toast, portal }) {
+  const site = admin && !portal // the admin portal shows these under Website
   return (
     <section className="gx-split even">
       {admin && <div className="gx-col">
@@ -20,9 +21,9 @@ export default function ShopSettings({ shop, householdId, admin, email, member, 
         <Rates shop={shop} householdId={householdId} toast={toast} />
       </div>}
       <div className="gx-col">
-      {admin && <HomePage shop={shop} householdId={householdId} toast={toast} />}
-      {admin && <ProductsAdmin shop={shop} householdId={householdId} toast={toast} />}
-      {admin && <OnlineBooking shop={shop} householdId={householdId} toast={toast} />}
+      {site && <HomePage shop={shop} householdId={householdId} toast={toast} />}
+      {site && <ProductsAdmin shop={shop} householdId={householdId} toast={toast} />}
+      {site && <OnlineBooking shop={shop} householdId={householdId} toast={toast} />}
       {admin && <BankPhone householdId={householdId} toast={toast} />}
       <PaymentAlerts toast={toast} />
       {admin && <Payments shop={shop} householdId={householdId} toast={toast} />}
@@ -167,7 +168,7 @@ function RateSheet({ householdId, happy, onClose, onDone }) {
 // and shop hours (booking times run from opening to closing), plus the printable banner /#poster.
 // The public home page (the café's own link): owner's photo behind "Welcome to GRANDXGAMER", booking,
 // events (pictures are set per event in Events) and jobs.
-function HomePage({ shop, householdId, toast }) {
+export function HomePage({ shop, householdId, toast }) {
   const hero = shop.settings?.hero_url
   const [busy, setBusy] = useState(false)
   const link = `${location.origin}/`
@@ -304,7 +305,7 @@ function BankPhone({ householdId, toast }) {
   )
 }
 
-function OnlineBooking({ shop, householdId, toast }) {
+export function OnlineBooking({ shop, householdId, toast }) {
   const st = shop.settings || {}
   const [open, setOpen] = useState((st.open_time || '10:00').slice(0, 5))
   const [close, setClose] = useState((st.close_time || '23:00').slice(0, 5))

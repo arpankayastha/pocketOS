@@ -14,7 +14,7 @@ import { SlotCalendar } from './floor/Calendar'
 // A PS5 has one row per controller (owner: each controller is a separate customer with its own timer; start
 // them together or one later). Pause / Resume (technical failure) stops the clock, so no one loses time.
 // Replaces the sheet's rows (Name, System, Time in/out, F&B, Extend, Total, Payment mode).
-export default function Floor({ shop, householdId, toast }) {
+export default function Floor({ shop, householdId, toast, fixedView }) {
   const now = useNow(10_000)
   const dialog = useDialog()
   const [sheet, setSheet] = useState(null) // { kind: 'start'|'fnb'|'extend'|'end', system, session, seats }
@@ -46,7 +46,9 @@ export default function Floor({ shop, householdId, toast }) {
   }
   const close = () => setSheet(null)
   // Owner: a calendar in Slots like Events — see tomorrow's bookings (online and counter) and book from it.
-  const [view, setView] = useState(() => { try { return localStorage.getItem('gx.slotsView') || 'live' } catch { return 'live' } })
+  // fixedView (admin portal → Bookings): always the calendar, with the online payments to check above it.
+  const [savedView, setView] = useState(() => { try { return localStorage.getItem('gx.slotsView') || 'live' } catch { return 'live' } })
+  const view = fixedView || savedView
   const setViewSaved = (v) => { setView(v); try { localStorage.setItem('gx.slotsView', v) } catch { /* ignore */ } }
   const done = (msg) => { setSheet(null); toast(msg); shop.reload() }
 
@@ -112,10 +114,11 @@ export default function Floor({ shop, householdId, toast }) {
   return (
     <section className="gx-floor">
       <div className="gx-floor-bar">
-        <Chips options={[['live', 'Now'], ['calendar', 'Calendar']]} value={view} onChange={setViewSaved} />
+        {fixedView ? <h3 style={{ margin: 0 }}>Booking calendar</h3> : <Chips options={[['live', 'Now'], ['calendar', 'Calendar']]} value={view} onChange={setViewSaved} />}
         <button className="btn small primary gx-book-btn" onClick={() => setSheet({ kind: 'book' })}>+ Book</button>
       </div>
       {view === 'calendar' ? (<>
+        {fixedView && <Bookings systems={shop.systems} bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />}
         <SlotCalendar shop={shop} toast={toast} onBook={(initial) => setSheet({ kind: 'book', initial })} onArrived={startBooking} />
       </>) : (<>
       <div className="gx-stats">

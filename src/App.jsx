@@ -43,6 +43,7 @@ const Home = lazy(() => import('./components/Home'))
 const EventPage = lazy(() => import('./components/EventPage'))
 const Timer = lazy(() => import('./components/Timer'))
 const Me = lazy(() => import('./components/Me'))
+const AdminModule = lazy(() => import('./components/admin/AdminModule'))
 const loadShop = () => import('./components/shop/ShopModule')
 const ShopModule = lazy(loadShop)
 function preloadBudget() {
@@ -51,7 +52,8 @@ function preloadBudget() {
 }
 
 // GRANDXGAMER is a shell of independent modules (Shop, Money, Vault — lib/modules.js); each renders its own tabs.
-const ACTIVE_MODULE_KEY = 'pocketos.activeModule'
+// New key with the admin portal (29 Oct), so every admin lands on it once; after that the last module is kept.
+const ACTIVE_MODULE_KEY = 'gx.activeModule'
 
 // Accounts & Categories ('settings') isn't a tab: it opens from the ⚙ button in the header.
 const BUDGET_TABS = [
@@ -113,7 +115,7 @@ function Splash() {
 function Shell({ session }) {
   const [module, setModuleState] = useRouteState(0, () => {
     const saved = localStorage.getItem(ACTIVE_MODULE_KEY)
-    return MODULES.some((m) => m.id === saved) ? saved : 'shop'
+    return MODULES.some((m) => m.id === saved) ? saved : 'admin'
   }, (v) => MODULES.some((m) => m.id === v))
   const setModule = (id) => { setModuleState(id); localStorage.setItem(ACTIVE_MODULE_KEY, id) }
   // Vault state lives here, not in VaultModule, so switching modules doesn't lock the vault.
@@ -134,7 +136,7 @@ function Shell({ session }) {
 
   useBackButton(() => { setToast('Press back again to close GRANDXGAMER'); setTimeout(() => setToast(null), 2000) })
   useOfferFingerprint(vault, dialog, setToast)
-  useBackAction(module !== 'shop', () => setModule('shop'), 1)
+  useBackAction(module !== 'admin', () => setModule('admin'), 1)
 
   if (vault.status === 'loading') {
     return vault.error ? (
@@ -156,6 +158,7 @@ function Shell({ session }) {
     <div className="shell" onPointerDownCapture={vault.touch} onKeyDownCapture={vault.touch}>
       {module === 'vault' ? <VaultModule topbar={topbar} vault={vault} mustResetPassword={mustResetPassword} setMustResetPassword={setMustResetPassword} />
         : module === 'budget' ? <BudgetModule topbar={topbar} email={memberName(session)} vault={vault} />
+        : module === 'admin' ? <Suspense fallback={<Splash />}><AdminModule topbar={topbar} email={memberName(session)} vault={vault} appLock={appLock} pinLock={pinLock} /></Suspense>
         : <Suspense fallback={<Splash />}><ShopModule topbar={topbar} userId={session.user.id} email={memberName(session)} vault={vault} appLock={appLock} pinLock={pinLock} /></Suspense>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

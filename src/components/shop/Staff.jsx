@@ -13,7 +13,7 @@ import Vacancies from './Vacancies'
 // and fixing shifts (a missed log-out, a wrong time).
 const DESIGNATIONS = ['Super Senior Manager', 'Sr Manager', 'Manager', 'Temporary Manager', 'Trainee'] // owner, 12 Oct
 const DEFAULT_RATE = 33
-export default function Staff({ householdId, toast }) {
+export default function Staff({ householdId, toast, portal }) {
   const dialog = useDialog()
   const [month, setMonth] = useState(0) // 0 = this month, -1 = last month
   const [staff, setStaff] = useState(null)
@@ -115,7 +115,7 @@ export default function Staff({ householdId, toast }) {
         ))}</div>
       )}
       <button className="btn primary block" style={{ order: 5 }} onClick={() => setSheet({ kind: 'add' })}>+ Add staff login</button>
-      <Vacancies householdId={householdId} toast={toast} />
+      {!portal && <Vacancies householdId={householdId} toast={toast} />}
       <Admins householdId={householdId} toast={toast} />
       </div>
       <div className="gx-col gx-staff-cards">

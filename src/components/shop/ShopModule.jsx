@@ -95,7 +95,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
 // Owner: "online payment notification should be shown to staff also — received or not". Every phone with
 // the shop open hears about new online bookings, event advances and tournament entries at once: a toast,
 // a buzz, a short beep, and a phone notification if allowed (⚙ → Payment alerts). They're then checked on the Floor.
-function useOnlineAlerts(householdId, onAlert) {
+export function useOnlineAlerts(householdId, onAlert) {
   const cb = useRef(onAlert)
   useEffect(() => { cb.current = onAlert })
   useEffect(() => {
