@@ -35,6 +35,7 @@ export default function Home({ session }) {
           <p className="home-legacy">5 Years of Gaming Legacy — The Journey Continues! <span>(Since 2021)</span></p>
           <div className="home-ctas"><a className="btn primary home-cta" href="#book">Book your slots now</a>
             <a className="btn home-cta ghostlight" href="#timer">Have a code? Timer</a></div>
+          {info?.membership && <a className="btn home-cta home-member" href="#membership">Join Membership Plan</a>}
           {current && info && (
             <div className="home-live">
               <span><i className={current.PC ? 'on' : ''} />{current.PC} of {info.systems?.PC} PCs available</span>

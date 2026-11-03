@@ -37,6 +37,7 @@ const PasswordGenerator = lazy(() => import('./components/PasswordGenerator'))
 const VaultSecurity = lazy(() => import('./components/VaultSecurity'))
 const ChangePassword = lazy(() => import('./components/VaultSecurity').then((m) => ({ default: m.ChangePassword })))
 const Jobs = lazy(() => import('./components/Jobs'))
+const Membership = lazy(() => import('./components/Membership'))
 const Book = lazy(() => import('./components/Book'))
 const Poster = lazy(() => import('./components/Poster'))
 const Home = lazy(() => import('./components/Home'))
@@ -94,6 +95,7 @@ export default function App() {
   }
   // Public pages: open to anyone with the link, signed in or not.
   if (hash === '#jobs') return <Suspense fallback={<Splash />}><Jobs /></Suspense>
+  if (hash === '#membership') return <Suspense fallback={<Splash />}><Membership /></Suspense>
   if (hash === '#book') return <Suspense fallback={<Splash />}><Book /></Suspense>
   if (hash === '#poster') return <Suspense fallback={<Splash />}><Poster /></Suspense>
   if (hash === '#timer' || hash.startsWith('#timer/') || hash.startsWith('#screen/')) return <Suspense fallback={<Splash />}><Timer /></Suspense>

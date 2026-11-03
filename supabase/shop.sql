@@ -1453,3 +1453,9 @@ create table if not exists public.shop_products (
 -- visitors get the active ones through public_home() → 'products', plus 'phone' = shop_settings.contact_phone
 -- (new column, set in ⚙ → Home page) for Call for price / WhatsApp.
 alter table public.shop_settings add column if not exists contact_phone text;
+
+-- Membership plans (owner, 1 Nov: "Join Membership Plan" button on the home page, his poster's plans inside),
+-- migration membership_plans: shop_settings.membership jsonb {on, note, plans: [{name, pass, hours, validity, pc,
+-- ps5}]}, seeded with Basic (15 h, ₹750 / ₹1,050), Premium (30 h, ₹1,500 / ₹2,100), Pro (60 h, ₹3,000 / ₹4,200);
+-- public_home() returns it as 'membership' when on. contact_phone was set to the number on his poster.
+alter table public.shop_settings add column if not exists membership jsonb;

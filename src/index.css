@@ -1491,3 +1491,31 @@ html:fullscreen .pill-nav { display: none; }
 .admin-more { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .admin-more-btn { display: flex; align-items: center; gap: 10px; padding: 14px 12px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
 .admin-more-btn.on { border-color: var(--accent-bg); color: var(--accent); }
+
+/* Membership plans page #membership (owner, 1 Nov: his "Choose your gaming membership plan" poster as a page). */
+.home-member { background: transparent; border: 1px solid #fff; color: #fff; margin-top: 10px; }
+.pub-page.member-page { display: grid; gap: 12px; padding-left: max(16px, calc((100% - 980px) / 2)); padding-right: max(16px, calc((100% - 980px) / 2)); }
+.member-head { text-align: center; display: grid; gap: 6px; padding: 8px 0 4px; }
+.member-head h1 { margin: 0; font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: clamp(30px, 8vw, 54px); line-height: 1.05; text-transform: uppercase; }
+.member-head h1 span { display: block; color: var(--accent); }
+.member-head p { margin: 0; }
+.member-plans { display: grid; gap: 12px; }
+.member-plan { margin: 0; display: grid; gap: 12px; padding: 18px; border: 1px solid var(--line); }
+.member-num { font-family: Anton, Impact, sans-serif; font-size: 28px; color: var(--accent); line-height: 1; }
+.member-main h2 { margin: 0; font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: 30px; text-transform: uppercase; letter-spacing: .02em; }
+.member-pass { color: var(--muted); text-transform: uppercase; font-size: 13px; letter-spacing: .06em; }
+.member-prices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.member-prices > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--card-2); }
+.member-prices span { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: .06em; }
+.member-prices b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.member-prices em { font-style: normal; font-size: 12px; color: var(--muted); }
+.member-incl { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.member-cta { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+.member-note { margin: 0; display: grid; gap: 4px; text-align: center; }
+.member-note span { font-weight: 700; text-transform: uppercase; }
+.member-contact { text-align: center; }
+.member-edit { display: grid; gap: 8px; }
+@media (min-width: 800px) {
+  .member-plan { grid-template-columns: 56px minmax(0, 1.3fr) minmax(0, 1fr) 200px; align-items: center; }
+  .member-cta { grid-template-columns: 1fr; }
+}
