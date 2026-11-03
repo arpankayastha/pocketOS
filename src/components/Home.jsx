@@ -23,6 +23,9 @@ export default function Home({ session }) {
   }, [])
   const current = now?.find((a) => { const t = new Date(a.t).getTime(); return t <= Date.now() && Date.now() < t + 30 * 60_000 })
   const happyToday = info && (info.happy_days || []).includes(new Date().getDay())
+  const memberFromRaw = Math.min(...(info?.membership?.plans || []).flatMap((p) => [p.pc, p.ps5]).filter((v) => v > 0))
+  const memberFrom = Number.isFinite(memberFromRaw) ? memberFromRaw : 0
+
 
   return (
     <div className="home pub-page">
@@ -33,9 +36,13 @@ export default function Home({ session }) {
           <div className="home-kicker">PC &amp; PS5 gaming café</div>
           <h1>Welcome to <span>GRANDXGAMER</span></h1>
           <p className="home-legacy">5 Years of Gaming Legacy — The Journey Continues! <span>(Since 2021)</span></p>
-          <div className="home-ctas"><a className="btn primary home-cta" href="#book">Book your slots now</a>
-            <a className="btn home-cta ghostlight" href="#timer">Have a code? Timer</a></div>
-          {info?.membership && <a className="btn home-cta home-member" href="#membership">Join Membership Plan</a>}
+          {/* Owner, 3 Nov: three stacked buttons hid the banner — two actions side by side, Timer as a small link
+              (it's also in the bottom bar). */}
+          <div className="home-ctas">
+            <a className="btn primary home-cta" href="#book">Book your slots now</a>
+            {info?.membership && <a className="btn home-cta home-member" href="#membership">Membership plans{memberFrom ? <small>from {rs(memberFrom)}</small> : null}</a>}
+          </div>
+          <a className="home-timer-link" href="#timer">Have a code? Track your time left ›</a>
           {current && info && (
             <div className="home-live">
               <span><i className={current.PC ? 'on' : ''} />{current.PC} of {info.systems?.PC} PCs available</span>

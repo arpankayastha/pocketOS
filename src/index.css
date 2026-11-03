@@ -1493,7 +1493,6 @@ html:fullscreen .pill-nav { display: none; }
 .admin-more-btn.on { border-color: var(--accent-bg); color: var(--accent); }
 
 /* Membership plans page #membership (owner, 1 Nov: his "Choose your gaming membership plan" poster as a page). */
-.home-member { background: transparent; border: 1px solid #fff; color: #fff; margin-top: 10px; }
 .pub-page.member-page { display: grid; gap: 12px; padding-left: max(16px, calc((100% - 980px) / 2)); padding-right: max(16px, calc((100% - 980px) / 2)); }
 .member-head { text-align: center; display: grid; gap: 6px; padding: 8px 0 4px; }
 .member-head h1 { margin: 0; font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: clamp(30px, 8vw, 54px); line-height: 1.05; text-transform: uppercase; }
@@ -1519,3 +1518,14 @@ html:fullscreen .pill-nav { display: none; }
   .member-plan { grid-template-columns: 56px minmax(0, 1.3fr) minmax(0, 1fr) 200px; align-items: center; }
   .member-cta { grid-template-columns: 1fr; }
 }
+
+/* Home hero actions (owner, 3 Nov: "looks bad with three buttons"): Book + Membership side by side, Timer a text link. */
+.home-ctas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; width: 100%; max-width: 520px; }
+.home-ctas .home-cta { display: grid; place-items: center; align-content: center; text-align: center; font-size: 15px; line-height: 1.2; padding: 12px 10px; min-height: 56px; }
+.home-ctas .home-cta:only-child { grid-column: 1 / -1; }
+.home-member { background: rgb(15 13 14 / .55); color: #fff; border: 1px solid rgb(255 255 255 / .45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.home-member:hover { background: rgb(15 13 14 / .75); }
+.home-member small { display: block; font-size: 12px; font-weight: 500; color: #f0c9c6; margin-top: 2px; }
+.home-timer-link { font-size: 13px; font-weight: 600; color: #e6dcdc; text-decoration: none; text-shadow: 0 1px 8px rgb(0 0 0 / .7); margin-top: -4px; }
+.home-timer-link:hover { color: #fff; text-decoration: underline; }
+@media (min-width: 700px) { .home-ctas .home-cta { font-size: 17px; padding: 14px 22px; } }
