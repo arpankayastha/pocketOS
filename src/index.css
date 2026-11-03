@@ -1535,3 +1535,4 @@ html:fullscreen .pill-nav { display: none; }
 .member-done { border-color: var(--pos); }
 .gx-member { font-size: 12px; font-weight: 700; color: var(--pos); white-space: nowrap; }
 .member-box { display: grid; gap: 4px; }
+.gx-members { margin: 0; }

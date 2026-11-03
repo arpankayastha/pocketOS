@@ -1494,3 +1494,6 @@ create table if not exists public.shop_memberships (
 -- or a plan that isn't active / has ended; my_memberships() returns used_minutes.
 alter table public.shop_sessions add column if not exists membership_id uuid references public.shop_memberships(id) on delete set null,
   add column if not exists member_minutes int not null default 0 check (member_minutes >= 0);
+-- Owner, 3 Nov (2): name + mobile required on the membership payment, like a booking — migration
+-- membership_join_name_phone: public_membership_join(plan, kind, upi_ref, name, phone) (10-digit mobile; also fills the
+-- account's name / mobile when empty). The older 3-argument version is left in place, unused.

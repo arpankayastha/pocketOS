@@ -9,6 +9,7 @@ import { StartSheet } from './floor/StartSheet'
 import { CollectSheet, EndSheet, ExtendSheet, FnbSheet } from './floor/PaySheets'
 import { Bookings, BookSheet } from './floor/Bookings'
 import { SlotCalendar } from './floor/Calendar'
+import MembersCard from './floor/MembersCard'
 
 // The Floor ("Slots" tab): every system with its live state. Free → Start; playing → + F&B, Extend, Pause, End.
 // A PS5 has one row per controller (owner: each controller is a separate customer with its own timer; start
@@ -150,6 +151,7 @@ export default function Floor({ shop, householdId, toast, fixedView }) {
       {waitingAll.length > 1 && <button className="btn primary block gx-startall" onClick={startAll}>▶ Start all {waitingAll.length} waiting</button>}
       {!playingList.length && <div className="card muted small gx-empty">Nobody playing right now.</div>}
       {playingList.map((x) => <RunRow key={x.s.id} {...x} now={now} member={x.s.membership_id ? shop.members.find((m) => m.id === x.s.membership_id) : null} onOpen={() => openSession(x)} onStart={() => startWaiting(x.s)} />)}
+      <MembersCard shop={shop} householdId={householdId} toast={toast} />
       </>)}
       {sheet?.kind === 'session' && <SessionSheet system={sheet.system} seat={sheet.seat} s={sheet.session} now={now} member={sheet.session.membership_id ? shop.members.find((m) => m.id === sheet.session.membership_id) : null} bank={(shop.paymentsIn || []).filter((x) => x.match_kind === 'session' && x.match_id === sheet.session.id)} bankOn={(shop.paymentsIn || []).length > 0} onClose={close}
         onAction={(kind) => setSheet({ ...sheet, kind })} onPause={(on) => pause([sheet.session], on)} onStart={() => startWaiting(sheet.session)} onCancel={() => cancelWaiting(sheet.session)} />}

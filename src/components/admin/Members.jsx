@@ -65,7 +65,7 @@ export default function Members({ shop, householdId, toast }) {
   </>)
 }
 
-function AddMember({ shop, householdId, onClose, onDone }) {
+export function AddMember({ shop, householdId, onClose, onDone }) {
   const plans = shop.settings?.membership?.plans || []
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')

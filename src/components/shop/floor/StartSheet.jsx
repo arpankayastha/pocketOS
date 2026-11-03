@@ -34,7 +34,13 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   const each = priceFor(rates, system.kind, mins, happy)
   const bookedSame = booking && mins === booking.minutes && count === (booking.players || 1)
   // Membership hours (owner, 3 Nov): a member's time comes off their plan first; only time past it is charged.
-  const member = !online ? memberFor(members, name, phone, system.kind) : null
+  // Owner, 3 Nov: a friend can play on a member's hours, like a shared deposit — "Use a membership" + whose.
+  const own = !online ? memberFor(members, name, phone, system.kind) : null
+  const today = new Date().toLocaleDateString('en-CA')
+  const usable = online ? [] : members.filter((m) => m.status === 'active' && m.kind === system.kind && m.left_minutes > 0 && (!m.ends_on || m.ends_on >= today))
+  const [friendId, setFriendId] = useState('')
+  const member = own || usable.find((m) => m.id === friendId) || null
+  const friendMember = !!member && !own
   const [useMember, setUseMember] = useState(true)
   const cover = member && useMember && !bookedSame ? memberCover(picked.map(() => mins), member.left_minutes) : picked.map(() => 0)
   const gameRows = picked.map((_, i) => (cover[i] ? (mins > cover[i] ? priceFor(rates, system.kind, mins - cover[i], happy) : 0) : each))
@@ -77,7 +83,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
         paid_cash, paid_online,
         membership_id: cover[i] ? member.id : null, member_minutes: cover[i],
-        owed: o, paid_deposit: d, note: [cover[i] && `Membership ${member.plan_name}: ${hoursLabel2(cover[i])}`, o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`, i === 0 && advUse > 0 && `Booking advance ${inr(advUse)} from deposit`].filter(Boolean).join(' · ') || null,
+        owed: o, paid_deposit: d, note: [cover[i] && `Membership ${member.plan_name}${friendMember ? ` (${member.name}’s)` : ''}: ${hoursLabel2(cover[i])}`, o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`, i === 0 && advUse > 0 && `Booking advance ${inr(advUse)} from deposit`].filter(Boolean).join(' · ') || null,
         ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
     })
@@ -105,9 +111,15 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       {count > 1 && picked.slice(1).map((seat) => (
         <label key={seat}>Controller {seat} · player name<input value={names[seat] || ''} onChange={(e) => setNames({ ...names, [seat]: e.target.value })} placeholder={`Optional · else ${(name.trim() || 'Walk-in')} (${picked.indexOf(seat) + 1}/${count})`} /></label>
       ))}
+      {!own && usable.length > 0 && !bookedSame && (
+        <label>Play on a membership (friend’s)<select value={friendId} onChange={(e) => { setFriendId(e.target.value); setUseMember(true) }}>
+          <option value="">No — pay as usual</option>
+          {usable.map((m) => <option key={m.id} value={m.id}>★ {m.name} · {m.plan_name} · {hoursLabel2(m.left_minutes)} left</option>)}
+        </select></label>
+      )}
       {member && !bookedSame && (
         <div className="gx-box member-box">
-          <label className="check"><input type="checkbox" checked={useMember} onChange={(e) => setUseMember(e.target.checked)} /> <b>★ {member.plan_name} member</b> · {hoursLabel2(member.left_minutes)} left</label>
+          <label className="check"><input type="checkbox" checked={useMember} onChange={(e) => setUseMember(e.target.checked)} /> <b>★ {friendMember ? `${member.name}’s ` : ''}{member.plan_name}{friendMember ? '' : ' member'}</b> · {hoursLabel2(member.left_minutes)} left</label>
           {useMember && <div className="small muted">{hoursLabel2(covered)} from the membership{covered < mins * count ? ` · ${hoursLabel2(mins * count - covered)} charged` : ''} · {hoursLabel2(member.left_minutes - covered)} left after</div>}
         </div>
       )}

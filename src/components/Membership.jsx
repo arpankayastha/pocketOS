@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hoursLabel2, rs } from '../lib/shop'
 import { hourlyRate, planDiscount } from '../lib/membership'
-import { signInWithGoogle, useMyStatus } from '../lib/mine'
+import { signInWithGoogle } from '../lib/mine'
 import { telLink } from '../lib/products'
 import PublicNav, { useCustomerSession } from './PublicNav'
-import { Profile } from './Me'
 import { PayCard } from './EventPage'
+import ContactFields from './ContactFields'
 
 // Public page #membership (owner, 1 + 3 Nov: "Join Membership Plan" on the home page; the customer signs in, pays
 // by UPI and the shop sees it in its list like a booking — rpc public_membership_join; staff Received starts it).
@@ -16,13 +16,14 @@ export default function Membership() {
   const [info, setInfo] = useState(null)
   const [error, setError] = useState(null)
   const customer = useCustomerSession()
-  const { status, reload } = useMyStatus(customer || null)
   const [mine, setMine] = useState([])
   const loadMine = useCallback(() => { if (customer) supabase.rpc('my_memberships').then(({ data }) => setMine(data || [])) }, [customer])
   useEffect(() => { supabase.rpc('public_home').then(({ data, error }) => (error ? setError(error.message) : setInfo(data))) }, [])
   useEffect(() => { loadMine() }, [loadMine])
   const [pick, setPick] = useState(null) // { i, kind }
   const [ref, setRef] = useState('')
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
   const [payError, setPayError] = useState(null)
   const [done, setDone] = useState(null)
@@ -30,11 +31,13 @@ export default function Membership() {
   const pc = hourlyRate(info?.rates, 'PC'), ps = hourlyRate(info?.rates, 'PS')
   const plan = pick && m?.plans?.[pick.i]
   const price = plan ? (pick.kind === 'PS' ? plan.ps5 : plan.pc) : 0
-  const needsPhone = customer && status && !status.me?.phone
+  // Owner, 3 Nov: name + mobile required on the payment, like a booking (prefilled from the account).
+  const contactOk = name.trim().length >= 2 && phone.replace(/\D/g, '').length >= 10
 
   async function send() {
     setBusy(true); setPayError(null)
-    const { data, error } = await supabase.rpc('public_membership_join', { p_plan: pick.i, p_kind: pick.kind, p_upi_ref: ref.trim() || null })
+    if (!contactOk) { setPayError('Enter your name and 10-digit mobile number.'); return }
+    const { data, error } = await supabase.rpc('public_membership_join', { p_plan: pick.i, p_kind: pick.kind, p_upi_ref: ref.trim() || null, p_name: name.trim(), p_phone: phone })
     setBusy(false)
     if (error) { setPayError(error.message); return }
     setDone({ ...data, plan: plan.name, kind: pick.kind }); setPick(null); setRef(''); loadMine()
@@ -45,11 +48,12 @@ export default function Membership() {
     <div className="pub-page member-page">
       <PublicNav active="membership" />
       <a className="pub-back" href="#">‹ Home</a>
-      {plan ? (
+      {plan ? (<>
+        <div className="card stack" style={{ margin: 0 }}><b>Your details</b><ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} /></div>
         <PayCard amount={price} info={info} note={`Membership ${plan.name} ${pick.kind === 'PS' ? 'PS5' : 'PC'}`} what={`${plan.name} · ${pick.kind === 'PS' ? 'PS5' : 'PC'} · ${plan.hours} hours · ${plan.validity || `${plan.days} days`}`}
           refValue={ref} setRef={setRef} onBack={() => setPick(null)} busy={busy} error={payError} onSend={send}
           footer="Your plan starts when the shop sees your payment. Membership fees are non-refundable." />
-      ) : (<>
+      </>) : (<>
         <header className="member-head">
           <div className="home-kicker">GRANDXGAMER</div>
           <h1>Choose your gaming <span>membership plan</span></h1>
@@ -66,7 +70,6 @@ export default function Membership() {
             ))}
           </div>
         )}
-        {needsPhone && <Profile me={status.me} session={customer} onSaved={reload} />}
         {!info ? <div className="card muted">Loading…</div> : !m ? <div className="card muted">Membership plans are coming soon. Ask at the counter.</div> : (<>
           <div className="member-plans">
             {(m.plans || []).map((p, i) => {
@@ -89,8 +92,8 @@ export default function Membership() {
                     {dPs && p.ps5 > 0 && <li>Get {dPs}% discount for PS5</li>}
                   </ul>
                   <div className="member-cta">
-                    {p.pc > 0 && <button className="btn primary" disabled={needsPhone} onClick={() => join(i, 'PC')}>Pay {rs(p.pc)} · PC</button>}
-                    {p.ps5 > 0 && <button className="btn" disabled={needsPhone} onClick={() => join(i, 'PS')}>Pay {rs(p.ps5)} · PS5</button>}
+                    {p.pc > 0 && <button className="btn primary" onClick={() => join(i, 'PC')}>Pay {rs(p.pc)} · PC</button>}
+                    {p.ps5 > 0 && <button className="btn" onClick={() => join(i, 'PS')}>Pay {rs(p.ps5)} · PS5</button>}
                   </div>
                 </article>
               )
