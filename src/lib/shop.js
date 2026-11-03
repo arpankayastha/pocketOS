@@ -28,12 +28,12 @@ export function useShopId(memberHouseholdId) {
 }
 
 export function useShop(householdId) {
-  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null, bookings: [], eventChecks: [], entryChecks: [], dues: [], duesPaid: [], paymentsIn: [], memberships: [], memberChecks: [] })
+  const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null, bookings: [], eventChecks: [], entryChecks: [], dues: [], duesPaid: [], paymentsIn: [], memberships: [], memberChecks: [], members: [] })
 
   const reload = useCallback(async () => {
     if (!householdId) return
     const from = dayStart().toISOString()
-    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid, payIn, members] = await Promise.all([
+    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid, payIn, members, memberStatus] = await Promise.all([
       supabase.from('shop_systems').select('*').eq('household_id', householdId).eq('active', true).order('sort').order('name'),
       supabase.from('shop_rates').select('*').eq('household_id', householdId).order('kind').order('minutes'),
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).neq('status', 'cancelled').order('started_at', { ascending: false }),
@@ -56,6 +56,8 @@ export function useShop(householdId) {
       supabase.from('shop_payments_in').select('*').eq('household_id', householdId).or(`received_at.gte.${from},status.eq.new`).order('received_at', { ascending: false }).limit(300),
       // Membership plans (owner, 3 Nov): paid today (money in) and online payments still to check.
       supabase.from('shop_memberships').select('*').eq('household_id', householdId).or(`created_at.gte.${from},status.eq.requested`).neq('status', 'cancelled').order('created_at'),
+      // Active plans with their hours played / left (view shop_membership_status) for Start, Extend and the rows.
+      supabase.from('shop_membership_status').select('*').eq('household_id', householdId).eq('status', 'active').gte('ends_on', dayStart().toLocaleDateString('en-CA')),
     ])
     const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid].find((r) => r.error)?.error
     if (err) { setState((s) => ({ ...s, loading: false, error: err.message })); return }
@@ -65,7 +67,7 @@ export function useShop(householdId) {
       advances: adv.data.filter((b) => b.status !== 'cancelled' && b.payment_ok !== false), shifts: shifts.data,
       deposits: deps.data, settings: settings.data, bookings: bookings.data,
       eventChecks: evChecks.data, entryChecks: entChecks.data, dues: dues.data, duesPaid: duesPaid.data, paymentsIn: payIn.data || [],
-      memberships: (members.data || []).filter((m) => m.status === 'active'), memberChecks: (members.data || []).filter((m) => m.status === 'requested'),
+      memberships: (members.data || []).filter((m) => m.status === 'active'), memberChecks: (members.data || []).filter((m) => m.status === 'requested'), members: memberStatus.data || [],
     })
   }, [householdId])
 

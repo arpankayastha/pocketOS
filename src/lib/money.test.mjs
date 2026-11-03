@@ -1,6 +1,7 @@
 // Run: npm test — the counter's money and time rules (lib/money.js). Made-up customers only.
 import assert from 'node:assert/strict'
 import {
+  memberFor, memberCover,
   cashOnline,
   priceFor, sessionEnd, pausedMinutes, sessionTotal, sessionPaid, depositBalances, balanceFor, customerKey,
   dayTotals, duesByCustomer, dueOf, dueReason, shareOut, startPayments, endBill, collectSplit,
@@ -171,5 +172,15 @@ assert.equal(sp[0].paid_cash + sp[0].paid_online + sp[0].paid_deposit, 180); ass
 const mday = new Date(2026, 10, 3), mAt = new Date(2026, 10, 3, 12).toISOString()
 const mt = dayTotals({ sessions: [], cash: [], advances: [], memberships: [{ status: 'active', amount: 750, pay_mode: 'online', created_at: mAt }, { status: 'requested', amount: 1500, created_at: mAt }, { status: 'active', amount: 300, pay_mode: 'cash', created_at: mAt }] }, mday)
 assert.equal(mt.online, 750); assert.equal(mt.cash, 300); assert.equal(mt.members, 1050)
+
+// memberships: matched by mobile (or name), right kind, minutes left, not ended; minutes covered in order
+const mems = [{ id: 'a', status: 'active', kind: 'PC', name: 'Test Ray', phone: '9800000077', left_minutes: 120, ends_on: '2026-11-30' },
+  { id: 'b', status: 'active', kind: 'PS', name: 'Test Ray', phone: '9800000077', left_minutes: 0, ends_on: '2026-11-30' }]
+assert.equal(memberFor(mems, 'Ray', '98000 00077', 'PC', '2026-11-03').id, 'a')
+assert.equal(memberFor(mems, 'Test Ray', '', 'PC', '2026-11-03').id, 'a')
+assert.equal(memberFor(mems, 'Test Ray', '9800000077', 'PS', '2026-11-03'), null)     // no minutes left
+assert.equal(memberFor(mems, 'Test Ray', '9800000077', 'PC', '2026-12-01'), null)     // ended
+assert.equal(memberFor(mems, 'Walk-in', '', 'PC', '2026-11-03'), null)
+assert.deepEqual(memberCover([60, 60, 60], 150), [60, 60, 30])
 
 console.log('money rules: all good')

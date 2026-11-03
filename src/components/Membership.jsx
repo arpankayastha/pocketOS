@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { rs } from '../lib/shop'
+import { hoursLabel2, rs } from '../lib/shop'
 import { hourlyRate, planDiscount } from '../lib/membership'
 import { signInWithGoogle, useMyStatus } from '../lib/mine'
 import { telLink } from '../lib/products'
@@ -61,8 +61,8 @@ export default function Membership() {
           <div className="card member-mine">
             <b>My membership</b>
             {mine.map((x) => (
-              <div key={x.id} className="line"><span>{x.plan} · {x.kind === 'PS' ? 'PS5' : 'PC'} · {x.hours} h</span>
-                <b className={x.status === 'active' ? 'pos' : ''}>{x.status === 'active' ? `Active till ${day(x.ends_on)}` : 'Payment being checked'}</b></div>
+              <div key={x.id} className="line"><span>{x.plan} · {x.kind === 'PS' ? 'PS5' : 'PC'}{x.status === 'active' ? ` · played ${hoursLabel2(x.used_minutes)} of ${x.hours} h` : ''}</span>
+                <b className={x.status === 'active' ? 'pos' : ''}>{x.status === 'active' ? `${hoursLabel2(Math.max(0, x.hours * 60 - x.used_minutes))} left · till ${day(x.ends_on)}` : 'Payment being checked'}</b></div>
             ))}
           </div>
         )}

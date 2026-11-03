@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { collectSplit, durLabel, endBill, inr, priceFor, rs, sessionEnd, timeLabel, useNow } from '../../../lib/shop'
+import { collectSplit, durLabel, endBill, hoursLabel2, inr, priceFor, rs, sessionEnd, timeLabel, useNow } from '../../../lib/shop'
 import { Chips, Sheet, SheetActions, SumRow } from '../ui'
 import { UpiQrButton } from '../UpiQr'
 import { depositOf, dueOf, FNB, payAdd, payNote, payOptions, saveSession, SplitPay, useDepositPick } from './common'
@@ -68,21 +68,24 @@ export function FnbSheet({ session, settings, deposits = [], onClose, onDone }) 
 
 // Owner (13 Oct): each extension is charged on its own from the rate card — +30 min is ₹50 every time
 // (before, the 2nd +30 min came to ₹30 because it was "2 h price − 1 h 30 m price").
-export function ExtendSheet({ system, session, rates, settings, deposits = [], onClose, onDone }) {
+export function ExtendSheet({ system, session, rates, settings, deposits = [], members = [], onClose, onDone }) {
   const d = useDepositPick(deposits, session.customer_name, session.customer_phone), dep = d.dep
   const [add, setAdd] = useState(30)
   const [pay, setPay] = useState('end')
   const [cashPart, setCashPart] = useState('')
   const [busy, setBusy] = useState(false)
   const minutes = session.minutes + add
-  const extra = priceFor(rates, system.kind, add, session.happy) * (session.players || 1)
+  // A member's extra time comes off their plan first (owner, 3 Nov); only time past it is charged.
+  const mem = session.membership_id ? members.find((m) => m.id === session.membership_id) : null
+  const covered = mem ? Math.min(add, mem.left_minutes) : 0
+  const extra = add > covered ? priceFor(rates, system.kind, add - covered, session.happy) * (session.players || 1) : 0
   const newEnd = sessionEnd({ ...session, minutes })
   async function save() {
     if (pay === 'due' && session.customer_name === 'Walk-in') { onDone('Add the customer’s name first to keep it as dues.'); return }
     setBusy(true)
     const fromDep = pay === 'deposit' && dep ? Math.min(dep.balance, extra) : 0
     const { error } = await saveSession(session.id, {
-      add: { minutes: add, extend_amount: extra, ...(fromDep ? { paid_deposit: fromDep } : payAdd(pay, extra, cashPart)) },
+      add: { minutes: add, member_minutes: covered, extend_amount: extra, ...(fromDep ? { paid_deposit: fromDep } : payAdd(pay, extra, cashPart)) },
       note: pay === 'due' ? `Due: extend ${durLabel(add)} ${inr(extra)}` : fromDep && d.friend ? `From ${dep.name}’s deposit ${inr(fromDep)}` : null,
       deposit: depositOf(dep, fromDep),
     })
@@ -95,6 +98,7 @@ export function ExtendSheet({ system, session, rates, settings, deposits = [], o
       <Chips options={[[30, '+30 min'], [60, '+1 hr'], [90, '+1h 30m'], [120, '+2 hr'], [180, '+3 hr'], [240, '+4 hr']]} value={add} onChange={setAdd} />
       <div className="gx-box">
         <SumRow label="New end" value={timeLabel(newEnd)} />
+        {covered > 0 && <SumRow label={`From ${mem.plan_name} membership · ${hoursLabel2(mem.left_minutes - covered)} left after`} value={hoursLabel2(covered)} />}
         <SumRow strong label="Extend amount" value={`+${rs(extra)}`} />
       </div>
       <div className="caps muted">Payment</div>

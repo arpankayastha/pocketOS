@@ -149,18 +149,18 @@ export default function Floor({ shop, householdId, toast, fixedView }) {
       </div>
       {waitingAll.length > 1 && <button className="btn primary block gx-startall" onClick={startAll}>▶ Start all {waitingAll.length} waiting</button>}
       {!playingList.length && <div className="card muted small gx-empty">Nobody playing right now.</div>}
-      {playingList.map((x) => <RunRow key={x.s.id} {...x} now={now} onOpen={() => openSession(x)} onStart={() => startWaiting(x.s)} />)}
+      {playingList.map((x) => <RunRow key={x.s.id} {...x} now={now} member={x.s.membership_id ? shop.members.find((m) => m.id === x.s.membership_id) : null} onOpen={() => openSession(x)} onStart={() => startWaiting(x.s)} />)}
       </>)}
-      {sheet?.kind === 'session' && <SessionSheet system={sheet.system} seat={sheet.seat} s={sheet.session} now={now} bank={(shop.paymentsIn || []).filter((x) => x.match_kind === 'session' && x.match_id === sheet.session.id)} bankOn={(shop.paymentsIn || []).length > 0} onClose={close}
+      {sheet?.kind === 'session' && <SessionSheet system={sheet.system} seat={sheet.seat} s={sheet.session} now={now} member={sheet.session.membership_id ? shop.members.find((m) => m.id === sheet.session.membership_id) : null} bank={(shop.paymentsIn || []).filter((x) => x.match_kind === 'session' && x.match_id === sheet.session.id)} bankOn={(shop.paymentsIn || []).length > 0} onClose={close}
         onAction={(kind) => setSheet({ ...sheet, kind })} onPause={(on) => pause([sheet.session], on)} onStart={() => startWaiting(sheet.session)} onCancel={() => cancelWaiting(sheet.session)} />}
       {sheet?.kind === 'controllers' && <ControllersSheet systems={multi} holders={holders} off={off} onSet={setOff} onClose={close} />}
-      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} deposits={shop.deposits} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} dues={shop.dues} deposits={shop.deposits} members={shop.members} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
       {sheet?.kind === 'collect' && <CollectSheet session={sheet.session} settings={shop.settings} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'timer' && <TimerCodeSheet session={sheet.session} onClose={close} />}
       {sheet?.kind === 'move' && <MoveSheet session={sheet.session} systems={shop.systems} freeOf={freeSeats} onClose={close} onDone={done} />}
-      {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'extend' && <ExtendSheet system={sheet.system} session={sheet.session} rates={shop.rates} settings={shop.settings} deposits={shop.deposits} members={shop.members} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'end' && <EndSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
     </section>
   )

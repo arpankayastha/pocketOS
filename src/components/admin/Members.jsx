@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { rs } from '../../lib/shop'
+import { hoursLabel2, rs } from '../../lib/shop'
 import { telLink, waLink } from '../../lib/products'
 import { ActionSheet, Chips, Sheet, SheetActions } from '../shop/ui'
 import CustomerFields from '../shop/CustomerFields'
@@ -19,7 +19,7 @@ export default function Members({ shop, householdId, toast }) {
   const [open, setOpen] = useState(null)
   const [adding, setAdding] = useState(false)
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from('shop_memberships').select('*').eq('household_id', householdId).neq('status', 'cancelled').order('created_at', { ascending: false }).limit(1000)
+    const { data, error } = await supabase.from('shop_membership_status').select('*').eq('household_id', householdId).neq('status', 'cancelled').order('created_at', { ascending: false }).limit(1000)
     if (error) toast(error.message); else setRows(data)
   }, [householdId, toast])
   useEffect(() => { load() }, [load])
@@ -30,19 +30,20 @@ export default function Members({ shop, householdId, toast }) {
     <div className="admin-row">
       <Chips options={[['Active', `Active ${count('Active')}`], ['To check', `To check ${count('To check')}`], ['Expired', `Expired ${count('Expired')}`], ['All', 'All']]} value={filter} onChange={setFilter} />
       <div className="gx-btns">
-        <button className="btn small" onClick={() => downloadCsv(`grandxgamer-members-${ymd(new Date())}`, [['name', 'Name'], ['phone', 'Mobile'], ['plan_name', 'Plan'], [(x) => (x.kind === 'PS' ? 'PS5' : 'PC'), 'For'], ['hours', 'Hours'], ['amount', 'Paid ₹'], ['pay_mode', 'Paid by'], ['starts_on', 'Starts'], ['ends_on', 'Ends'], [(x) => stateOf(x), 'Status']], list)}>Excel</button>
+        <button className="btn small" onClick={() => downloadCsv(`grandxgamer-members-${ymd(new Date())}`, [['name', 'Name'], ['phone', 'Mobile'], ['plan_name', 'Plan'], [(x) => (x.kind === 'PS' ? 'PS5' : 'PC'), 'For'], ['hours', 'Hours'], [(x) => Math.round(x.used_minutes / 6) / 10, 'Hours played'], [(x) => Math.round(x.left_minutes / 6) / 10, 'Hours left'], ['amount', 'Paid ₹'], ['left_amount', 'Left ₹'], ['pay_mode', 'Paid by'], ['starts_on', 'Starts'], ['ends_on', 'Ends'], [(x) => stateOf(x), 'Status']], list)}>Excel</button>
         <button className="btn small primary" onClick={() => setAdding(true)}>+ Add member</button>
       </div>
     </div>
     <div className="card admin-table-card">
       <table className="admin-table click">
-        <thead><tr><th>Member</th><th>Plan</th><th>Ends</th><th className="wide">Paid</th><th className="wide">Status</th></tr></thead>
+        <thead><tr><th>Member</th><th>Plan</th><th>Played</th><th>Left</th><th className="wide">Ends</th><th className="wide">Status</th></tr></thead>
         <tbody>{list.map((x) => (
           <tr key={x.id} onClick={() => setOpen(x)}>
             <td><b>{x.name}</b><div className="muted small">{x.phone || 'no mobile'}</div></td>
             <td>{x.plan_name}<div className="muted small">{x.kind === 'PS' ? 'PS5' : 'PC'} · {Number(x.hours)} h</div></td>
-            <td>{x.status === 'requested' ? <span className="pill gx-pill ending">check</span> : day(x.ends_on)}</td>
-            <td className="wide">{rs(x.amount)}</td><td className="wide">{stateOf(x)}</td>
+            <td>{hoursLabel2(x.used_minutes)}</td>
+            <td><b className={x.left_minutes ? 'pos' : 'muted'}>{hoursLabel2(x.left_minutes)}</b><div className="muted small">{rs(x.left_amount)} of {rs(x.amount)}</div></td>
+            <td className="wide">{x.status === 'requested' ? <span className="pill gx-pill ending">check</span> : day(x.ends_on)}</td><td className="wide">{stateOf(x)}</td>
           </tr>
         ))}</tbody>
       </table>
@@ -51,6 +52,8 @@ export default function Members({ shop, householdId, toast }) {
     {open && (
       <ActionSheet title={open.name} sub={`${open.plan_name} · ${open.kind === 'PS' ? 'PS5' : 'PC'} · ${Number(open.hours)} hours · ${stateOf(open)}`} onClose={() => setOpen(null)}>
         <div className="gx-details">
+          <div><span>Played</span><b>{hoursLabel2(open.used_minutes)} of {Number(open.hours)} h</b></div>
+          <div><span>Left</span><b className="pos">{hoursLabel2(open.left_minutes)} · {rs(open.left_amount)}</b></div>
           <div><span>Paid</span><b>{rs(open.amount)} · {open.pay_mode}{open.upi_ref ? ` · ref ${open.upi_ref}` : ''}</b></div>
           <div><span>Valid</span><b>{open.starts_on ? `${day(open.starts_on)} – ${day(open.ends_on)}` : 'starts when the payment is confirmed'}</b></div>
           <div><span>Joined</span><b>{new Date(open.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {open.source === 'online' ? 'online' : `by ${open.entered_by || '—'}`}{open.handled_by ? ` · ✓ ${open.handled_by}` : ''}</b></div>

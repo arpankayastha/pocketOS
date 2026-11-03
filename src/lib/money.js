@@ -188,6 +188,21 @@ export function cashOnline(value, cashPart) {
   return { cash, online: v - cash }
 }
 
+// Membership hours (owner, 3 Nov: show hours played and what's left with the customer's name).
+// The customer's active plan for this kind (PC / PS) with minutes left, matched like deposits (mobile, else name).
+export function memberFor(members = [], name, phone, kind, today = new Date().toLocaleDateString('en-CA')) {
+  const k = customerKey(name, phone)
+  if (!k || k === 'walk-in') return null
+  return members.find((m) => m.status === 'active' && m.kind === kind && m.left_minutes > 0 && (!m.ends_on || m.ends_on >= today)
+    && (customerKey(m.name, m.phone) === k || customerKey(m.name, null) === k)) || null
+}
+// Minutes each timer takes from a membership with `left` minutes: in order, until it runs out.
+export function memberCover(minutesEach, left) {
+  let rest = Math.max(0, left)
+  return minutesEach.map((m) => { const c = Math.min(m, rest); rest -= c; return c })
+}
+export const hoursLabel2 = (min) => { const h = Math.floor(min / 60), m = Math.round(min % 60); return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m` }
+
 // Collect while playing: dues from this session first (lowering owed), then the rest of the bill.
 export function collectSplit(s, amount) {
   const owed = Number(s.owed || 0), due = dueOf(s) + owed

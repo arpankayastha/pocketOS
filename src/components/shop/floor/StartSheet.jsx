@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { balanceFor, customerKey, duesByCustomer, DURATIONS, durLabel, inr, priceFor, rs, shareOut, startPayments, timeLabel } from '../../../lib/shop'
+import { balanceFor, customerKey, duesByCustomer, hoursLabel2, memberCover, memberFor, DURATIONS, durLabel, inr, priceFor, rs, shareOut, startPayments, timeLabel } from '../../../lib/shop'
 import { Chips, Sheet, SumRow } from '../ui'
 import { UpiQrButton } from '../UpiQr'
 import CustomerFields from '../CustomerFields'
@@ -8,7 +8,7 @@ import { depLabel, FNB, useDepositPick } from './common'
 
 // Start one PC, or one or more PS5 controllers together (each controller = one customer, one timer, priced
 // per head). A booking's amount is split across its controllers as already paid online.
-export function StartSheet({ system: first, seats, freeOf, systems, booking, dues, deposits = [], rates, settings, happy, householdId, onClose, onDone }) {
+export function StartSheet({ system: first, seats, freeOf, systems, booking, dues, deposits = [], members = [], rates, settings, happy, householdId, onClose, onDone }) {
   // Owner: "booked PC2 but sat at PC4" — any free system of the same kind can be picked here.
   const [system, setSystem] = useState(first)
   const free = freeOf(system)
@@ -33,7 +33,13 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   const count = picked.length
   const each = priceFor(rates, system.kind, mins, happy)
   const bookedSame = booking && mins === booking.minutes && count === (booking.players || 1)
-  const gaming = bookedSame ? Number(booking.amount) : each * count
+  // Membership hours (owner, 3 Nov): a member's time comes off their plan first; only time past it is charged.
+  const member = !online ? memberFor(members, name, phone, system.kind) : null
+  const [useMember, setUseMember] = useState(true)
+  const cover = member && useMember && !bookedSame ? memberCover(picked.map(() => mins), member.left_minutes) : picked.map(() => 0)
+  const gameRows = picked.map((_, i) => (cover[i] ? (mins > cover[i] ? priceFor(rates, system.kind, mins - cover[i], happy) : 0) : each))
+  const covered = cover.reduce((a, c) => a + c, 0)
+  const gaming = bookedSame ? Number(booking.amount) : gameRows.reduce((a, g) => a + g, 0)
   const bill = gaming + fnb
   const advUse = advDep ? Math.min(advance, advDep.balance, bill) : 0
   const total = bill - advUse // what the Payment choice covers
@@ -60,7 +66,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
     setBusy(true); setError(null)
     const t0 = new Date().toISOString()
     // A booking's amount and the cash part are shared across the timers so they add up exactly (money.js).
-    const games = bookedSame ? shareOut(Number(booking.amount), count) : picked.map(() => each)
+    const games = bookedSame ? shareOut(Number(booking.amount), count) : gameRows
     const pays = startPayments(picked.map((_, i) => ({ g: games[i], f: i === 0 ? fnb : 0 })), { pay, cashPart, fromDep, dueNow, advance: advUse, booked: pay === 'booked' ? Number(booking.amount) : 0 })
     const rows = picked.map((seat, i) => {
       const g = games[i], f = i === 0 ? fnb : 0
@@ -70,7 +76,8 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
         customer_name: i > 0 && (names[seat] || '').trim() ? names[seat].trim() : (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
         base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
         paid_cash, paid_online,
-        owed: o, paid_deposit: d, note: [o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`, i === 0 && advUse > 0 && `Booking advance ${inr(advUse)} from deposit`].filter(Boolean).join(' · ') || null,
+        membership_id: cover[i] ? member.id : null, member_minutes: cover[i],
+        owed: o, paid_deposit: d, note: [cover[i] && `Membership ${member.plan_name}: ${hoursLabel2(cover[i])}`, o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`, i === 0 && advUse > 0 && `Booking advance ${inr(advUse)} from deposit`].filter(Boolean).join(' · ') || null,
         ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
     })
@@ -98,6 +105,12 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       {count > 1 && picked.slice(1).map((seat) => (
         <label key={seat}>Controller {seat} · player name<input value={names[seat] || ''} onChange={(e) => setNames({ ...names, [seat]: e.target.value })} placeholder={`Optional · else ${(name.trim() || 'Walk-in')} (${picked.indexOf(seat) + 1}/${count})`} /></label>
       ))}
+      {member && !bookedSame && (
+        <div className="gx-box member-box">
+          <label className="check"><input type="checkbox" checked={useMember} onChange={(e) => setUseMember(e.target.checked)} /> <b>★ {member.plan_name} member</b> · {hoursLabel2(member.left_minutes)} left</label>
+          {useMember && <div className="small muted">{hoursLabel2(covered)} from the membership{covered < mins * count ? ` · ${hoursLabel2(mins * count - covered)} charged` : ''} · {hoursLabel2(member.left_minutes - covered)} left after</div>}
+        </div>
+      )}
       {owes && <div className="alert error" style={{ margin: 0 }}>{owes.name} owes {rs(owes.total)} from before · collect it in Cash → Customer dues</div>}
       <div className="caps muted">Time</div>
       <Chips scroll options={DURATIONS.map((m) => [m, durLabel(m)])} value={mins} onChange={setMins} />
@@ -117,6 +130,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       {(pay === 'online' || pay === 'split') && <UpiQrButton settings={settings} amount={pay === 'split' ? Math.max(0, total - (Number(cashPart) || 0)) : total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
+        {covered > 0 && <SumRow label={`From ${member.plan_name} membership`} value={hoursLabel2(covered)} />}
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
         {advUse > 0 && <SumRow label="Booking advance (from deposit)" value={`−${rs(advUse)}`} />}
         <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : pay === 'due' ? 'Into their dues' : pay === 'deposit' ? 'From deposit' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : pay === 'deposit' ? fromDep : pay === 'due' ? dueNow : total)} />

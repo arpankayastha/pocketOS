@@ -1485,3 +1485,12 @@ create table if not exists public.shop_memberships (
   starts_on date, ends_on date, source text not null default 'online',
   entered_by text, handled_by text, push_at timestamptz, created_at timestamptz not null default now()
 );
+
+-- Membership hours (owner, 3 Nov: "kitne hours khela, kitna amount remaining — customer ke naam ke saath"),
+-- migration membership_hours_used: shop_sessions.membership_id + member_minutes (the minutes a session took from the
+-- plan, at Start and each Extend — shop_start_sessions / shop_session_save carry them); view shop_membership_status
+-- (security invoker) = shop_memberships + used_minutes, left_minutes, left_amount (the paid amount × share of hours
+-- left); trigger shop_sessions_member_minutes (private.check_member_minutes) refuses more minutes than are left,
+-- or a plan that isn't active / has ended; my_memberships() returns used_minutes.
+alter table public.shop_sessions add column if not exists membership_id uuid references public.shop_memberships(id) on delete set null,
+  add column if not exists member_minutes int not null default 0 check (member_minutes >= 0);
