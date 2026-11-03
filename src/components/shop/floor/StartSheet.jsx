@@ -38,10 +38,13 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   const own = !online ? memberFor(members, name, phone, system.kind) : null
   const today = new Date().toLocaleDateString('en-CA')
   const usable = online ? [] : members.filter((m) => m.status === 'active' && m.kind === system.kind && m.left_minutes > 0 && (!m.ends_on || m.ends_on >= today))
-  const [friendId, setFriendId] = useState('')
-  const member = own || usable.find((m) => m.id === friendId) || null
-  const friendMember = !!member && !own
-  const [useMember, setUseMember] = useState(true)
+  // Owner, 3 Nov (2): the old "friend's membership" drop-down above Time wasn't seen — now a "Pay from membership"
+  // row of chips right above Payment, every active plan of this kind listed; the customer's own plan is picked by itself.
+  const [memberPick, setMemberPick] = useState(null) // null = automatic (their own plan, if any)
+  const memberId = memberPick ?? (own?.id || '')
+  const member = usable.find((m) => m.id === memberId) || null
+  const friendMember = !!member && member.id !== own?.id
+  const useMember = !!member
   const cover = member && useMember && !bookedSame ? memberCover(picked.map(() => mins), member.left_minutes) : picked.map(() => 0)
   const gameRows = picked.map((_, i) => (cover[i] ? (mins > cover[i] ? priceFor(rates, system.kind, mins - cover[i], happy) : 0) : each))
   const covered = cover.reduce((a, c) => a + c, 0)
@@ -111,18 +114,6 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       {count > 1 && picked.slice(1).map((seat) => (
         <label key={seat}>Controller {seat} · player name<input value={names[seat] || ''} onChange={(e) => setNames({ ...names, [seat]: e.target.value })} placeholder={`Optional · else ${(name.trim() || 'Walk-in')} (${picked.indexOf(seat) + 1}/${count})`} /></label>
       ))}
-      {!own && usable.length > 0 && !bookedSame && (
-        <label>Play on a membership (friend’s)<select value={friendId} onChange={(e) => { setFriendId(e.target.value); setUseMember(true) }}>
-          <option value="">No — pay as usual</option>
-          {usable.map((m) => <option key={m.id} value={m.id}>★ {m.name} · {m.plan_name} · {hoursLabel2(m.left_minutes)} left</option>)}
-        </select></label>
-      )}
-      {member && !bookedSame && (
-        <div className="gx-box member-box">
-          <label className="check"><input type="checkbox" checked={useMember} onChange={(e) => setUseMember(e.target.checked)} /> <b>★ {friendMember ? `${member.name}’s ` : ''}{member.plan_name}{friendMember ? '' : ' member'}</b> · {hoursLabel2(member.left_minutes)} left</label>
-          {useMember && <div className="small muted">{hoursLabel2(covered)} from the membership{covered < mins * count ? ` · ${hoursLabel2(mins * count - covered)} charged` : ''} · {hoursLabel2(member.left_minutes - covered)} left after</div>}
-        </div>
-      )}
       {owes && <div className="alert error" style={{ margin: 0 }}>{owes.name} owes {rs(owes.total)} from before · collect it in Cash → Customer dues</div>}
       <div className="caps muted">Time</div>
       <Chips scroll options={DURATIONS.map((m) => [m, durLabel(m)])} value={mins} onChange={setMins} />
@@ -130,6 +121,11 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       <Chips scroll options={FNB} value={fnbOther ? null : fnb} onChange={(v) => { setFnb(v); setFnbOther('') }} />
       <input className="gx-other" inputMode="numeric" value={fnbOther} placeholder="Other amount ₹"
         onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 5); setFnbOther(v); setFnb(Number(v) || 0) }} />
+      {usable.length > 0 && !bookedSame && (<>
+        <div className="caps muted">★ Pay from membership</div>
+        <Chips options={[['', 'No · pay as usual'], ...usable.map((m) => [m.id, `★ ${m.name} · ${m.plan_name} · ${hoursLabel2(m.left_minutes)} left`])]} value={memberId} onChange={setMemberPick} />
+        {member && <div className="small muted">{friendMember ? `On ${member.name}’s plan · ` : ''}{hoursLabel2(covered)} from the membership{covered < mins * count ? ` · ${hoursLabel2(mins * count - covered)} charged` : ' · nothing to pay for gaming'} · {hoursLabel2(member.left_minutes - covered)} left after</div>}
+      </>)}
       <div className="caps muted">Payment</div>
       {advUse > 0 && <div className="small"><b className="pos">{rs(advUse)} advance</b> <span className="muted">paid when booking · taken off this bill automatically. Pick how the rest {rs(total)} is paid.</span></div>}
       {advance > 0 && !advUse && <div className="small muted">The {rs(advance)} booking advance isn’t in {booking.customer_name}’s deposit any more, so it can’t be taken off.</div>}

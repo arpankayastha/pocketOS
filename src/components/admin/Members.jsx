@@ -36,6 +36,12 @@ export default function Members({ shop, householdId, toast }) {
     if (error) { toast(error.message); return }
     toast(undo ? 'Back under Ended' : 'Cleared'); setOpen(null); load()
   }
+  async function cancel(x) {
+    if (!await dialog.confirm({ title: `Delete ${x.name}’s ${x.plan_name}?`, message: `For one added by mistake or as a test. ${rs(x.amount)} comes off the day it was paid; it's kept as cancelled.`, confirmLabel: 'Delete', danger: true })) return
+    const { error } = await supabase.from('shop_memberships').update({ status: 'cancelled' }).eq('id', x.id)
+    if (error) { toast(error.message); return }
+    toast('Membership deleted'); setOpen(null); load(); shop.reload()
+  }
   if (!rows) return <div className="card muted">Loading members…</div>
   const list = rows.filter((x) => filter === 'All' || stateOf(x) === filter)
   const count = (s) => rows.filter((x) => stateOf(x) === s).length
@@ -75,6 +81,7 @@ export default function Members({ shop, householdId, toast }) {
         </div>
         {stateOf(open) === 'Ended' && <button className="btn primary block" onClick={() => clear(open)}>Clear · ended {endedOn(open)}</button>}
         {stateOf(open) === 'Cleared' && <button className="btn block" onClick={() => clear(open, true)}>Undo clear</button>}
+        <button className="btn danger-ghost" onClick={() => cancel(open)}>Delete membership (added by mistake)</button>
         {open.phone && <div className="gx-btns"><a className="btn small" href={telLink(open.phone)}>Call</a><a className="btn small" href={waLink(open.phone, `Hi ${open.name}, `)} target="_blank" rel="noreferrer">WhatsApp</a></div>}
       </ActionSheet>
     )}

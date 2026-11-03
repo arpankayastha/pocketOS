@@ -50,9 +50,12 @@ export default function Cash({ shop, householdId, toast, admin }) {
   // Owner: "admin can do any actions" — delete any of today's lines (staff too since 13 Oct; the database only
   // lets staff remove today's), write off dues, clear a deposit.
   async function remove(e) {
-    const what = { shop_sessions: 'This removes the whole session (its bill and payments).', shop_cash: 'The drawer and the Cashbook update.', shop_deposits: 'Their deposit balance goes down by this amount.', shop_dues_paid: 'The amount goes back to their dues.' }[e.table]
+    const what = { shop_sessions: 'This removes the whole session (its bill and payments).', shop_cash: 'The drawer and the Cashbook update.', shop_deposits: 'Their deposit balance goes down by this amount.', shop_dues_paid: 'The amount goes back to their dues.', shop_memberships: 'The membership is cancelled (kept in the records as cancelled) and its money comes off today.' }[e.table]
     if (!await dialog.confirm({ title: `Delete “${e.title}”?`, message: `${rs(e.amount)} · ${what}`, confirmLabel: 'Delete', danger: true })) return
-    const { error } = await supabase.from(e.table).delete().eq('id', e.id)
+    // Owner, 3 Nov: a test membership couldn't be removed. Cancelled, not deleted — hours already played on it stay linked.
+    const { error } = e.table === 'shop_memberships'
+      ? await supabase.from('shop_memberships').update({ status: 'cancelled' }).eq('id', e.id)
+      : await supabase.from(e.table).delete().eq('id', e.id)
     if (error) toast(error.message); else { setOpen(null); toast('Deleted'); shop.reload() }
   }
   async function writeOff(r) {
@@ -69,7 +72,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
       sub: payLabel(s) + (bankSeen.has(s.id) ? ' · ✓ bank' : ''), time: inOut(s), session: s, amount: Number(s.paid_cash) + Number(s.paid_online), sign: 1, by: s.handled_by || s.entered_by,
     })),
     ...shop.advances.map((b) => ({ id: b.id, at: b.created_at, title: `Event advance · ${b.customer_name}`, sub: b.advance_mode === 'online' ? 'Online' : 'Cash', amount: Number(b.advance_paid), sign: 1, by: b.entered_by })),
-    ...(shop.memberships || []).map((m) => ({ id: m.id, at: m.created_at, title: `Membership · ${m.name} · ${m.plan_name} ${m.kind === 'PS' ? 'PS5' : 'PC'}`, sub: m.pay_mode === 'cash' ? 'Cash' : 'Online', amount: Number(m.amount), sign: 1, by: m.handled_by || m.entered_by })),
+    ...(shop.memberships || []).map((m) => ({ id: m.id, table: 'shop_memberships', at: m.created_at, title: `Membership · ${m.name} · ${m.plan_name} ${m.kind === 'PS' ? 'PS5' : 'PC'}`, sub: m.pay_mode === 'cash' ? 'Cash' : 'Online', amount: Number(m.amount), sign: 1, by: m.handled_by || m.entered_by })),
     ...shop.cash.map((c) => ({ id: c.id, table: 'shop_cash', at: c.at, title: [c.category, c.note].filter(Boolean).join(' · ') || KINDS[c.kind], sub: KINDS[c.kind], amount: Number(c.amount), sign: c.kind === 'out' ? -1 : c.kind === 'in' ? 1 : 0, by: c.entered_by })),
     ...(shop.deposits || []).filter((d) => (d.kind === 'add' || d.kind === 'refund') && new Date(d.created_at) >= dayStart()).map((d) => ({ id: d.id, table: 'shop_deposits', at: d.created_at, title: `${d.kind === 'refund' ? 'Deposit returned' : 'Deposit'} · ${d.customer_name}`, sub: [d.mode === 'online' ? 'Online' : 'Cash', d.note].filter(Boolean).join(' · '), amount: Number(d.amount), sign: d.kind === 'refund' ? -1 : 1, by: d.entered_by })),
     ...(shop.duesPaid || []).map((p) => ({ id: p.id, table: 'shop_dues_paid', at: p.created_at, title: `Dues paid · ${p.customer_name}`, sub: p.mode === 'online' ? 'Online' : 'Cash', amount: Number(p.amount), sign: 1, by: p.entered_by })),
