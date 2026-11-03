@@ -42,7 +42,7 @@ export default function Home({ session }) {
               (it's also in the bottom bar). */}
           <div className="home-ctas">
             <a className="btn primary home-cta" href="#book">Book your slots now</a>
-            {info?.membership && <a className="btn home-cta home-member" href="#membership">Membership plans{memberFrom ? <small>from {rs(memberFrom)}</small> : null}</a>}
+            {info?.membership && <a className="btn home-cta home-member" href="#membership">Membership plans{memberFrom ? <small>Starting from {rs(memberFrom)}</small> : null}</a>}
           </div>
           <a className="home-timer-link" href="#timer">Have a code? Track your time left ›</a>
           {current && info && (

@@ -66,7 +66,13 @@ export default function Membership() {
             <b>My membership</b>
             {mine.map((x) => (
               <div key={x.id} className="line"><span>{x.plan} · {x.kind === 'PS' ? 'PS5' : 'PC'}{x.status === 'active' ? ` · played ${hoursLabel2(x.used_minutes)} of ${x.hours} h` : ''}</span>
-                <b className={x.status === 'active' ? 'pos' : ''}>{x.status === 'active' ? `${hoursLabel2(Math.max(0, x.hours * 60 - x.used_minutes))} left · till ${day(x.ends_on)}` : 'Payment being checked'}</b></div>
+                {(() => {
+                  const left = Math.max(0, x.hours * 60 - x.used_minutes)
+                  if (x.status !== 'active') return <b>Payment being checked</b>
+                  if (x.ends_on && x.ends_on < new Date().toLocaleDateString('en-CA')) return <b className="muted">Ended {day(x.ends_on)}</b>
+                  if (!left) return <b className="muted">All hours played</b>
+                  return <b className="pos">{hoursLabel2(left)} left · till {day(x.ends_on)}</b>
+                })()}</div>
             ))}
           </div>
         )}

@@ -1497,3 +1497,31 @@ alter table public.shop_sessions add column if not exists membership_id uuid ref
 -- Owner, 3 Nov (2): name + mobile required on the membership payment, like a booking — migration
 -- membership_join_name_phone: public_membership_join(plan, kind, upi_ref, name, phone) (10-digit mobile; also fills the
 -- account's name / mobile when empty). The older 3-argument version is left in place, unused.
+
+-- Owner, 3 Nov: October's salary paid on 3 Nov showed as November's ("not paid" on October, "₹313 paid" on November).
+-- Migration salary_for_month: shop_salary_payments.for_month (first of the month the pay is for; Pay salary picks this
+-- or last month; trigger shop_salary_payments_for_month fills it from paid_at when empty); Mohit's ₹2,650 and Yashneel's
+-- ₹1,400 × 2 of 3 Nov moved to October. Staff tab and my_pay() read by for_month.
+alter table public.shop_salary_payments add column if not exists for_month date;
+create or replace function private.salary_for_month() returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.for_month := date_trunc('month', coalesce(new.for_month::timestamp, new.paid_at at time zone 'Asia/Kolkata', now() at time zone 'Asia/Kolkata'))::date;
+  return new;
+end $$;
+create or replace trigger shop_salary_payments_for_month before insert or update on public.shop_salary_payments for each row execute function private.salary_for_month();
+create index if not exists shop_salary_payments_month_idx on public.shop_salary_payments (household_id, for_month);
+-- (my_pay re-created with `for_month = mon` in place of the paid_at range — see migration salary_for_month.)
+
+-- Owner, 3 Nov: a membership ends by itself after its days (7 / 15 / 30 → ends_on) or when all hours are played;
+-- Admin → Customers → Members → Ended lists them with hours / ₹ left and the end date, Clear moves one to Cleared
+-- (migrations membership_cleared, membership_cleared_by): cleared_at / cleared_by (trigger stamps who), and the view
+-- shop_membership_status gains cleared_at, cleared_by, last_played (latest session on the plan).
+alter table public.shop_memberships add column if not exists cleared_at timestamptz, add column if not exists cleared_by text;
+create or replace function private.stamp_cleared_by() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.cleared_at is not null and old.cleared_at is null then new.cleared_by := private.who_name(auth.uid()); end if;
+  if new.cleared_at is null then new.cleared_by := null; end if;
+  return new;
+end $$;
+revoke execute on function private.stamp_cleared_by() from public, anon, authenticated;
+create or replace trigger shop_memberships_cleared_by before update on public.shop_memberships for each row execute function private.stamp_cleared_by();
