@@ -1529,3 +1529,7 @@ html:fullscreen .pill-nav { display: none; }
 .home-timer-link { font-size: 13px; font-weight: 600; color: #e6dcdc; text-decoration: none; text-shadow: 0 1px 8px rgb(0 0 0 / .7); margin-top: -4px; }
 .home-timer-link:hover { color: #fff; text-decoration: underline; }
 @media (min-width: 700px) { .home-ctas .home-cta { font-size: 17px; padding: 14px 22px; } }
+.upi-id-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.member-cta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.member-done, .member-mine { margin: 0; display: grid; gap: 6px; }
+.member-done { border-color: var(--pos); }

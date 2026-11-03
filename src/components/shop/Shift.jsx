@@ -55,7 +55,7 @@ export default function Shift({ householdId, userId, toast, shop, onOpen }) {
   const seats = (shop?.systems || []).filter((x) => x.active !== false).reduce((a, x) => a + (x.seats || 1) - (x.off_seats || []).filter((n) => n <= (x.seats || 1)).length, 0)
   const playing = running.reduce((a, x) => a + Math.max(1, Number(x.players) || 1), 0)
   const ending = running.filter((x) => !x.paused_at && minutesLeft(x, now) <= 10).sort((a, b) => minutesLeft(a, now) - minutesLeft(b, now))
-  const toCheck = (shop?.bookings || []).filter((b) => b.status === 'requested').length + (shop?.eventChecks || []).length + (shop?.entryChecks || []).length
+  const toCheck = (shop?.bookings || []).filter((b) => b.status === 'requested').length + (shop?.eventChecks || []).length + (shop?.entryChecks || []).length + (shop?.memberChecks || []).length
   const today = dayStart(), tomorrow = addDays(today, 1)
   const upcoming = (shop?.bookings || []).filter((b) => ['requested', 'confirmed'].includes(b.status) && new Date(b.starts_at) >= new Date(now - 30 * 60_000) && new Date(b.starts_at) < tomorrow)
     .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))

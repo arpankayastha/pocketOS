@@ -118,7 +118,7 @@ export default function Floor({ shop, householdId, toast, fixedView }) {
         <button className="btn small primary gx-book-btn" onClick={() => setSheet({ kind: 'book' })}>+ Book</button>
       </div>
       {view === 'calendar' ? (<>
-        {fixedView && <Bookings systems={shop.systems} bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />}
+        {fixedView && <Bookings systems={shop.systems} bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} memberChecks={shop.memberChecks} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />}
         <SlotCalendar shop={shop} toast={toast} onBook={(initial) => setSheet({ kind: 'book', initial })} onArrived={startBooking} />
       </>) : (<>
       <div className="gx-stats">
@@ -126,7 +126,7 @@ export default function Floor({ shop, householdId, toast, fixedView }) {
         <div className="free"><b>{totalSeats - busySeats}</b><span>Free</span></div>
         {isHappyDay(shop.settings) && <span className="pill gx-pill happy">Happy hours today</span>}
       </div>
-      <Bookings systems={shop.systems} bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />
+      <Bookings systems={shop.systems} bookings={shop.bookings} eventChecks={shop.eventChecks} entryChecks={shop.entryChecks} memberChecks={shop.memberChecks} onArrived={startBooking} onChanged={(m) => { toast(m); shop.reload() }} />
       {freeTiles.length > 0 && (
         <div className="card gx-freecard">
           <div className="card-head"><h3>Free now</h3><span className="muted small">Tap to start</span></div>

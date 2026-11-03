@@ -1,61 +1,105 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { rs } from '../lib/shop'
 import { hourlyRate, planDiscount } from '../lib/membership'
-import { telLink, waLink } from '../lib/products'
-import PublicNav from './PublicNav'
+import { signInWithGoogle, useMyStatus } from '../lib/mine'
+import { telLink } from '../lib/products'
+import PublicNav, { useCustomerSession } from './PublicNav'
+import { Profile } from './Me'
+import { PayCard } from './EventPage'
 
-// Public page #membership (owner, 1 Nov: "Join Membership Plan" button on the home page, the plans inside).
-// Joining is at the counter or by call / WhatsApp; the plans come from Admin → Website → Membership plans.
+// Public page #membership (owner, 1 + 3 Nov: "Join Membership Plan" on the home page; the customer signs in, pays
+// by UPI and the shop sees it in its list like a booking — rpc public_membership_join; staff Received starts it).
+const day = (d) => new Date(`${d}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+
 export default function Membership() {
   const [info, setInfo] = useState(null)
   const [error, setError] = useState(null)
+  const customer = useCustomerSession()
+  const { status, reload } = useMyStatus(customer || null)
+  const [mine, setMine] = useState([])
+  const loadMine = useCallback(() => { if (customer) supabase.rpc('my_memberships').then(({ data }) => setMine(data || [])) }, [customer])
   useEffect(() => { supabase.rpc('public_home').then(({ data, error }) => (error ? setError(error.message) : setInfo(data))) }, [])
+  useEffect(() => { loadMine() }, [loadMine])
+  const [pick, setPick] = useState(null) // { i, kind }
+  const [ref, setRef] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [payError, setPayError] = useState(null)
+  const [done, setDone] = useState(null)
   const m = info?.membership
   const pc = hourlyRate(info?.rates, 'PC'), ps = hourlyRate(info?.rates, 'PS')
+  const plan = pick && m?.plans?.[pick.i]
+  const price = plan ? (pick.kind === 'PS' ? plan.ps5 : plan.pc) : 0
+  const needsPhone = customer && status && !status.me?.phone
+
+  async function send() {
+    setBusy(true); setPayError(null)
+    const { data, error } = await supabase.rpc('public_membership_join', { p_plan: pick.i, p_kind: pick.kind, p_upi_ref: ref.trim() || null })
+    setBusy(false)
+    if (error) { setPayError(error.message); return }
+    setDone({ ...data, plan: plan.name, kind: pick.kind }); setPick(null); setRef(''); loadMine()
+  }
+  const join = (i, kind) => { setDone(null); if (!customer) { signInWithGoogle('#membership'); return } setPick({ i, kind }); window.scrollTo({ top: 0 }) }
+
   return (
     <div className="pub-page member-page">
       <PublicNav active="membership" />
       <a className="pub-back" href="#">‹ Home</a>
-      <header className="member-head">
-        <div className="home-kicker">GRANDXGAMER</div>
-        <h1>Choose your gaming <span>membership plan</span></h1>
-        <p className="muted">Join today and get special membership benefits.</p>
-      </header>
-      {error && <div className="alert error">{error}</div>}
-      {!info ? <div className="card muted">Loading…</div> : !m ? <div className="card muted">Membership plans are coming soon. Ask at the counter.</div> : (<>
-        <div className="member-plans">
-          {(m.plans || []).map((p, i) => {
-            const dPc = planDiscount(p.pc, p.hours, pc), dPs = planDiscount(p.ps5, p.hours, ps)
-            return (
-              <article key={i} className="card member-plan">
-                <div className="member-num">{String(i + 1).padStart(2, '0')}.</div>
-                <div className="member-main">
-                  <h2>{p.name}</h2>
-                  {p.pass && <div className="member-pass">{p.pass}</div>}
-                  <div className="member-prices">
-                    {p.pc > 0 && <div><span>PC</span><b>{rs(p.pc)}</b><em>{p.hours} hours</em></div>}
-                    {p.ps5 > 0 && <div><span>PS5</span><b>{rs(p.ps5)}</b><em>{p.hours} hours</em></div>}
+      {plan ? (
+        <PayCard amount={price} info={info} note={`Membership ${plan.name} ${pick.kind === 'PS' ? 'PS5' : 'PC'}`} what={`${plan.name} · ${pick.kind === 'PS' ? 'PS5' : 'PC'} · ${plan.hours} hours · ${plan.validity || `${plan.days} days`}`}
+          refValue={ref} setRef={setRef} onBack={() => setPick(null)} busy={busy} error={payError} onSend={send}
+          footer="Your plan starts when the shop sees your payment. Membership fees are non-refundable." />
+      ) : (<>
+        <header className="member-head">
+          <div className="home-kicker">GRANDXGAMER</div>
+          <h1>Choose your gaming <span>membership plan</span></h1>
+          <p className="muted">Join today and get special membership benefits.</p>
+        </header>
+        {error && <div className="alert error">{error}</div>}
+        {done && <div className="card member-done"><b>Payment sent · code {done.code}</b><span>The shop confirms your {done.plan} ({done.kind === 'PS' ? 'PS5' : 'PC'}) once the {rs(done.amount)} shows up. It starts then.</span></div>}
+        {mine.length > 0 && (
+          <div className="card member-mine">
+            <b>My membership</b>
+            {mine.map((x) => (
+              <div key={x.id} className="line"><span>{x.plan} · {x.kind === 'PS' ? 'PS5' : 'PC'} · {x.hours} h</span>
+                <b className={x.status === 'active' ? 'pos' : ''}>{x.status === 'active' ? `Active till ${day(x.ends_on)}` : 'Payment being checked'}</b></div>
+            ))}
+          </div>
+        )}
+        {needsPhone && <Profile me={status.me} session={customer} onSaved={reload} />}
+        {!info ? <div className="card muted">Loading…</div> : !m ? <div className="card muted">Membership plans are coming soon. Ask at the counter.</div> : (<>
+          <div className="member-plans">
+            {(m.plans || []).map((p, i) => {
+              const dPc = planDiscount(p.pc, p.hours, pc), dPs = planDiscount(p.ps5, p.hours, ps)
+              return (
+                <article key={i} className="card member-plan">
+                  <div className="member-num">{String(i + 1).padStart(2, '0')}.</div>
+                  <div className="member-main">
+                    <h2>{p.name}</h2>
+                    {p.pass && <div className="member-pass">{p.pass}</div>}
+                    <div className="member-prices">
+                      {p.pc > 0 && <div><span>PC</span><b>{rs(p.pc)}</b><em>{p.hours} hours</em></div>}
+                      {p.ps5 > 0 && <div><span>PS5</span><b>{rs(p.ps5)}</b><em>{p.hours} hours</em></div>}
+                    </div>
                   </div>
-                </div>
-                <ul className="member-incl">
-                  <li>{p.hours} hours play time</li>
-                  {p.validity && <li>{p.validity}</li>}
-                  {dPc && p.pc > 0 && <li>Get {dPc}% discount for PC</li>}
-                  {dPs && p.ps5 > 0 && <li>Get {dPs}% discount for PS5</li>}
-                </ul>
-                {info.phone ? (
+                  <ul className="member-incl">
+                    <li>{p.hours} hours play time</li>
+                    {p.validity && <li>{p.validity}</li>}
+                    {dPc && p.pc > 0 && <li>Get {dPc}% discount for PC</li>}
+                    {dPs && p.ps5 > 0 && <li>Get {dPs}% discount for PS5</li>}
+                  </ul>
                   <div className="member-cta">
-                    <a className="btn primary" href={waLink(info.phone, `Hi GRANDXGAMER, I want to join the ${p.name} (${p.pass || ''}).`)} target="_blank" rel="noreferrer">Join on WhatsApp</a>
-                    <a className="btn" href={telLink(info.phone)}>Call</a>
+                    {p.pc > 0 && <button className="btn primary" disabled={needsPhone} onClick={() => join(i, 'PC')}>Pay {rs(p.pc)} · PC</button>}
+                    {p.ps5 > 0 && <button className="btn" disabled={needsPhone} onClick={() => join(i, 'PS')}>Pay {rs(p.ps5)} · PS5</button>}
                   </div>
-                ) : <div className="muted small">Join at the counter.</div>}
-              </article>
-            )
-          })}
-        </div>
-        {m.note && <div className="card member-note"><b>Membership key benefit</b><span>{m.note}</span></div>}
-        {info.phone && <div className="member-contact muted small">Contact us · <a href={telLink(info.phone)}>{info.phone}</a> · pay at the counter or by UPI</div>}
+                </article>
+              )
+            })}
+          </div>
+          {!customer && <p className="muted small" style={{ margin: 0, textAlign: 'center' }}>You sign in with Google first, so your membership is saved to your account.</p>}
+          {m.note && <div className="card member-note"><b>Membership key benefit</b><span>{m.note}</span></div>}
+          {info.phone && <div className="member-contact muted small">Questions? <a href={telLink(info.phone)}>Call {info.phone}</a></div>}
+        </>)}
       </>)}
     </div>
   )

@@ -13,13 +13,13 @@ export function dailyRows(data, from, to) {
     const pick = (list, key) => (list || []).filter((x) => sameDay(x[key], d))
     const t = dayTotals({
       sessions: pick(data.sessions, 'started_at'), cash: pick(data.cash, 'at'), advances: pick(data.advances, 'created_at'),
-      deposits: data.deposits || [], duesPaid: data.duesPaid || [],
+      deposits: data.deposits || [], duesPaid: data.duesPaid || [], memberships: data.memberships || [],
     }, d)
     rows.push({ day: new Date(d), cash: t.cash, online: t.online, total: t.cash + t.online, sessions: t.sessions, minutes: t.minutes,
-      fnb: t.fnb, owed: t.owed, deposits: t.deposits || 0, refunds: t.refunds || 0, duesIn: t.duesIn || 0, out: t.out })
+      fnb: t.fnb, owed: t.owed, deposits: t.deposits || 0, refunds: t.refunds || 0, duesIn: t.duesIn || 0, members: t.members || 0, out: t.out })
   }
   const sum = (k) => rows.reduce((a, r) => a + r[k], 0)
-  const totals = Object.fromEntries(['cash', 'online', 'total', 'sessions', 'minutes', 'fnb', 'owed', 'deposits', 'refunds', 'duesIn', 'out'].map((k) => [k, sum(k)]))
+  const totals = Object.fromEntries(['cash', 'online', 'total', 'sessions', 'minutes', 'fnb', 'owed', 'deposits', 'refunds', 'duesIn', 'members', 'out'].map((k) => [k, sum(k)]))
   return { rows, totals }
 }
 

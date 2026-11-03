@@ -6,7 +6,7 @@ import { Collapsible } from '../Settings'
 
 // Admin → Website → Membership plans (owner, 1 Nov): the plans on the public #membership page and the home page's
 // "Join Membership Plan" button. Discounts shown to customers are worked out from the rate card.
-const blank = { name: '', pass: '', hours: 10, validity: '', pc: 0, ps5: 0 }
+const blank = { name: '', pass: '', hours: 10, days: 30, validity: '', pc: 0, ps5: 0 }
 export default function MembershipAdmin({ shop, householdId, toast }) {
   const saved = shop.settings?.membership || { on: false, note: '', plans: [] }
   const [m, setM] = useState(saved)
@@ -33,7 +33,8 @@ export default function MembershipAdmin({ shop, householdId, toast }) {
               <label>Name<input value={p.name} onChange={(e) => setPlan(i, 'name', e.target.value)} placeholder="Basic plan" /></label>
               <label>Pass<input value={p.pass} onChange={(e) => setPlan(i, 'pass', e.target.value)} placeholder="Weekly pass" /></label>
               <label>Hours<input inputMode="numeric" value={p.hours} onChange={(e) => setPlan(i, 'hours', num(e.target.value))} /></label>
-              <label>Validity<input value={p.validity} onChange={(e) => setPlan(i, 'validity', e.target.value)} placeholder="Weekly validity" /></label>
+              <label>Validity text<input value={p.validity} onChange={(e) => setPlan(i, 'validity', e.target.value)} placeholder="Weekly validity" /></label>
+              <label>Valid for (days)<input inputMode="numeric" value={p.days ?? ''} onChange={(e) => setPlan(i, 'days', num(e.target.value))} placeholder="7" /></label>
               <label>PC price ₹<input inputMode="numeric" value={p.pc} onChange={(e) => setPlan(i, 'pc', num(e.target.value))} /></label>
               <label>PS5 price ₹<input inputMode="numeric" value={p.ps5} onChange={(e) => setPlan(i, 'ps5', num(e.target.value))} /></label>
             </div>

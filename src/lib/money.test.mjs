@@ -167,4 +167,9 @@ assert.deepEqual(startPayments([{ g: 100, f: 0 }, { g: 100, f: 0 }], { pay: 'onl
 const sp = startPayments([{ g: 160, f: 20 }], { pay: 'split', cashPart: 30, advance: 100 })
 assert.equal(sp[0].paid_cash + sp[0].paid_online + sp[0].paid_deposit, 180); assert.equal(sp[0].paid_cash, 30)
 
+// membership paid: money in on the day it was paid, only once confirmed
+const mday = new Date(2026, 10, 3), mAt = new Date(2026, 10, 3, 12).toISOString()
+const mt = dayTotals({ sessions: [], cash: [], advances: [], memberships: [{ status: 'active', amount: 750, pay_mode: 'online', created_at: mAt }, { status: 'requested', amount: 1500, created_at: mAt }, { status: 'active', amount: 300, pay_mode: 'cash', created_at: mAt }] }, mday)
+assert.equal(mt.online, 750); assert.equal(mt.cash, 300); assert.equal(mt.members, 1050)
+
 console.log('money rules: all good')

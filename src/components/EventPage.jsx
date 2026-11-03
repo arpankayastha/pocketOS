@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { RANKS, eventImage, durLabel, rs, timeLabel } from '../lib/shop'
-import { qrSvg, upiLink } from '../lib/upi'
+import UpiPayBox from './UpiPayBox'
 import { isCustomer, readMine, rememberMine } from '../lib/mine'
 import PublicNav from './PublicNav'
 import ContactFields from './ContactFields'
@@ -190,16 +190,14 @@ function Tournament({ ev, info, me }) {
   )
 }
 
-function PayCard({ amount, info, note, what, refValue, setRef, onBack, busy, error, onSend, footer }) {
+export function PayCard({ amount, info, note, what, refValue, setRef, onBack, busy, error, onSend, footer }) {
   return (
     <div className="card book-pay">
       <button className="btn link" style={{ justifySelf: 'start', padding: 0 }} onClick={onBack}>‹ Change</button>
       <div className="muted small">{what}</div>
       <div className="gx-qr-amount">{rs(amount)}</div>
       {info.upi_id ? (<>
-        <div className="gx-qr-code" dangerouslySetInnerHTML={{ __html: qrSvg(upiLink(info, amount, note)) }} />
-        <a className="btn primary block" href={upiLink(info, amount, note)}>Pay in UPI app</a>
-        <div className="small">or pay to <b className="mono">{info.upi_id}</b></div>
+        <UpiPayBox info={info} amount={amount} note={note} />
         <label className="book-ref">UPI reference / last 4 digits (optional)<input value={refValue} onChange={(e) => setRef(e.target.value)} inputMode="numeric" /></label>
       </>) : <p className="muted small">Pay at the counter.</p>}
       <p className="muted small" style={{ margin: 0 }}>{footer}</p>

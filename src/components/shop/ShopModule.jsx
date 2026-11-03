@@ -119,6 +119,9 @@ export function useOnlineAlerts(householdId, onAlert) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shop_event_bookings', filter: `household_id=eq.${householdId}` }, ({ new: b }) => {
         if (b.source === 'online') say('New event booking', `${b.customer_name} · advance ${rs(b.advance_paid)} · check UPI`)
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shop_memberships', filter: `household_id=eq.${householdId}` }, ({ new: m }) => {
+        if (m.source === 'online') say('New membership', `${m.name} · ${m.plan_name} ${m.kind === 'PS' ? 'PS5' : 'PC'} · ${rs(m.amount)} · check UPI`)
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shop_entries', filter: `household_id=eq.${householdId}` }, ({ new: x }) => {
         say('New tournament entry', `${x.name} · ${x.rank}${Number(x.fee) ? ` · fee ${rs(x.fee)} · check UPI` : ''}`)
       })

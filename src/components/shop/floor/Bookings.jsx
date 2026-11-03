@@ -48,7 +48,7 @@ export function ChangeTimeSheet({ booking: b, onClose, onDone }) {
 // Online money to check, on every phone (admin and staff): slot bookings from /#book, event advances and
 // tournament entry fees from the home page. Staff open their UPI app, then tap Received — or Not received,
 // which cancels the request. "Arrived" on a confirmed slot booking starts its session, already paid.
-export function Bookings({ systems = [], bookings = [], eventChecks = [], entryChecks = [], onArrived, onChanged }) {
+export function Bookings({ systems = [], bookings = [], eventChecks = [], entryChecks = [], memberChecks = [], onArrived, onChanged }) {
   const dialog = useDialog()
   const [open, setOpen] = useState(null)
   const [move, setMove] = useState(null) // a booking whose customer didn't come on time → new time
@@ -68,7 +68,16 @@ export function Bookings({ systems = [], bookings = [], eventChecks = [], entryC
 
   // Slot bookings, event advances and tournament entries as one list: each row has one main action
   // (Received / Arrived / Confirm); the rest (details, call, not received, cancel) is in its sheet.
+  const ymd = (d) => d.toLocaleDateString('en-CA')
   const items = [
+    // Membership plans paid online (owner, 3 Nov): Received starts the plan today for its days; Not received cancels it.
+    ...memberChecks.map((m) => ({
+      id: m.id, badge: '★', cls: 'ev', name: m.name, sub: `${m.plan_name} · ${m.kind === 'PS' ? 'PS5' : 'PC'} · ${rs(m.amount)}`, phone: m.phone, check: true,
+      pill: 'Payment?',
+      details: [['Plan', `${m.plan_name}${m.pass ? ` · ${m.pass}` : ''}`], ['For', `${m.kind === 'PS' ? 'PS5' : 'PC'} · ${m.hours} hours · ${m.days} days`], ['Amount', rs(m.amount)], ['UPI ref', m.upi_ref], ['Mobile', m.phone]],
+      main: { label: 'Received', run: () => { const t = new Date(); update('shop_memberships', m, { status: 'active', starts_on: ymd(t), ends_on: ymd(new Date(t.getTime() + (m.days - 1) * 86_400_000)) }, `${m.name}’s ${m.plan_name} is active`) } },
+      other: { label: 'Not received', run: () => update('shop_memberships', m, { status: 'cancelled' }, 'Membership request cancelled', notPaid(m.name)) },
+    })),
     ...entryChecks.map((x) => ({
       id: x.id, badge: '🏆', cls: 'ev', name: `${x.name}${x.partner_name ? ` + ${x.partner_name}` : ''} · ${x.rank}`, sub: `${x.shop_events?.name}${Number(x.fee) ? ` · ${rs(x.fee)}` : ''}`, phone: x.phone, check: true,
       pill: Number(x.fee) ? 'Payment?' : 'New entry',

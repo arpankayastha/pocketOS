@@ -71,7 +71,7 @@ export const minutesLeft = (s, now = Date.now()) => (sessionEnd(s, now).getTime(
 
 // One day's money from sessions, event advances, deposits paid in, dues paid back and the cash drawer (default: today).
 // A deposit is money in on the day it's paid; using it later on a session isn't counted again.
-export function dayTotals({ sessions, cash, advances, deposits = [], duesPaid = [] }, from = dayStart()) {
+export function dayTotals({ sessions, cash, advances, deposits = [], duesPaid = [], memberships = [] }, from = dayStart()) {
   const t = { cash: 0, online: 0, owed: 0, sessions: 0, fnb: 0, minutes: 0, out: 0, in: 0, open: null, count: null }
   for (const s of sessions) {
     if (new Date(s.started_at) < from) continue
@@ -88,6 +88,12 @@ export function dayTotals({ sessions, cash, advances, deposits = [], duesPaid = 
     if (d.mode === 'online') t.online += v; else t.cash += v
     if (d.kind === 'refund') t.refunds = (t.refunds || 0) + Number(d.amount)
     else t.deposits = (t.deposits || 0) + Number(d.amount)
+  }
+  // Membership plans paid (owner, 3 Nov), on the day the customer paid, once the shop confirmed it.
+  for (const m of memberships) {
+    if (m.status !== 'active' || new Date(m.created_at) < from || new Date(m.created_at) >= to) continue
+    if (m.pay_mode === 'cash') t.cash += Number(m.amount); else t.online += Number(m.amount)
+    t.members = (t.members || 0) + Number(m.amount)
   }
   for (const p of duesPaid) {
     if (new Date(p.created_at) < from || new Date(p.created_at) >= to) continue

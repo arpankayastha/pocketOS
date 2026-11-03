@@ -16,7 +16,7 @@ export default function Today({ shop: live, householdId, onOpen, toast, staffVie
   const [back, setBack] = useState(0) // days before today
   const day = back ? addDays(dayStart(), -back) : null
   const past = useDay(householdId, day, version)
-  const shop = back ? { ...live, ...(past || { sessions: [], cash: [], advances: [], shifts: [], deposits: [], duesPaid: [] }) } : live
+  const shop = back ? { ...live, ...(past || { sessions: [], cash: [], advances: [], shifts: [], deposits: [], duesPaid: [], memberships: [] }) } : live
   const t = dayTotals(shop, day || dayStart())
   const daySwipe = useSwipe({ ignore: '.gx-scroll', onLeft: () => setBack((b) => Math.max(0, b - 1)), onRight: () => setBack((b) => b + 1) })
   const total = t.cash + t.online

@@ -61,7 +61,7 @@ export default function AdminModule({ topbar, email, vault, appLock, pinLock }) 
   else if (tab === 'sales') body = <Sales {...props} />
   else if (tab === 'bookings') body = <BookingsSection {...props} />
   else if (tab === 'staff') body = <Staff householdId={householdId} toast={toast} portal />
-  else if (tab === 'customers') body = <Customers householdId={householdId} toast={toast} />
+  else if (tab === 'customers') body = <Customers {...props} />
   else if (tab === 'website') body = <Website {...props} onOpen={go} />
   else if (tab === 'reports') body = <Reports householdId={householdId} />
   else if (tab === 'settings') body = <ShopSettings {...props} admin portal email={email} appLock={appLock} vault={vault} pinLock={pinLock} />

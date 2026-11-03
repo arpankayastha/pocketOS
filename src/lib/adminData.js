@@ -18,15 +18,17 @@ const SESSION_COLS = 'id, system_name, customer_name, customer_phone, started_at
 // Money and sessions for [from, to): the same shape dayTotals / dailyRows take.
 export async function loadRange(householdId, from, to) {
   const a = from.toISOString(), b = to.toISOString()
-  const [sessions, cash, advances, deposits, duesPaid, entries] = await Promise.all([
+  const [sessions, cash, advances, deposits, duesPaid, entries, memberships] = await Promise.all([
     fetchAll(() => supabase.from('shop_sessions').select(SESSION_COLS).eq('household_id', householdId).gte('started_at', a).lt('started_at', b).neq('status', 'cancelled').order('started_at')),
     fetchAll(() => supabase.from('shop_cash').select('*').eq('household_id', householdId).gte('at', a).lt('at', b).order('at', { ascending: false })),
     fetchAll(() => supabase.from('shop_event_bookings').select('id, customer_name, advance_paid, advance_mode, created_at, status, payment_ok').eq('household_id', householdId).gte('created_at', a).lt('created_at', b).gt('advance_paid', 0)),
     fetchAll(() => supabase.from('shop_deposits').select('*').eq('household_id', householdId).gte('created_at', a).lt('created_at', b)),
     fetchAll(() => supabase.from('shop_dues_paid').select('*').eq('household_id', householdId).gte('created_at', a).lt('created_at', b)),
+    // (memberships below)
     fetchAll(() => supabase.from('shop_entries').select('id, name, partner_name, fee, status, created_at, shop_events(name)').eq('household_id', householdId).eq('status', 'confirmed').gte('created_at', a).lt('created_at', b)),
+    fetchAll(() => supabase.from('shop_memberships').select('*').eq('household_id', householdId).eq('status', 'active').gte('created_at', a).lt('created_at', b)),
   ])
-  return { sessions, cash, advances: advances.filter((x) => x.status !== 'cancelled' && x.payment_ok !== false), deposits, duesPaid, entries }
+  return { sessions, cash, advances: advances.filter((x) => x.status !== 'cancelled' && x.payment_ok !== false), deposits, duesPaid, entries, memberships }
 }
 
 export function useRange(householdId, from, to) {

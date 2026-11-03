@@ -47,4 +47,11 @@ export function authSettings() {
   return settings
 }
 export const googleEnabled = () => authSettings().then((s) => s.google)
-export const signInWithGoogle = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/` } })
+// `back` = the page to return to after Google (e.g. '#membership'); Google sends everyone to the home page first.
+export const signInWithGoogle = (back) => {
+  try { if (back) localStorage.setItem('gx.after', back) } catch { /* ignore */ }
+  return supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/` } })
+}
+export function takeAfterSignIn() {
+  try { const v = localStorage.getItem('gx.after'); localStorage.removeItem('gx.after'); return v } catch { return null }
+}

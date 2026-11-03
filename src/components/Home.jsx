@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { DAY_NAMES, eventImage, dayStart, durLabel, rs, timeLabel } from '../lib/shop'
-import { isCustomer, useMyStatus } from '../lib/mine'
+import { isCustomer, takeAfterSignIn, useMyStatus } from '../lib/mine'
 import PublicNav from './PublicNav'
 import Products from './Products'
 import { Profile } from './Me'
@@ -17,6 +17,8 @@ export default function Home({ session }) {
   const customer = isCustomer(session) ? session : null
   const { status, reload } = useMyStatus(customer)
 
+  // Back to the page they signed in from (e.g. the membership page).
+  useEffect(() => { if (customer) { const back = takeAfterSignIn(); if (back) location.hash = back } }, [customer])
   useEffect(() => {
     supabase.rpc('public_home').then(({ data, error }) => { if (error) setError(error.message); else setInfo(data) })
     supabase.rpc('public_availability', { p_day: dayStart().toLocaleDateString('en-CA') }).then(({ data }) => setNow(data))

@@ -5,13 +5,24 @@ import { loadCustomers } from '../../lib/adminData'
 import { telLink, waLink } from '../../lib/products'
 import { ActionSheet, Chips } from '../shop/ui'
 import { downloadCsv, ymd } from './MonthPicker'
+import Members from './Members'
 
 // Portal → Customers (new, 29 Oct): everyone who has played — visits, money spent, last visit, deposit left and
 // dues — from the sessions themselves (same customer = same mobile, else same name). Tap one for their visits.
 const SORTS = [['recent', 'Recent'], ['spent', 'Top spenders'], ['visits', 'Most visits'], ['deposit', 'With deposit'], ['dues', 'With dues']]
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—')
 
-export default function Customers({ householdId }) {
+export default function Customers({ shop, householdId, toast }) {
+  const [view, setView] = useState('customers')
+  return (
+    <section className="admin-sec">
+      <Chips options={[['customers', 'Customers'], ['members', 'Members']]} value={view} onChange={setView} />
+      {view === 'members' ? <Members shop={shop} householdId={householdId} toast={toast} /> : <CustomerList householdId={householdId} />}
+    </section>
+  )
+}
+
+function CustomerList({ householdId }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [q, setQ] = useState('')

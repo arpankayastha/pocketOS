@@ -1459,3 +1459,29 @@ alter table public.shop_settings add column if not exists contact_phone text;
 -- ps5}]}, seeded with Basic (15 h, ₹750 / ₹1,050), Premium (30 h, ₹1,500 / ₹2,100), Pro (60 h, ₹3,000 / ₹4,200);
 -- public_home() returns it as 'membership' when on. contact_phone was set to the number on his poster.
 alter table public.shop_settings add column if not exists membership jsonb;
+
+-- Paid memberships (owner, 3 Nov: "join nahi payment — payment karke join karega, humko list me dikhayega, jaise
+-- booking ka"; customer logs in first). Migrations shop_memberships, shop_memberships_pay_mode, push_due_memberships:
+-- table shop_memberships (customer_id, name, phone, plan_name, pass, kind PC/PS, hours, days, amount, pay_mode
+-- cash/online, upi_ref, status requested/active/cancelled, starts_on, ends_on, source online/counter, entered_by,
+-- handled_by, push_at); RLS "shop reads" / "staff writes" / "staff updates" (my_household_ids), "admin deletes";
+-- triggers stamp entered_by / handled_by; in the realtime publication. Plans gained "days" (7 / 15 / 30).
+-- rpc public_membership_join(plan index, kind, upi_ref) (authenticated customers with a mobile; refuses a second
+-- request within a day) → status requested; rpc my_memberships() = the caller's own. Staff Received (Slots →
+-- Bookings) → active, starts today, ends after its days. push_due() also alerts "New membership · <plan>".
+-- Money: an active membership counts as money in on the day it was paid (dayTotals `memberships`, like event
+-- advances it isn't in the Cashbook sync / Daily check yet).
+create table if not exists public.shop_memberships (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  customer_id uuid references auth.users(id) on delete set null,
+  name text not null, phone text, plan_name text not null, pass text,
+  kind text not null check (kind in ('PC', 'PS')),
+  hours numeric(6,1) not null check (hours > 0), days int not null check (days > 0),
+  amount numeric(10,2) not null check (amount >= 0),
+  pay_mode text not null default 'online' check (pay_mode in ('cash', 'online')),
+  upi_ref text,
+  status text not null default 'requested' check (status in ('requested', 'active', 'cancelled')),
+  starts_on date, ends_on date, source text not null default 'online',
+  entered_by text, handled_by text, push_at timestamptz, created_at timestamptz not null default now()
+);

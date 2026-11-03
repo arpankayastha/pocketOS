@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { addDays, dayStart, durLabel, priceFor, rs, timeLabel } from '../lib/shop'
-import { qrSvg, upiLink } from '../lib/upi'
+import UpiPayBox from './UpiPayBox'
 import { rememberMine } from '../lib/mine'
 import PublicNav from './PublicNav'
 import ContactFields from './ContactFields'
@@ -96,9 +96,7 @@ export default function Book() {
           <div className="muted small">{kind === 'PS' ? 'PS5' : 'PC'} · {new Date(start).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {timeLabel(start)} – {timeLabel(new Date(start).getTime() + minutes * 60_000)}{players > 1 ? ` · ${players} players` : ''}</div>
           <div className="gx-qr-amount">{rs(amount)}</div>
           {info.upi_id ? (<>
-            <div className="gx-qr-code" dangerouslySetInnerHTML={{ __html: qrSvg(upiLink(info, amount, note)) }} />
-            <a className="btn primary block" href={upiLink(info, amount, note)}>Pay in UPI app</a>
-            <div className="small">or pay to <b className="mono">{info.upi_id}</b></div>
+            <UpiPayBox info={info} amount={amount} note={note} />
             <label className="book-ref">UPI reference / last 4 digits (optional)<input value={ref} onChange={(e) => setRef(e.target.value)} inputMode="numeric" /></label>
           </>) : <p className="muted small">Pay at the counter when you arrive.</p>}
           <p className="muted small" style={{ margin: 0 }}>Advance payment & non-refundable once paid.</p>

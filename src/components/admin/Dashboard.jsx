@@ -41,7 +41,7 @@ export default function Dashboard({ shop, householdId, onOpen, onCounter }) {
   const prevT = useMemo(() => prev.data && dailyRows(prev.data, lastFrom, lastTo).totals, [prev.data]) // eslint-disable-line react-hooks/exhaustive-deps
   const change = curT && prevT && prevT.total ? Math.round(((curT.total - prevT.total) / prevT.total) * 100) : null
 
-  const toCheck = shop.bookings.filter((b) => b.status === 'requested').length + shop.eventChecks.length + shop.entryChecks.length
+  const toCheck = shop.bookings.filter((b) => b.status === 'requested').length + shop.eventChecks.length + shop.entryChecks.length + (shop.memberChecks || []).length
   const unmatched = (shop.paymentsIn || []).filter((p) => p.status === 'new').length
   const dues = duesByCustomer(shop.dues)
   const oldDues = dues.filter((d) => d.sessions.some((s) => new Date(s.started_at) < addDays(today, -7)))
