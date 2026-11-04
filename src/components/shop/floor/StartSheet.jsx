@@ -8,15 +8,15 @@ import { depLabel, FNB, useDepositPick } from './common'
 
 // Start one PC, or one or more PS5 controllers together (each controller = one customer, one timer, priced
 // per head). A booking's amount is split across its controllers as already paid online.
-export function StartSheet({ system: first, seats, freeOf, systems, booking, dues, deposits = [], members = [], rates, settings, happy, householdId, onClose, onDone }) {
+export function StartSheet({ system: first, seats, freeOf, systems, booking, memberLock = null, dues, deposits = [], members = [], rates, settings, happy, householdId, onClose, onDone }) {
   // Owner: "booked PC2 but sat at PC4" — any free system of the same kind can be picked here.
   const [system, setSystem] = useState(first)
   const free = freeOf(system)
   const others = systems.filter((x) => x.kind === first.kind && freeOf(x).length > 0)
   const [picked, setPicked] = useState(seats || [free[0]])
   const [cashPart, setCashPart] = useState('')
-  const [name, setName] = useState(booking?.customer_name || '')
-  const [phone, setPhone] = useState(booking?.customer_phone || '')
+  const [name, setName] = useState(booking?.customer_name || memberLock?.name || '')
+  const [phone, setPhone] = useState(booking?.customer_phone || memberLock?.phone || '')
   const [mins, setMins] = useState(booking?.minutes || 60)
   const [fnb, setFnb] = useState(0)
   const [fnbOther, setFnbOther] = useState('') // owner: type any F&B amount, not only the chips
@@ -35,15 +35,12 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   const bookedSame = booking && mins === booking.minutes && count === (booking.players || 1)
   // Membership hours (owner, 3 Nov): a member's time comes off their plan first; only time past it is charged.
   // Owner, 3 Nov: a friend can play on a member's hours, like a shared deposit — "Use a membership" + whose.
-  const own = !online ? memberFor(members, name, phone, system.kind) : null
-  const today = new Date().toLocaleDateString('en-CA')
-  const usable = online ? [] : members.filter((m) => m.status === 'active' && m.kind === system.kind && m.left_minutes > 0 && (!m.ends_on || m.ends_on >= today))
-  // Owner, 3 Nov (2): the old "friend's membership" drop-down above Time wasn't seen — now a "Pay from membership"
-  // row of chips right above Payment, every active plan of this kind listed; the customer's own plan is picked by itself.
-  const [memberPick, setMemberPick] = useState(null) // null = automatic (their own plan, if any)
-  const memberId = memberPick ?? (own?.id || '')
-  const member = usable.find((m) => m.id === memberId) || null
-  const friendMember = !!member && member.id !== own?.id
+  // Owner, 4 Nov ("employee galati na kare"): a member's entry starts only from Slots → Members (memberLock) — same
+  // sheet, the plan already picked and no Payment choice (time past the plan and F&B are collected at End).
+  // A normal Start never uses a membership; it only warns when the name / mobile belongs to a member.
+  const own = !online && !memberLock ? memberFor(members, name, phone, system.kind) : null
+  const member = memberLock
+  const friendMember = !!member && customerKey(name, null) !== customerKey(member.name, null)
   const useMember = !!member
   const cover = member && useMember && !bookedSame ? memberCover(picked.map(() => mins), member.left_minutes) : picked.map(() => 0)
   const gameRows = picked.map((_, i) => (cover[i] ? (mins > cover[i] ? priceFor(rates, system.kind, mins - cover[i], happy) : 0) : each))
@@ -100,7 +97,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
   }
 
   return (
-    <Sheet title={`${system.name} · new customer`} sub={`${durLabel(mins)}${happy ? ' · happy hours' : ''} · save now, start the clock when they sit down`} onClose={onClose} onSubmit={() => save(true)}>
+    <Sheet title={`${system.name} · ${member ? `★ ${member.name}` : 'new customer'}`} sub={`${durLabel(mins)}${happy ? ' · happy hours' : ''} · save now, start the clock when they sit down`} onClose={onClose} onSubmit={() => save(true)}>
       {error && <div className="alert error">{error}</div>}
       {others.length > 1 && (<>
         <div className="caps muted">{first.kind === 'PS' ? 'Console' : 'PC'} · where they sit</div>
@@ -121,11 +118,13 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       <Chips scroll options={FNB} value={fnbOther ? null : fnb} onChange={(v) => { setFnb(v); setFnbOther('') }} />
       <input className="gx-other" inputMode="numeric" value={fnbOther} placeholder="Other amount ₹"
         onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 5); setFnbOther(v); setFnb(Number(v) || 0) }} />
-      {usable.length > 0 && !bookedSame && (<>
-        <div className="caps muted">★ Pay from membership</div>
-        <Chips options={[['', 'No · pay as usual'], ...usable.map((m) => [m.id, `★ ${m.name} · ${m.plan_name} · ${hoursLabel2(m.left_minutes)} left`])]} value={memberId} onChange={setMemberPick} />
-        {member && <div className="small muted">{friendMember ? `On ${member.name}’s plan · ` : ''}{hoursLabel2(covered)} from the membership{covered < mins * count ? ` · ${hoursLabel2(mins * count - covered)} charged` : ' · nothing to pay for gaming'} · {hoursLabel2(member.left_minutes - covered)} left after</div>}
-      </>)}
+      {own && <div className="alert error" style={{ margin: 0 }}>★ {own.name} has a {own.plan_name} membership ({hoursLabel2(own.left_minutes)} left). To use it, Cancel and start from Slots → Members → {own.name}.</div>}
+      {member ? (
+        <div className="gx-box member-box">
+          <b>★ Paid from {friendMember ? `${member.name}’s ` : ''}{member.plan_name} membership</b>
+          <div className="small muted">{hoursLabel2(covered)} from the plan · {hoursLabel2(member.left_minutes - covered)} left after{covered < mins * count || fnb > 0 ? ` · ${rs(bill)} (${[covered < mins * count && `${hoursLabel2(mins * count - covered)} over the plan`, fnb > 0 && 'F&B'].filter(Boolean).join(' + ')}) collected at End` : ' · nothing to pay'}</div>
+        </div>
+      ) : (<>
       <div className="caps muted">Payment</div>
       {advUse > 0 && <div className="small"><b className="pos">{rs(advUse)} advance</b> <span className="muted">paid when booking · taken off this bill automatically. Pick how the rest {rs(total)} is paid.</span></div>}
       {advance > 0 && !advUse && <div className="small muted">The {rs(advance)} booking advance isn’t in {booking.customer_name}’s deposit any more, so it can’t be taken off.</div>}
@@ -136,6 +135,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, due
       {pay === 'deposit' && dep && <div className="small muted">{rs(fromDep)} from {dep.name}’s deposit{total > fromDep ? ` · ${rs(total - fromDep)} to collect at the end` : ''} · {rs(dep.balance - fromDep)} left after.</div>}
       {pay === 'split' && <label>Cash part<input inputMode="numeric" value={cashPart} onChange={(e) => setCashPart(e.target.value.replace(/\D/g, ''))} placeholder={`of ${rs(total)} — rest is online`} /></label>}
       {(pay === 'online' || pay === 'split') && <UpiQrButton settings={settings} amount={pay === 'split' ? Math.max(0, total - (Number(cashPart) || 0)) : total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
+      </>)}
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {covered > 0 && <SumRow label={`From ${member.plan_name} membership`} value={hoursLabel2(covered)} />}
