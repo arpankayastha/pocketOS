@@ -1525,3 +1525,20 @@ begin
 end $$;
 revoke execute on function private.stamp_cleared_by() from public, anon, authenticated;
 create or replace trigger shop_memberships_cleared_by before update on public.shop_memberships for each row execute function private.stamp_cleared_by();
+
+-- Owner, 6 Nov ("cancel booking karne pe history me dikhata hai kya?"): migrations booking_cancelled_by +
+-- booking_cancelled_from — who / when / from which status a slot booking was cancelled; listed in Slots → Calendar
+-- ("Cancelled this day") and Admin → Bookings & events → Cancelled (month).
+alter table public.shop_bookings add column if not exists cancelled_at timestamptz, add column if not exists cancelled_by text,
+  add column if not exists cancelled_from text;
+create or replace function private.stamp_booking_cancel() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status = 'cancelled' and old.status is distinct from 'cancelled' then
+    new.cancelled_at := now(); new.cancelled_by := coalesce(private.who_name(auth.uid()), 'Customer / system'); new.cancelled_from := old.status;
+  elsif new.status <> 'cancelled' then new.cancelled_at := null; new.cancelled_by := null; new.cancelled_from := null;
+  end if;
+  return new;
+end $$;
+revoke execute on function private.stamp_booking_cancel() from public, anon, authenticated;
+create or replace trigger shop_bookings_cancelled_by before update on public.shop_bookings for each row execute function private.stamp_booking_cancel();
+create index if not exists shop_bookings_cancelled_idx on public.shop_bookings (household_id, starts_at) where status = 'cancelled';

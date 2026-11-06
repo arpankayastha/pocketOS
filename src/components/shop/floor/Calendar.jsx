@@ -6,6 +6,7 @@ import { ActionGrid, ActionSheet, Chips } from '../ui'
 import { ClockPlusIcon, PhoneIcon, XIcon } from '../../../lib/icons'
 import { timeHistory, ymdLocal } from './common'
 import { ChangeTimeSheet } from './Bookings'
+import { CancelledBookings } from './Cancelled'
 
 // Slots → Calendar (owner: "a calendar like Events — see tomorrow's bookings, and book from here"). One row per
 // hour of the shop's day: how many PCs / PS5 controllers are free (public_availability, the same count online
@@ -92,6 +93,8 @@ export function SlotCalendar({ shop, onBook, onArrived, toast }) {
           })}
         </div>
       </>)}
+      {(() => { const f = new Date(`${day}T00:00`), t = new Date(f); t.setDate(t.getDate() + 1); t.setHours(6)
+        return <CancelledBookings householdId={shop.systems[0]?.household_id} systems={shop.systems} from={f} to={t} kind={kind} title="Cancelled this day" version={version} /> })()}
       {openB && (
         <ActionSheet title={openB.customer_name} sub={`${timeLabel(openB.starts_at)} – ${timeLabel(new Date(openB.starts_at).getTime() + openB.minutes * 60_000)}${openB.players > 1 ? ` · ${openB.players} players` : ''}`} onClose={() => setOpenB(null)}>
           <div className="gx-details">
