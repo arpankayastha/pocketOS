@@ -26,7 +26,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
   // (staff used to mark the full bill paid and the advance was counted twice); Payment only covers the rest.
   const advance = booking && !online ? Number(booking.paid) || 0 : 0
   const advDep = advance > 0 ? balanceFor(deposits, booking.customer_name, booking.customer_phone) : null
-  const [pay, setPay] = useState(online ? 'booked' : 'end')
+  const [payPick, setPay] = useState(online ? 'booked' : 'end')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const multi = (system.seats || 1) > 1
@@ -49,6 +49,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
   const bill = gaming + fnb
   const advUse = advDep ? Math.min(advance, advDep.balance, bill) : 0
   const total = bill - advUse // what the Payment choice covers
+  const pay = advUse > 0 && total <= 0 ? 'end' : payPick // fully paid by the advance → nothing to pick
   const key = customerKey(name, phone)
   const owes = key.length > 2 ? duesByCustomer(dues).find((d) => d.key === key) : null
   // Owner, 14 Oct: regulars play on dues (pay days later) or from their deposit.
@@ -126,8 +127,10 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
         </div>
       ) : (<>
       <div className="caps muted">Payment</div>
-      {advUse > 0 && <div className="small"><b className="pos">{rs(advUse)} advance</b> <span className="muted">paid when booking · taken off this bill automatically. Pick how the rest {rs(total)} is paid.</span></div>}
+      {advUse > 0 && <div className="small"><b className="pos">{rs(advUse)} advance</b> <span className="muted">paid when booking · taken off this bill automatically.{total > 0 ? ` Pick how the rest ${rs(total)} is paid.` : ''}</span></div>}
       {advance > 0 && !advUse && <div className="small muted">The {rs(advance)} booking advance isn’t in {booking.customer_name}’s deposit any more, so it can’t be taken off.</div>}
+      {/* Owner, 6 Nov: a booking already paid by its advance shows no Payment choice until F&B (or more time) is added. */}
+      {advUse > 0 && total <= 0 ? <div className="small pos"><b>✓ Fully paid by the booking advance</b> · nothing to collect now. Add F&amp;B or more time and the payment choice appears.</div> : (<>
       <Chips options={[...(online ? [['booked', `Paid online · ${rs(booking.amount)}`]] : []), ['end', 'At the end'], ['cash', 'Paid now · cash'], ['online', 'Paid now · online'], ['split', 'Cash + online'], ['due', 'Due · pays later'], ...(anyDep ? [['deposit', depLabel(ownDep)]] : [])]} value={pay} onChange={(v) => { setPay(v); setPart('') }} />
       {pay === 'deposit' && depPicker}
       {(pay === 'due' || (pay === 'deposit' && dep)) && <label>{pay === 'due' ? 'Amount into dues' : 'Amount from deposit'} (₹)<input inputMode="numeric" value={part} onChange={(e) => setPart(e.target.value.replace(/\D/g, ''))} placeholder={`${rs(pay === 'due' ? total : Math.min(dep.balance, total))} · all`} /></label>}
@@ -136,12 +139,13 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
       {pay === 'split' && <label>Cash part<input inputMode="numeric" value={cashPart} onChange={(e) => setCashPart(e.target.value.replace(/\D/g, ''))} placeholder={`of ${rs(total)} — rest is online`} /></label>}
       {(pay === 'online' || pay === 'split') && <UpiQrButton settings={settings} amount={pay === 'split' ? Math.max(0, total - (Number(cashPart) || 0)) : total} note={`${system.name} · ${name.trim() || 'Walk-in'}`} />}
       </>)}
+      </>)}
       <div className="gx-box">
         <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
         {covered > 0 && <SumRow label={`From ${member.plan_name} membership`} value={hoursLabel2(covered)} />}
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
         {advUse > 0 && <SumRow label="Booking advance (from deposit)" value={`−${rs(advUse)}`} />}
-        <SumRow strong label={pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : pay === 'due' ? 'Into their dues' : pay === 'deposit' ? 'From deposit' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : pay === 'deposit' ? fromDep : pay === 'due' ? dueNow : total)} />
+        <SumRow strong label={advUse > 0 && total <= 0 ? 'Left to pay' : pay === 'end' ? 'Total so far' : pay === 'booked' ? 'Paid when booking' : pay === 'due' ? 'Into their dues' : pay === 'deposit' ? 'From deposit' : 'Paid now'} value={rs(pay === 'booked' ? Number(booking.amount) : pay === 'deposit' ? fromDep : pay === 'due' ? dueNow : total)} />
         {pay === 'split' && <SumRow label={`Cash ${rs(Math.min(Number(cashPart) || 0, total))} · online`} value={rs(Math.max(0, total - (Number(cashPart) || 0)))} />}
       </div>
       {/* Owner: several customers at once — save each entry first, start the clock when they sit down. */}
