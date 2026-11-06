@@ -135,7 +135,7 @@ export function Bookings({ systems = [], bookings = [], eventChecks = [], entryC
           <div className="gx-details">{open.details.filter(([, v]) => v).map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}</div>
           <ActionGrid items={[
             open.phone && { label: 'Call', icon: <PhoneIcon />, href: `tel:${open.phone}` },
-            open.raw?.status === 'confirmed' && { label: 'Not arrived · change time', icon: <ClockPlusIcon />, onClick: () => { setMove(open.raw); setOpen(null) } },
+            open.raw?.status === 'confirmed' && { label: 'Change time', icon: <ClockPlusIcon />, onClick: () => { setMove(open.raw); setOpen(null) } },
             { label: open.other.label, icon: <XIcon />, onClick: open.other.run, danger: true },
           ]} />
         </ActionSheet>

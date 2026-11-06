@@ -102,7 +102,7 @@ export function SlotCalendar({ shop, onBook, onArrived, toast }) {
           </div>
           <ActionGrid items={[
             openB.customer_phone && { label: 'Call', icon: <PhoneIcon />, href: `tel:${openB.customer_phone}` },
-            openB.status === 'confirmed' && { label: 'Not arrived · change time', icon: <ClockPlusIcon />, onClick: () => { setMoveB(openB); setOpenB(null) } },
+            openB.status === 'confirmed' && { label: 'Change time', icon: <ClockPlusIcon />, onClick: () => { setMoveB(openB); setOpenB(null) } },
             openB.status !== 'arrived' && { label: 'Cancel booking', icon: <XIcon />, onClick: () => { const b = openB; setOpenB(null); cancel(b) }, danger: true },
           ]} />
         </ActionSheet>
