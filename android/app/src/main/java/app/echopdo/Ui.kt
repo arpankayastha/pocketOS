@@ -8,6 +8,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -113,5 +115,16 @@ class FlowLayout(ctx: Context, private val gap: Int = ctx.dp(8)) : ViewGroup(ctx
             x += c.measuredWidth + gap
             lineH = maxOf(lineH, c.measuredHeight)
         }
+    }
+}
+
+// Edge to edge (targetSdk 35 draws under the status and navigation bars): keep this view's own
+// padding and add the bar sizes on the chosen sides, so content never sits under them.
+fun View.padForSystemBars(top: Boolean = false, bottom: Boolean = true) {
+    val l = paddingLeft; val t = paddingTop; val r = paddingRight; val b = paddingBottom
+    ViewCompat.setOnApplyWindowInsetsListener(this) { v, insets ->
+        val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+        v.setPadding(l, t + if (top) bars.top else 0, r, b + if (bottom) bars.bottom else 0)
+        insets
     }
 }

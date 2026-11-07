@@ -70,7 +70,7 @@ class MainActivity : Activity() {
         actions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
         col.addView(actions, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(20) })
         col.addView(label("v${BuildConfig.VERSION_NAME}", 11f, C.muted).apply { setPadding(0, dp(24), 0, 0) })
-        return ScrollView(this).apply { setBackgroundColor(C.bg); isFillViewport = true; addView(col) }
+        return ScrollView(this).apply { setBackgroundColor(C.bg); isFillViewport = true; addView(col); padForSystemBars(top = true) }
     }
 
     private fun chrome(): String? = listOf("com.android.chrome", "com.chrome.beta", "com.chrome.dev", "com.chrome.canary").firstOrNull {

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed (monochrome) launcher icon: the open hisab book with ₹, outlines only, one colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="0"
+        android:pivotY="0"
+        android:scaleX="0.19"
+        android:scaleY="0.19"
+        android:translateX="5.36"
+        android:translateY="-0.72">
+        <path
+            android:pathData="M88,172c58,-30 118,-30 168,6v226c-50,-34 -110,-34 -168,-6z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="18"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M424,172c-58,-30 -118,-30 -168,6v226c50,-34 110,-34 168,-6z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="18"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M122,238h96M122,272h96M122,306h62"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="14"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M296,236h82M296,266h82M306,236c46,0 46,60 0,60h-6l62,66"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="18"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

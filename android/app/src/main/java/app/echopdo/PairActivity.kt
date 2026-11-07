@@ -41,6 +41,7 @@ class PairActivity : Activity() {
             }
             setPadding(dp(20), dp(20), dp(20), dp(24))
             isClickable = true
+            padForSystemBars()
         }
         val scroll = android.widget.ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(body) }
         root.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))

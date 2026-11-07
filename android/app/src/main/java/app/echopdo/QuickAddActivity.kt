@@ -134,6 +134,7 @@ class QuickAddActivity : Activity() {
             }
             setPadding(dp(16), dp(10), dp(16), dp(12))
             isClickable = true
+            padForSystemBars()
         }
         val h = (resources.displayMetrics.heightPixels * 0.88).toInt()
         root.addView(sheet, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h, Gravity.BOTTOM))
