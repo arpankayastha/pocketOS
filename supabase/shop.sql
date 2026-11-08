@@ -1581,3 +1581,4 @@ begin
   return null;
 end $$;
 alter publication supabase_realtime add table public.shop_dues_added;
+create index if not exists shop_dues_paid_due_idx on public.shop_dues_paid (due_id);
