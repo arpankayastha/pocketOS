@@ -1542,3 +1542,42 @@ end $$;
 revoke execute on function private.stamp_booking_cancel() from public, anon, authenticated;
 create or replace trigger shop_bookings_cancelled_by before update on public.shop_bookings for each row execute function private.stamp_booking_cancel();
 create index if not exists shop_bookings_cancelled_idx on public.shop_bookings (household_id, starts_at) where status = 'cancelled';
+
+-- Owner, 8 Nov ("new dues add krne ke liye nahi aa rha · usme hi aur add krna ho to bhi"): dues added by hand at
+-- Cash → Customer dues (+ Due, and Add more dues in a customer's sheet). Not a session (no hours, no bill); the app
+-- lists them with the session dues (useShop addedDue); collecting inserts shop_dues_paid with due_id, which lowers owed.
+-- Migration shop_dues_added.
+create table if not exists public.shop_dues_added (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  customer_name text not null,
+  customer_phone text,
+  amount numeric(10,2) not null check (amount > 0),
+  owed numeric(10,2) not null check (owed >= 0),
+  reason text,
+  entered_by text,
+  created_at timestamptz not null default now()
+);
+create index if not exists shop_dues_added_hh_idx on public.shop_dues_added (household_id, created_at desc);
+create index if not exists shop_dues_added_open_idx on public.shop_dues_added (household_id) where owed > 0;
+alter table public.shop_dues_added enable row level security;
+create policy "shop reads" on public.shop_dues_added for select to authenticated using (household_id in (select private.my_household_ids()));
+create policy "staff writes" on public.shop_dues_added for insert to authenticated with check (household_id in (select private.my_household_ids()));
+create policy "staff updates" on public.shop_dues_added for update to authenticated using (household_id in (select private.my_household_ids())) with check (household_id in (select private.my_household_ids()));
+create policy "admin deletes" on public.shop_dues_added for delete to authenticated using (household_id in (select private.my_admin_household_ids()));
+create or replace trigger shop_dues_added_entered_by before insert on public.shop_dues_added for each row execute function private.stamp_entered_by();
+alter table public.shop_dues_paid add column if not exists due_id uuid references public.shop_dues_added(id) on delete cascade;
+alter table public.shop_dues_paid alter column session_id drop not null;
+create or replace function private.apply_dues_paid() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.shop_sessions set owed = greatest(0, owed - new.amount) where id = new.session_id;
+    update public.shop_dues_added set owed = greatest(0, owed - new.amount) where id = new.due_id;
+  elsif tg_op = 'DELETE' then
+    update public.shop_sessions set owed = owed + old.amount where id = old.session_id;
+    update public.shop_dues_added set owed = owed + old.amount where id = old.due_id;
+  end if;
+  perform private.sync_floor_takings(coalesce(new.household_id, old.household_id), (coalesce(new.created_at, old.created_at) at time zone 'Asia/Kolkata')::date);
+  return null;
+end $$;
+alter publication supabase_realtime add table public.shop_dues_added;

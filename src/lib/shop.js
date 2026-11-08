@@ -27,13 +27,18 @@ export function useShopId(memberHouseholdId) {
   return id
 }
 
+// A due added by hand (shop_dues_added) shaped like a session's due, so every dues list / total treats it the same.
+export const addedDue = (d) => ({ id: d.id, manual: true, customer_name: d.customer_name, customer_phone: d.customer_phone, system_name: 'Added due',
+  started_at: d.created_at, owed: Number(d.owed), amount: Number(d.amount), entered_by: d.entered_by, handled_by: d.entered_by,
+  note: `Due: ${d.reason || 'added by hand'}`, gaming_amount: 0, extend_amount: 0, fnb_before: 0, fnb_while: 0 })
+
 export function useShop(householdId) {
   const [state, setState] = useState({ loading: true, error: null, systems: [], rates: [], sessions: [], cash: [], advances: [], shifts: [], deposits: [], settings: null, bookings: [], eventChecks: [], entryChecks: [], dues: [], duesPaid: [], paymentsIn: [], memberships: [], memberChecks: [], members: [] })
 
   const reload = useCallback(async () => {
     if (!householdId) return
     const from = dayStart().toISOString()
-    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid, payIn, members, memberStatus] = await Promise.all([
+    const [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid, payIn, members, memberStatus, duesAdded] = await Promise.all([
       supabase.from('shop_systems').select('*').eq('household_id', householdId).eq('active', true).order('sort').order('name'),
       supabase.from('shop_rates').select('*').eq('household_id', householdId).order('kind').order('minutes'),
       supabase.from('shop_sessions').select('*').eq('household_id', householdId).gte('started_at', from).neq('status', 'cancelled').order('started_at', { ascending: false }),
@@ -58,6 +63,8 @@ export function useShop(householdId) {
       supabase.from('shop_memberships').select('*').eq('household_id', householdId).or(`created_at.gte.${from},status.eq.requested`).neq('status', 'cancelled').order('created_at'),
       // Active plans with their hours played / left (view shop_membership_status) for Start, Extend and the rows.
       supabase.from('shop_membership_status').select('*').eq('household_id', householdId).eq('status', 'active').gte('ends_on', dayStart().toLocaleDateString('en-CA')),
+      // Dues added by hand at Cash → Customer dues (owner, 8 Nov), not from a session.
+      supabase.from('shop_dues_added').select('*').eq('household_id', householdId).gt('owed', 0).order('created_at'),
     ])
     const err = [sys, rates, todays, running, cash, adv, shifts, deps, settings, bookings, evChecks, entChecks, dues, duesPaid].find((r) => r.error)?.error
     if (err) { setState((s) => ({ ...s, loading: false, error: err.message })); return }
@@ -66,7 +73,7 @@ export function useShop(householdId) {
       sessions: [...todays.data, ...running.data], cash: cash.data,
       advances: adv.data.filter((b) => b.status !== 'cancelled' && b.payment_ok !== false), shifts: shifts.data,
       deposits: deps.data, settings: settings.data, bookings: bookings.data,
-      eventChecks: evChecks.data, entryChecks: entChecks.data, dues: dues.data, duesPaid: duesPaid.data, paymentsIn: payIn.data || [],
+      eventChecks: evChecks.data, entryChecks: entChecks.data, dues: [...dues.data, ...(duesAdded.data || []).map(addedDue)].sort((a, b) => new Date(a.started_at) - new Date(b.started_at)), duesPaid: duesPaid.data, paymentsIn: payIn.data || [],
       memberships: (members.data || []).filter((m) => m.status === 'active'), memberChecks: (members.data || []).filter((m) => m.status === 'requested'), members: memberStatus.data || [],
     })
   }, [householdId])
@@ -81,6 +88,7 @@ export function useShop(householdId) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_event_bookings', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_entries', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_dues_paid', filter: `household_id=eq.${householdId}` }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_dues_added', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_payments_in', filter: `household_id=eq.${householdId}` }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_memberships', filter: `household_id=eq.${householdId}` }, reload)
       .subscribe()

@@ -46,10 +46,11 @@ export function useRange(householdId, from, to) {
 
 // Every session, deposit and open due (for the Customers page).
 export async function loadCustomers(householdId) {
-  const [sessions, deposits, dues] = await Promise.all([
+  const [sessions, deposits, dues, added] = await Promise.all([
     fetchAll(() => supabase.from('shop_sessions').select(SESSION_COLS).eq('household_id', householdId).neq('status', 'cancelled').order('started_at')),
     fetchAll(() => supabase.from('shop_deposits').select('customer_name, customer_phone, kind, amount, mode, created_at').eq('household_id', householdId).order('created_at')),
     fetchAll(() => supabase.from('shop_sessions').select('customer_name, customer_phone, owed').eq('household_id', householdId).gt('owed', 0).neq('status', 'cancelled')),
+    fetchAll(() => supabase.from('shop_dues_added').select('customer_name, customer_phone, owed').eq('household_id', householdId).gt('owed', 0)),
   ])
-  return { sessions, deposits, dues }
+  return { sessions, deposits, dues: [...dues, ...added] }
 }

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { sessionTotal, customerKey, dayLabel, dayStart, dayTotals, depositBalances, duesByCustomer, durLabel, inr, timeLabel, rs } from '../../lib/shop'
 import { ActionGrid, ActionSheet, Chips, SessionBreakdown, Sheet, SheetActions, SumRow, inOut } from './ui'
-import { CashIcon, XIcon } from '../../lib/icons'
+import { CashIcon, PlusIcon, XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
 import CustomerFields from './CustomerFields'
 import { useDialog } from '../../lib/dialog'
@@ -60,7 +60,9 @@ export default function Cash({ shop, householdId, toast, admin }) {
   }
   async function writeOff(r) {
     if (!await dialog.confirm({ title: `Clear ${r.name}’s dues?`, message: `${rs(r.total)} won't be collected. The sessions stay in the records with nothing owed.`, confirmLabel: 'Clear dues', danger: true })) return
-    const results = await Promise.all(r.sessions.map((x) => supabase.from('shop_sessions').update({ owed: 0, note: `Dues ${inr(x.owed)} written off` }).eq('id', x.id)))
+    const results = await Promise.all(r.sessions.map((x) => (x.manual
+      ? supabase.from('shop_dues_added').update({ owed: 0, reason: `${(x.note || '').replace(/^Due: /, '')} · ${inr(x.owed)} written off` }).eq('id', x.id)
+      : supabase.from('shop_sessions').update({ owed: 0, note: `Dues ${inr(x.owed)} written off` }).eq('id', x.id))))
     const err = results.find((x) => x.error)?.error
     if (err) toast(err.message); else { setOpen(null); toast(`${r.name}’s dues cleared`); shop.reload() }
   }
@@ -88,7 +90,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
         <button className="btn" style={{ flex: 1 }} onClick={() => setSheet(dayTotals(shop).open ? 'count' : 'open')}>{dayTotals(shop).open ? 'Count' : 'Opening'}</button>
       </div>
       {admin && <PlanClaims rows={plan} order={6} />}
-      <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} onOpen={(r) => setOpen({ dues: r })} order={4} />
+      <CustomerDues shop={shop} onCollect={(row) => setSheet({ dues: row })} onOpen={(r) => setOpen({ dues: r })} onAdd={() => setSheet({ addDue: {} })} order={4} />
       <Deposits shop={shop} onAdd={() => setSheet('deposit')} onOpen={(r) => setOpen({ deposit: r })} order={5} />
       <UpiReceived shop={shop} toast={toast} order={4} />
       </div>
@@ -114,7 +116,10 @@ export default function Cash({ shop, householdId, toast, admin }) {
         <ActionSheet title={open.dues.name} sub={`${open.dues.phone ? `${open.dues.phone} · ` : ''}owes ${rs(open.dues.total)}`} onClose={() => setOpen(null)}
           primary={<button type="button" className="btn primary" onClick={() => { setSheet({ dues: open.dues }); setOpen(null) }}>Collect</button>}>
           <div className="gx-details">{open.dues.sessions.map((x) => <div key={x.id}><span>{dayLabel(x.started_at)} · {x.system_name}{x.handled_by ? ` · ${x.handled_by}` : ''}<br /><small className="muted">{dueReason(x)}</small></span><b className="neg">{rs(x.owed)}</b></div>)}</div>
-          {admin && <ActionGrid items={[{ label: 'Write off', icon: <XIcon />, onClick: () => writeOff(open.dues), danger: true }]} />}
+          <ActionGrid items={[
+            { label: 'Add more dues', icon: <PlusIcon />, onClick: () => { setSheet({ addDue: { name: open.dues.name, phone: open.dues.phone } }); setOpen(null) } },
+            admin && { label: 'Write off', icon: <XIcon />, onClick: () => writeOff(open.dues), danger: true },
+          ]} />
         </ActionSheet>
       )}
       {open?.deposit && (
@@ -132,6 +137,7 @@ export default function Cash({ shop, householdId, toast, admin }) {
       {sheet?.deduct && <DeleteDepositSheet row={sheet.deduct} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.refund && <RefundSheet row={sheet.refund} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet === 'deposit' && <DepositSheet settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
+      {sheet?.addDue && <AddDueSheet initial={sheet.addDue} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {sheet?.dues && <DuesSheet row={sheet.dues} settings={shop.settings} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
       {typeof sheet === 'string' && sheet !== 'deposit' && <CashSheet kind={sheet} categories={spend} plan={plan} householdId={householdId} onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); toast(msg); shop.reload() }} />}
     </section>
@@ -349,12 +355,12 @@ function RefundSheet({ row, householdId, onClose, onDone }) {
 }
 
 // Customer dues (owner: staff must see them too): sessions ended as "Owes", any day, until paid back.
-function CustomerDues({ shop, onCollect, onOpen, order }) {
+function CustomerDues({ shop, onCollect, onOpen, onAdd, order }) {
   const rows = duesByCustomer(shop.dues)
   const total = rows.reduce((a, r) => a + r.total, 0)
   return (
     <div className="card" style={{ order }}>
-      <div className="card-head"><h3>Customer dues</h3>{total > 0 && <b className="neg">{rs(total)}</b>}</div>
+      <div className="card-head"><h3>Customer dues {total > 0 && <b className="neg">{rs(total)}</b>}</h3><button className="btn small" onClick={onAdd}>+ Due</button></div>
       {rows.length === 0 ? <div className="muted small">Nobody owes the shop anything.</div> : rows.map((r) => (
         <div key={r.key} className="line gx-tap" role="button" tabIndex={0} onClick={() => onOpen(r)}>
           <div className="grow">
@@ -366,6 +372,37 @@ function CustomerDues({ shop, onCollect, onOpen, order }) {
         </div>
       ))}
     </div>
+  )
+}
+
+// Owner, 8 Nov: add a due by hand — a new customer, or more on someone who already owes (Add more dues in their
+// sheet). Saved in shop_dues_added (not a session, so no hours or bill); listed, collected and written off like
+// every other due; money comes in only when it's collected.
+function AddDueSheet({ initial, householdId, onClose, onDone }) {
+  const [name, setName] = useState(initial.name || '')
+  const [phone, setPhone] = useState(initial.phone || '')
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const value = Number(amount) || 0
+  async function save() {
+    if (name.trim().length < 2) { setError('Add the customer’s name.'); return }
+    if (!value) { setError('Type the amount they owe.'); return }
+    setBusy(true); setError(null)
+    const { error } = await supabase.from('shop_dues_added').insert({ household_id: householdId, customer_name: name.trim(), customer_phone: phone.replace(/\D/g, '').slice(-10) || null, amount: value, owed: value, reason: reason.trim() || null })
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    onDone(`${rs(value)} added to ${name.trim()}’s dues`)
+  }
+  return (
+    <Sheet title={initial.name ? `Add more dues · ${initial.name}` : 'Add a due'} sub="They pay later · collect it from Customer dues" onClose={onClose} onSubmit={save}>
+      {error && <div className="alert error">{error}</div>}
+      <CustomerFields householdId={householdId} name={name} setName={setName} phone={phone} setPhone={setPhone} />
+      <label>Amount they owe (₹)<input autoFocus={!!initial.name} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label>
+      <label>For what (optional)<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. cold drink, last week's game" /></label>
+      <SheetActions onClose={onClose} busy={busy} disabled={!value} label={`Add ${rs(value)} due`} />
+    </Sheet>
   )
 }
 
@@ -383,7 +420,7 @@ function DuesSheet({ row, settings, householdId, onClose, onDone }) {
     for (const s of row.sessions) {
       if (left <= 0) break
       const part = Math.min(left, Number(s.owed))
-      rows.push({ household_id: householdId, session_id: s.id, customer_name: row.name, customer_phone: row.phone || null, amount: part, mode })
+      rows.push({ household_id: householdId, session_id: s.manual ? null : s.id, due_id: s.manual ? s.id : null, customer_name: row.name, customer_phone: row.phone || null, amount: part, mode })
       left -= part
     }
     const { error } = await supabase.from('shop_dues_paid').insert(rows)
