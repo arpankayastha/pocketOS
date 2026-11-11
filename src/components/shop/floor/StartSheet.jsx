@@ -35,7 +35,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
   const [error, setError] = useState(null)
   const multi = (system.seats || 1) > 1
   const count = picked.length
-  const happyNow = evb ? false : happy
+  const happyNow = evb ? (ev.happy_first_price != null && happy) : happy
   const each = priceFor(rates, system.kind, mins, happyNow)
   const bookedSame = booking && mins === booking.minutes && count === (booking.players || 1)
   // Membership hours (owner, 3 Nov): a member's time comes off their plan first; only time past it is charged.
@@ -50,10 +50,13 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
   const cover = member && useMember && !bookedSame ? memberCover(picked.map(() => mins), member.left_minutes) : picked.map(() => 0)
   const gameRows = picked.map((_, i) => (cover[i] ? (mins > cover[i] ? priceFor(rates, system.kind, mins - cover[i], happy) : 0) : each))
   const covered = cover.reduce((a, c) => a + c, 0)
+  // Owner, 11 Nov: on happy days the event's happy prices (GTA VI ₹150 + ₹80/hr) and a part-hour at the happy rate card.
+  const evHappy = !!evb && ev.happy_first_price != null && happy
   const evGame = (m) => {
     const slots = Math.floor(m / ev.slot_minutes), rest = m - slots * ev.slot_minutes
-    const first = Number(ev.first_hour_price ?? ev.price) || 0, next = Number(ev.next_hour_price ?? ev.price) || 0
-    return (slots > 0 ? first + next * (slots - 1) : 0) + (rest > 0 ? (slots > 0 ? priceFor(rates, system.kind, rest, false) : first) : 0)
+    const first = Number(evHappy ? ev.happy_first_price : ev.first_hour_price ?? ev.price) || 0
+    const next = Number(evHappy ? ev.happy_next_price ?? ev.next_hour_price ?? ev.price : ev.next_hour_price ?? ev.price) || 0
+    return (slots > 0 ? first + next * (slots - 1) : 0) + (rest > 0 ? (slots > 0 ? priceFor(rates, system.kind, rest, evHappy) : first) : 0)
   }
   const evTotal = evb ? (mins === evMins && count === (evb.players || 1) ? Number(evb.amount) : evGame(mins) * count) : 0
   const evAdv = evb && evb.payment_ok !== false ? Math.min(Number(evb.advance_paid) || 0, evTotal) : 0
@@ -154,7 +157,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
       </>)}
       <div className="gx-box">
         {evb ? (<>
-          <SumRow label={`${ev.name} · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}`} value={rs(evTotal)} />
+          <SumRow label={`${ev.name} · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${evHappy ? ' · happy day' : ''}`} value={rs(evTotal)} />
           {evAdv > 0 && <SumRow label={`Advance paid when booking (${evb.advance_mode || 'paid'})`} value={`−${rs(evAdv)}`} />}
         </>) : <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />}
         {covered > 0 && <SumRow label={`From ${member.plan_name} membership`} value={hoursLabel2(covered)} />}

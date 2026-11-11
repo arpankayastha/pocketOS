@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useDialog } from '../../lib/dialog'
-import { RANKS, durLabel, eventImage, timeLabel, rs } from '../../lib/shop'
+import { RANKS, durLabel, eventImage, isHappyDay, timeLabel, rs } from '../../lib/shop'
 import { ActionGrid, ActionSheet, Chips, Sheet, SheetActions, SumRow } from './ui'
 import { PhoneIcon, XIcon } from '../../lib/icons'
 import { UpiQrButton } from './UpiQr'
@@ -35,7 +35,13 @@ function daySlots(ev, day) {
 // ₹100/hr), per head. Older events without first/next prices charge `price` per slot.
 const firstPrice = (ev) => Number(ev.first_hour_price ?? ev.price) || 0
 const nextPrice = (ev) => Number(ev.next_hour_price ?? ev.price) || 0
-const eventPrice = (ev, hours, players = 1) => (firstPrice(ev) + Math.max(0, hours - 1) * nextPrice(ev)) * players
+// Owner, 11 Nov: GTA VI on the shop's happy days = its happy prices (₹150 first hour, ₹80 each extra) when set.
+const happyOn = (ev, settings, day) => ev.happy_first_price != null && isHappyDay(settings, day)
+const eventPrice = (ev, hours, players = 1, settings, day) => {
+  const h = day && happyOn(ev, settings, day)
+  const first = h ? Number(ev.happy_first_price) : firstPrice(ev), next = h ? Number(ev.happy_next_price ?? ev.next_hour_price ?? ev.price) || 0 : nextPrice(ev)
+  return (first + Math.max(0, hours - 1) * next) * players
+}
 const covers = (ev, b, t) => { const s0 = new Date(b.slot_start).getTime(); return t >= s0 && t < s0 + (b.hours || 1) * ev.slot_minutes * 60_000 }
 const dayChip = (day) => !day ? 'Date TBA' : new Date(`${day}T00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -116,7 +122,7 @@ export default function Events({ householdId, admin, settings, toast, onArrived 
           {eventImage(ev) && <img className="gx-event-img" src={eventImage(ev)} alt="" />}
           <div className="gx-event-name">{ev.name}</div>
           {ev.description && <div className="small">{ev.description}</div>}
-          <div className="muted small">{rs(firstPrice(ev))} first {durLabel(ev.slot_minutes)} · {rs(nextPrice(ev))} each extra · up to {ev.max_hours || 1} · per head · {rs(ev.advance)} advance, non-refundable · {ev.capacity} at a time{ev.active ? '' : ' · switched off'}</div>
+          <div className="muted small">{rs(firstPrice(ev))} first {durLabel(ev.slot_minutes)} · {rs(nextPrice(ev))} each extra{ev.happy_first_price != null ? ` · happy days ${rs(ev.happy_first_price)} + ${rs(ev.happy_next_price ?? nextPrice(ev))}` : ''} · up to {ev.max_hours || 1} · per head · {rs(ev.advance)} advance, non-refundable · {ev.capacity} at a time{ev.active ? '' : ' · switched off'}</div>
           <div className="gx-kpis" style={{ marginTop: 12 }}>
             <div className="gx-kpi"><b>{bookings.length} / {totalSlots}</b><span>Booked</span></div>
             <div className="gx-kpi"><b>{rs(advance)}</b><span>Advances</span></div>
@@ -205,7 +211,7 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
   const [phone, setPhone] = useState('')
   const [players, setPlayers] = useState(1)
   const [hours, setHours] = useState(1)
-  const total = eventPrice(ev, hours, players)
+  const total = eventPrice(ev, hours, players, settings, slot)
   const end = slot.getTime() + hours * ev.slot_minutes * 60_000
   const [mode, setMode] = useState(Number(ev.advance) ? 'online' : 'none')
   const [busy, setBusy] = useState(false)
@@ -272,7 +278,9 @@ function EventSheet({ event, householdId, onClose, onDone }) {
       : { ...common, starts_on: f.starts_on, ends_on: f.ends_on,
           slot_minutes: Number(f.slot_minutes), capacity: Number(f.capacity) || 1, advance: Number(f.advance) || 0,
           first_hour_price: Number(f.first_hour_price ?? f.price) || 0, next_hour_price: Number(f.next_hour_price ?? f.price) || 0,
-          price: Number(f.first_hour_price ?? f.price) || 0, max_hours: Number(f.max_hours) || 1 }
+          price: Number(f.first_hour_price ?? f.price) || 0, max_hours: Number(f.max_hours) || 1,
+          happy_first_price: f.happy_first_price === '' || f.happy_first_price == null ? null : Number(f.happy_first_price),
+          happy_next_price: f.happy_next_price === '' || f.happy_next_price == null ? null : Number(f.happy_next_price) }
     const res = event ? await supabase.from('shop_events').update(row).eq('id', event.id).select().single()
       : await supabase.from('shop_events').insert({ ...row, household_id: householdId }).select().single()
     setBusy(false)
@@ -313,6 +321,8 @@ function EventSheet({ event, householdId, onClose, onDone }) {
         <div className="grid2">
           <label>Price · first {Number(f.slot_minutes) === 60 ? 'hour' : 'slot'}, per player (₹)<input inputMode="numeric" value={f.first_hour_price ?? f.price ?? ''} onChange={set('first_hour_price')} /></label>
           <label>Price · each extra {Number(f.slot_minutes) === 60 ? 'hour' : 'slot'} (₹)<input inputMode="numeric" value={f.next_hour_price ?? f.price ?? ''} onChange={set('next_hour_price')} /></label>
+          <label>Happy days · first {Number(f.slot_minutes) === 60 ? 'hour' : 'slot'} (₹, empty = same)<input inputMode="numeric" value={f.happy_first_price ?? ''} onChange={set('happy_first_price')} placeholder="e.g. 150" /></label>
+          <label>Happy days · each extra {Number(f.slot_minutes) === 60 ? 'hour' : 'slot'} (₹)<input inputMode="numeric" value={f.happy_next_price ?? ''} onChange={set('happy_next_price')} placeholder="e.g. 80" /></label>
           <label>Most {Number(f.slot_minutes) === 60 ? 'hours' : 'slots'} per booking<input inputMode="numeric" value={f.max_hours ?? 1} onChange={set('max_hours')} /></label>
           <label>Systems at a time<input inputMode="numeric" value={f.capacity} onChange={set('capacity')} /></label>
           <label>Advance, non-refundable (₹)<input inputMode="numeric" value={f.advance} onChange={set('advance')} /></label>

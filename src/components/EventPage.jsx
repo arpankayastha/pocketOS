@@ -70,7 +70,10 @@ function Slots({ ev, info, me }) {
     setSlots(null); setStart(null)
     supabase.rpc('public_event_slots', { p_event: ev.id, p_day: day }).then(({ data, error }) => { if (error) setError(error.message); else setSlots(data) })
   }, [day, ev.id])
-  const amount = (Number(ev.first_price) + (hours - 1) * Number(ev.next_price)) * players
+  // Owner, 11 Nov: the event's happy-day prices on the shop's happy days (same rule as private.event_amount).
+  const happy = day && ev.happy_first_price != null && (info?.happy_days || [3, 4, 5]).includes(new Date(`${day}T00:00`).getDay())
+  const first = happy ? Number(ev.happy_first_price) : Number(ev.first_price), next = happy ? Number(ev.happy_next_price ?? ev.next_price) : Number(ev.next_price)
+  const amount = (first + (hours - 1) * next) * players
   const advance = Math.min(Number(ev.advance) || 0, amount)
   const fits = (t) => {
     const i = slots.findIndex((s) => s.t === t)
@@ -120,7 +123,7 @@ function Slots({ ev, info, me }) {
         </div>
       )}
       <ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} />
-      <div className="book-total"><span className="muted">{durLabel(hours * ev.slot_minutes)}{players > 1 ? ` × ${players}` : ''}{advance ? ` · advance ${rs(advance)}` : ''}</span><b>{rs(amount)}</b></div>
+      <div className="book-total"><span className="muted">{durLabel(hours * ev.slot_minutes)}{players > 1 ? ` × ${players}` : ''}{advance ? ` · advance ${rs(advance)}` : ''}{happy ? ' · happy day price' : ''}</span><b>{rs(amount)}</b></div>
       {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
       <button className="btn primary block" disabled={!ready || busy} onClick={() => { setError(null); if (advance) setStep('pay'); else send() }}>{start ? (advance ? `Book · pay ${rs(advance)} advance` : 'Book') : 'Pick a start time'}</button>
     </div>

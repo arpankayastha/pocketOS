@@ -1593,3 +1593,17 @@ alter table public.shop_event_bookings add column if not exists session_id uuid 
 create index if not exists shop_event_bookings_session_idx on public.shop_event_bookings (session_id);
 -- shop_start_sessions: see migration event_booking_start (same body as before + event_booking_id in the insert and
 -- `update shop_event_bookings set status = 'arrived', session_id = ids[1]` when a row carries one).
+
+-- Owner, 11 Nov: GTA VI on happy days (shop_settings.happy_days) = ₹150 first hour, ₹80 each extra hour.
+-- Migration event_happy_prices: shop_events.happy_first_price / happy_next_price (null = no happy price);
+-- private.event_amount(event, day, hours, players) picks them on happy days; public_event_book uses it;
+-- public_home returns them per event. The app does the same sum (Events.jsx eventPrice, EventPage, StartSheet evGame).
+alter table public.shop_events add column if not exists happy_first_price numeric(10,2), add column if not exists happy_next_price numeric(10,2);
+create or replace function private.event_amount(e public.shop_events, d date, p_hours int, p_players int)
+returns numeric language sql stable security definer set search_path = '' as $$
+  select (case when happy then coalesce(e.happy_first_price, e.first_hour_price, e.price) else coalesce(e.first_hour_price, e.price) end
+        + (p_hours - 1) * case when happy then coalesce(e.happy_next_price, e.next_hour_price, e.price) else coalesce(e.next_hour_price, e.price) end) * p_players
+  from (select extract(dow from d)::smallint = any (coalesce((select s.happy_days from public.shop_settings s where s.household_id = e.household_id), '{3,4,5}'::smallint[])) as happy) x
+$$;
+revoke execute on function private.event_amount(public.shop_events, date, int, int) from public, anon, authenticated;
+-- public_event_book: amt := private.event_amount(e, d, p_hours, p_players); public_home: + 'happy_first_price', 'happy_next_price'.
