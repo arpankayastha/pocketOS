@@ -308,9 +308,9 @@ function EventSheet({ event, householdId, onClose, onDone }) {
         <div className="caps muted">Slot length</div>
         <Chips options={[[60, '1 hr'], [30, '30 min'], [120, '2 hr']]} value={Number(f.slot_minutes)} onChange={set('slot_minutes')} />
         <div className="grid2">
-          <label>First slot, per head (₹)<input inputMode="numeric" value={f.first_hour_price ?? f.price ?? ''} onChange={set('first_hour_price')} /></label>
-          <label>Each extra slot (₹)<input inputMode="numeric" value={f.next_hour_price ?? f.price ?? ''} onChange={set('next_hour_price')} /></label>
-          <label>Most slots per booking<input inputMode="numeric" value={f.max_hours ?? 1} onChange={set('max_hours')} /></label>
+          <label>Price · first {Number(f.slot_minutes) === 60 ? 'hour' : 'slot'}, per player (₹)<input inputMode="numeric" value={f.first_hour_price ?? f.price ?? ''} onChange={set('first_hour_price')} /></label>
+          <label>Price · each extra {Number(f.slot_minutes) === 60 ? 'hour' : 'slot'} (₹)<input inputMode="numeric" value={f.next_hour_price ?? f.price ?? ''} onChange={set('next_hour_price')} /></label>
+          <label>Most {Number(f.slot_minutes) === 60 ? 'hours' : 'slots'} per booking<input inputMode="numeric" value={f.max_hours ?? 1} onChange={set('max_hours')} /></label>
           <label>Systems at a time<input inputMode="numeric" value={f.capacity} onChange={set('capacity')} /></label>
           <label>Advance, non-refundable (₹)<input inputMode="numeric" value={f.advance} onChange={set('advance')} /></label>
           <label>Bookings<select value={f.active ? 'on' : 'off'} onChange={(e) => setF({ ...f, active: e.target.value === 'on' })}><option value="on">Open · on home page</option><option value="off">Closed · hidden</option></select></label>
