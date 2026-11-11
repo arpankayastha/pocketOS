@@ -8,16 +8,20 @@ import { depLabel, FNB, useDepositPick } from './common'
 
 // Start one PC, or one or more PS5 controllers together (each controller = one customer, one timer, priced
 // per head). A booking's amount is split across its controllers as already paid online.
-export function StartSheet({ system: first, seats, freeOf, systems, booking, memberLock = null, dues, deposits = [], members = [], rates, settings, happy, householdId, onClose, onDone }) {
+export function StartSheet({ system: first, seats, freeOf, systems, booking, memberLock = null, eventBooking = null, dues, deposits = [], members = [], rates, settings, happy, householdId, onClose, onDone }) {
   // Owner: "booked PC2 but sat at PC4" — any free system of the same kind can be picked here.
   const [system, setSystem] = useState(first)
   const free = freeOf(system)
   const others = systems.filter((x) => x.kind === first.kind && freeOf(x).length > 0)
   const [picked, setPicked] = useState(seats || [free[0]])
   const [cashPart, setCashPart] = useState('')
-  const [name, setName] = useState(booking?.customer_name || memberLock?.name || '')
-  const [phone, setPhone] = useState(booking?.customer_phone || memberLock?.phone || '')
-  const [mins, setMins] = useState(booking?.minutes || 60)
+  // Owner, 11 Nov: a GTA VI (event) booking's Arrived opens this sheet — the event's price (first hour, then each
+  // extra hour; any part-hour at the normal rate card), never happy hours, and the advance paid when booking off.
+  const evb = eventBooking?.b, ev = eventBooking?.ev
+  const evMins = evb ? (evb.hours || 1) * ev.slot_minutes : 0
+  const [name, setName] = useState(booking?.customer_name || evb?.customer_name || memberLock?.name || '')
+  const [phone, setPhone] = useState(booking?.customer_phone || evb?.customer_phone || memberLock?.phone || '')
+  const [mins, setMins] = useState(booking?.minutes || evMins || 60)
   const [fnb, setFnb] = useState(0)
   const [fnbOther, setFnbOther] = useState('') // owner: type any F&B amount, not only the chips
   const [names, setNames] = useState({}) // PS5: a name for each extra controller (owner, 14 Oct), keyed by controller
@@ -31,21 +35,29 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
   const [error, setError] = useState(null)
   const multi = (system.seats || 1) > 1
   const count = picked.length
-  const each = priceFor(rates, system.kind, mins, happy)
+  const happyNow = evb ? false : happy
+  const each = priceFor(rates, system.kind, mins, happyNow)
   const bookedSame = booking && mins === booking.minutes && count === (booking.players || 1)
   // Membership hours (owner, 3 Nov): a member's time comes off their plan first; only time past it is charged.
   // Owner, 3 Nov: a friend can play on a member's hours, like a shared deposit — "Use a membership" + whose.
   // Owner, 4 Nov ("employee galati na kare"): a member's entry starts only from Slots → Members (memberLock) — same
   // sheet, the plan already picked and no Payment choice (time past the plan and F&B are collected at End).
   // A normal Start never uses a membership; it only warns when the name / mobile belongs to a member.
-  const own = !online && !memberLock ? memberFor(members, name, phone, system.kind) : null
+  const own = !online && !memberLock && !evb ? memberFor(members, name, phone, system.kind) : null
   const member = memberLock
   const friendMember = !!member && customerKey(name, null) !== customerKey(member.name, null)
   const useMember = !!member
   const cover = member && useMember && !bookedSame ? memberCover(picked.map(() => mins), member.left_minutes) : picked.map(() => 0)
   const gameRows = picked.map((_, i) => (cover[i] ? (mins > cover[i] ? priceFor(rates, system.kind, mins - cover[i], happy) : 0) : each))
   const covered = cover.reduce((a, c) => a + c, 0)
-  const gaming = bookedSame ? Number(booking.amount) : gameRows.reduce((a, g) => a + g, 0)
+  const evGame = (m) => {
+    const slots = Math.floor(m / ev.slot_minutes), rest = m - slots * ev.slot_minutes
+    const first = Number(ev.first_hour_price ?? ev.price) || 0, next = Number(ev.next_hour_price ?? ev.price) || 0
+    return (slots > 0 ? first + next * (slots - 1) : 0) + (rest > 0 ? (slots > 0 ? priceFor(rates, system.kind, rest, false) : first) : 0)
+  }
+  const evTotal = evb ? (mins === evMins && count === (evb.players || 1) ? Number(evb.amount) : evGame(mins) * count) : 0
+  const evAdv = evb && evb.payment_ok !== false ? Math.min(Number(evb.advance_paid) || 0, evTotal) : 0
+  const gaming = evb ? evTotal - evAdv : bookedSame ? Number(booking.amount) : gameRows.reduce((a, g) => a + g, 0)
   const bill = gaming + fnb
   const advUse = advDep ? Math.min(advance, advDep.balance, bill) : 0
   const total = bill - advUse // what the Payment choice covers
@@ -73,7 +85,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
     setBusy(true); setError(null)
     const t0 = new Date().toISOString()
     // A booking's amount and the cash part are shared across the timers so they add up exactly (money.js).
-    const games = bookedSame ? shareOut(Number(booking.amount), count) : gameRows
+    const games = evb ? shareOut(evTotal - evAdv, count) : bookedSame ? shareOut(Number(booking.amount), count) : gameRows
     const pays = startPayments(picked.map((_, i) => ({ g: games[i], f: i === 0 ? fnb : 0 })), { pay, cashPart, fromDep, dueNow, advance: advUse, booked: pay === 'booked' ? Number(booking.amount) : 0 })
     const rows = picked.map((seat, i) => {
       const g = games[i], f = i === 0 ? fnb : 0
@@ -81,10 +93,10 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
       return {
         household_id: householdId, system_id: system.id, system_name: system.name, seat,
         customer_name: i > 0 && (names[seat] || '').trim() ? names[seat].trim() : (name.trim() || 'Walk-in') + (count > 1 ? ` (${i + 1}/${count})` : ''), customer_phone: phone.trim() || null,
-        base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy, booking_id: booking?.id || null,
+        base_minutes: mins, minutes: mins, gaming_amount: g, fnb_before: f, players: 1, happy: happyNow, booking_id: booking?.id || null, event_booking_id: evb?.id || null,
         paid_cash, paid_online,
         membership_id: cover[i] ? member.id : null, member_minutes: cover[i],
-        owed: o, paid_deposit: d, note: [cover[i] && `Membership ${member.plan_name}${friendMember ? ` (${member.name}’s)` : ''}: ${hoursLabel2(cover[i])}`, o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`, i === 0 && advUse > 0 && `Booking advance ${inr(advUse)} from deposit`].filter(Boolean).join(' · ') || null,
+        owed: o, paid_deposit: d, note: [cover[i] && `Membership ${member.plan_name}${friendMember ? ` (${member.name}’s)` : ''}: ${hoursLabel2(cover[i])}`, o && `Due: ${f ? `game + F&B` : 'game'} ${inr(o)}`, d && friend && `From ${dep.name}’s deposit ${inr(d)}`, i === 0 && advUse > 0 && `Booking advance ${inr(advUse)} from deposit`, i === 0 && evb && `${ev.name}${evAdv ? ` · ${inr(evAdv)} advance paid when booking` : ''}`].filter(Boolean).join(' · ') || null,
         ...(later ? { waiting: true, paused_at: t0 } : {}),
       }
     })
@@ -98,7 +110,7 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
   }
 
   return (
-    <Sheet title={`${system.name} · ${member ? `★ ${member.name}` : 'new customer'}`} sub={`${durLabel(mins)}${happy ? ' · happy hours' : ''} · save now, start the clock when they sit down`} onClose={onClose} onSubmit={() => save(true)}>
+    <Sheet title={`${system.name} · ${evb ? ev.name : member ? `★ ${member.name}` : 'new customer'}`} sub={`${durLabel(mins)}${happyNow ? ' · happy hours' : ''} · save now, start the clock when they sit down`} onClose={onClose} onSubmit={() => save(true)}>
       {error && <div className="alert error">{error}</div>}
       {others.length > 1 && (<>
         <div className="caps muted">{first.kind === 'PS' ? 'Console' : 'PC'} · where they sit</div>
@@ -141,7 +153,10 @@ export function StartSheet({ system: first, seats, freeOf, systems, booking, mem
       </>)}
       </>)}
       <div className="gx-box">
-        <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />
+        {evb ? (<>
+          <SumRow label={`${ev.name} · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}`} value={rs(evTotal)} />
+          {evAdv > 0 && <SumRow label={`Advance paid when booking (${evb.advance_mode || 'paid'})`} value={`−${rs(evAdv)}`} />}
+        </>) : <SumRow label={`Gaming · ${durLabel(mins)}${count > 1 ? ` × ${count}` : ''}${happy ? ' · happy hours' : ''}`} value={rs(gaming)} />}
         {covered > 0 && <SumRow label={`From ${member.plan_name} membership`} value={hoursLabel2(covered)} />}
         {fnb > 0 && <SumRow label="F&B" value={rs(fnb)} />}
         {advUse > 0 && <SumRow label="Booking advance (from deposit)" value={`−${rs(advUse)}`} />}

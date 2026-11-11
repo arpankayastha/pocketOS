@@ -39,7 +39,7 @@ const eventPrice = (ev, hours, players = 1) => (firstPrice(ev) + Math.max(0, hou
 const covers = (ev, b, t) => { const s0 = new Date(b.slot_start).getTime(); return t >= s0 && t < s0 + (b.hours || 1) * ev.slot_minutes * 60_000 }
 const dayChip = (day) => !day ? 'Date TBA' : new Date(`${day}T00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 
-export default function Events({ householdId, admin, settings, toast }) {
+export default function Events({ householdId, admin, settings, toast, onArrived }) {
   const dialog = useDialog()
   const [events, setEvents] = useState(null)
   const [eventId, setEventId] = useState(null)
@@ -87,6 +87,9 @@ export default function Events({ householdId, admin, settings, toast }) {
     const { error } = await supabase.from('shop_event_bookings').update({ payment_ok: true }).eq('id', b.id)
     setSheet(null); toast(error ? error.message : 'Advance received'); loadBookings()
   }
+  // Owner, 11 Nov: Arrived on a slot event (GTA VI) opens the Start sheet on the console in Slots — the event's price,
+  // the advance taken off, timer + End & collect as usual (Floor takes it from pendingArrival).
+  const arrive = (b) => { if (onArrived && ev?.format !== 'tournament') { setSheet(null); onArrived({ b, ev }) } else setStatus(b, 'arrived') }
   async function setStatus(b, status) {
     if (status === 'cancelled' && !await dialog.confirm({ title: `Cancel ${b.customer_name}’s booking?`, message: Number(b.advance_paid) ? `The ${rs(b.advance_paid)} advance is non-refundable. The hours open up for someone else.` : 'The hours open up for someone else.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep', danger: true })) return
     const { error } = await supabase.from('shop_event_bookings').update({ status }).eq('id', b.id)
@@ -154,7 +157,7 @@ export default function Events({ householdId, admin, settings, toast }) {
                     <div className="muted small">{durLabel((b.hours || 1) * ev.slot_minutes)} · {Number(b.advance_paid) ? `${rs(b.advance_paid)} ${b.advance_mode}` : 'no advance'}{!b.payment_ok ? <span className="gx-due"> · check payment</span> : b.status === 'arrived' ? ' · arrived' : ''}</div>
                   </div>
                   {!b.payment_ok ? <button className="btn small primary" onClick={(e) => { e.stopPropagation(); received(b) }}>Received</button>
-                    : b.status !== 'arrived' ? <button className="btn small" onClick={(e) => { e.stopPropagation(); setStatus(b, 'arrived') }}>Arrived</button>
+                    : b.status !== 'arrived' ? <button className="btn small" onClick={(e) => { e.stopPropagation(); arrive(b) }}>Arrived</button>
                     : <span className="pill gx-pill free">In</span>}
                 </div>
               ))}
@@ -168,7 +171,7 @@ export default function Events({ householdId, admin, settings, toast }) {
         const b = sheet.booking
         return (
           <ActionSheet title={b.customer_name} sub={`${timeLabel(b.slot_start)} – ${timeLabel(new Date(b.slot_start).getTime() + (b.hours || 1) * ev.slot_minutes * 60_000)}${b.players > 1 ? ` · ${b.players} players` : ''}`} onClose={() => setSheet(null)}
-            primary={!b.payment_ok ? <button type="button" className="btn primary" onClick={() => received(b)}>Received</button> : b.status !== 'arrived' ? <button type="button" className="btn primary" onClick={() => setStatus(b, 'arrived')}>Arrived</button> : null}>
+            primary={!b.payment_ok ? <button type="button" className="btn primary" onClick={() => received(b)}>Received</button> : b.status !== 'arrived' ? <button type="button" className="btn primary" onClick={() => arrive(b)}>Arrived</button> : null}>
             <div className="gx-details">
               {[['Amount', rs(b.amount)], ['Advance', Number(b.advance_paid) ? `${rs(b.advance_paid)} · ${b.advance_mode}` : 'none'], ['Payment', b.payment_ok ? 'checked' : 'to check'],
                 ['UPI ref', b.upi_ref], ['Mobile', b.customer_phone], ['Booked', b.source === 'online' ? 'online' : `by ${b.entered_by || '—'}`], ['Checked by', b.handled_by]]

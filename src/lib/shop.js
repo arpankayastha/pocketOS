@@ -27,6 +27,9 @@ export function useShopId(memberHouseholdId) {
   return id
 }
 
+// Events → Arrived on a GTA VI (slot event) booking hands it to Slots, which opens the Start sheet (owner, 11 Nov).
+export const pendingArrival = { current: null }
+
 // A due added by hand (shop_dues_added) shaped like a session's due, so every dues list / total treats it the same.
 export const addedDue = (d) => ({ id: d.id, manual: true, customer_name: d.customer_name, customer_phone: d.customer_phone, system_name: 'Added due',
   started_at: d.created_at, owed: Number(d.owed), amount: Number(d.amount), entered_by: d.entered_by, handled_by: d.entered_by,

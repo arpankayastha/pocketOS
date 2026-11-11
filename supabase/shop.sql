@@ -1582,3 +1582,14 @@ begin
 end $$;
 alter publication supabase_realtime add table public.shop_dues_added;
 create index if not exists shop_dues_paid_due_idx on public.shop_dues_paid (due_id);
+
+-- Owner, 11 Nov ("counter pe entry ho jayegi?"): Arrived on a GTA VI (slot event) booking opens the Start sheet on
+-- the console with the event's price (first hour, each extra hour; never happy hours) and the advance taken off.
+-- Migration event_booking_start: shop_sessions.event_booking_id ↔ shop_event_bookings.session_id, and
+-- shop_start_sessions(rows, booking, deposit) also marks the event booking arrived (rows carry event_booking_id).
+alter table public.shop_sessions add column if not exists event_booking_id uuid references public.shop_event_bookings(id) on delete set null;
+create index if not exists shop_sessions_event_booking_idx on public.shop_sessions (event_booking_id);
+alter table public.shop_event_bookings add column if not exists session_id uuid references public.shop_sessions(id) on delete set null;
+create index if not exists shop_event_bookings_session_idx on public.shop_event_bookings (session_id);
+-- shop_start_sessions: see migration event_booking_start (same body as before + event_booking_id in the insert and
+-- `update shop_event_bookings set status = 'arrived', session_id = ids[1]` when a row carries one).

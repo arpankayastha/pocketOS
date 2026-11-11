@@ -7,7 +7,7 @@ import { ListSkeleton } from '../Skeleton'
 import { useBackAction } from '../../lib/backNav'
 import { useSwipe } from '../../lib/useSwipe'
 import { useRouteState } from '../../lib/route'
-import { useNow, useShop, useShopId } from '../../lib/shop'
+import { pendingArrival, useNow, useShop, useShopId } from '../../lib/shop'
 import { BookIcon, CalendarIcon, CashIcon, ClockIcon, HomeIcon, MonitorIcon, SettingsIcon, UsersIcon } from '../../lib/icons'
 import Floor, { useTimeUpAlarm } from './Floor'
 import Shift from './Shift'
@@ -68,7 +68,7 @@ export default function ShopModule({ topbar, member, memberHouseholdId, userId, 
   else if (tab === 'floor') body = <Floor {...props} />
   else if (tab === 'shift') body = <Shift householdId={householdId} userId={userId} toast={toast} shop={shop} onOpen={setTab} />
   else if (tab === 'cash') body = <Cash {...props} admin={!member} />
-  else if (tab === 'events') body = <Events householdId={householdId} admin={!member} settings={shop.settings} toast={toast} />
+  else if (tab === 'events') body = <Events householdId={householdId} admin={!member} settings={shop.settings} toast={toast} onArrived={(x) => { pendingArrival.current = x; setTab('floor') }} />
   else if (tab === 'staff') body = <Staff householdId={householdId} toast={toast} />
   else if (tab === 'settings') body = <ShopSettings {...props} admin={!member} email={email} member={member} appLock={appLock} vault={vault} pinLock={pinLock} />
 

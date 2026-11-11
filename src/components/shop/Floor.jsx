@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDialog } from '../../lib/dialog'
 import { supabase } from '../../lib/supabase'
-import { isHappyDay, minutesLeft, rs, sessionEnd, timeLabel, useNow } from '../../lib/shop'
+import { isHappyDay, minutesLeft, pendingArrival, rs, sessionEnd, timeLabel, useNow } from '../../lib/shop'
 import { Chips } from './ui'
 import { alarm, scheduleAlarm, speak } from '../../lib/alarm'
 import { ControllersSheet, MoveSheet, RunRow, SessionSheet, TimerCodeSheet } from './floor/SessionRows'
@@ -53,6 +53,16 @@ export default function Floor({ shop, householdId, toast, fixedView }) {
   const setViewSaved = (v) => { setView(v); try { localStorage.setItem('gx.slotsView', v) } catch { /* ignore */ } }
   const done = (msg) => { setSheet(null); toast(msg); shop.reload() }
 
+  // A GTA VI (event) booking marked Arrived in Events: open its Start sheet on a console with enough free controllers.
+  useEffect(() => {
+    const x = pendingArrival.current
+    if (!x) return
+    pendingArrival.current = null
+    const need = x.b.players || 1
+    const sys = shop.systems.find((y) => y.kind === x.ev.system_kind && y.active !== false && freeSeats(y).length >= need)
+    if (!sys) { toast(`No free ${x.ev.system_kind === 'PS' ? 'PS5 controllers' : 'PC'} for ${x.b.customer_name} right now`); return }
+    setSheet({ kind: 'start', system: sys, seats: freeSeats(sys).slice(0, need), eventBooking: x })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const startBooking = (b) => {
     const need = b.players || 1
     const named = b.system_id && shop.systems.find((x) => x.id === b.system_id && freeSeats(x).length >= need)
@@ -156,7 +166,7 @@ export default function Floor({ shop, householdId, toast, fixedView }) {
       {sheet?.kind === 'session' && <SessionSheet system={sheet.system} seat={sheet.seat} s={sheet.session} now={now} member={sheet.session.membership_id ? shop.members.find((m) => m.id === sheet.session.membership_id) : null} bank={(shop.paymentsIn || []).filter((x) => x.match_kind === 'session' && x.match_id === sheet.session.id)} bankOn={(shop.paymentsIn || []).length > 0} onClose={close}
         onAction={(kind) => setSheet({ ...sheet, kind })} onPause={(on) => pause([sheet.session], on)} onStart={() => startWaiting(sheet.session)} onCancel={() => cancelWaiting(sheet.session)} />}
       {sheet?.kind === 'controllers' && <ControllersSheet systems={multi} holders={holders} off={off} onSet={setOff} onClose={close} />}
-      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} memberLock={sheet.member || null} dues={shop.dues} deposits={shop.deposits} members={shop.members} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
+      {sheet?.kind === 'start' && <StartSheet system={sheet.system} seats={sheet.seats} freeOf={freeSeats} systems={shop.systems} booking={sheet.booking} eventBooking={sheet.eventBooking || null} memberLock={sheet.member || null} dues={shop.dues} deposits={shop.deposits} members={shop.members} rates={shop.rates} settings={shop.settings} happy={isHappyDay(shop.settings)} householdId={householdId} onClose={close} onDone={done} />}
       {sheet?.kind === 'book' && <BookSheet shop={shop} householdId={householdId} initial={sheet.initial} onClose={close} onDone={done} />}
       {sheet?.kind === 'collect' && <CollectSheet session={sheet.session} settings={shop.settings} onClose={close} onDone={done} />}
       {sheet?.kind === 'fnb' && <FnbSheet session={sheet.session} settings={shop.settings} deposits={shop.deposits} householdId={householdId} onClose={close} onDone={done} />}
