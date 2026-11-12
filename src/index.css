@@ -134,7 +134,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .hh-chip svg { color: var(--muted); transition: transform .2s; }
 .hh-chip.open svg { transform: rotate(180deg); }
 .hh-name { max-width: 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hh-dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: 13px; font-weight: 700;
+.hh-dot { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; font-size: 13px; font-weight: 700;
   --c: var(--accent); background: color-mix(in srgb, var(--c) 22%, var(--card)); color: var(--c); }
 .hh-backdrop { position: fixed; inset: 0; z-index: 30; }
 .hh-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 31; min-width: 230px; max-width: calc(100vw - 32px); padding: 6px;
@@ -275,13 +275,14 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .due-card:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
 .due-card:active { transform: scale(.99); }
 .due-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.due-avatar { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700;
+.due-avatar { width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; font-weight: 700;
   background: color-mix(in srgb, var(--accent) 20%, var(--card-2)); color: var(--accent); }
-.due-avatar.big { width: 48px; height: 48px; font-size: 18px; }
+.due-avatar.big { width: 48px; height: 48px; font-size: 18px; border-radius: 14px; }
 .due-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .due-name .pill, .due-entry .pill { margin-left: 6px; }
 .due-bal { display: grid; justify-items: end; line-height: 1.2; flex: none; }
 .due-bal b { font-size: 17px; }
+.due-bal .small { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; opacity: .85; }
 .due-bal.pos { color: var(--pos); } .due-bal.neg { color: var(--neg); } .due-bal.settled { color: var(--muted); }
 .due-sheet > .due-bal { justify-items: start; }
 .due-sheet > .due-bal b { font-size: 26px; }
@@ -910,7 +911,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 /* Segments inside a Budget tab (Month: Plan | Entries, Loans: Loans | Dues | Deals) */
 .subnav { display: flex; gap: 4px; padding: 4px; margin-bottom: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
 .subnav button { flex: 1 1 0; min-width: 0; min-height: 40px; padding: 0 10px; border: none; border-radius: 9px; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; transition: background-color .15s, color .15s; }
-.subnav button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+.subnav button.on { background: var(--accent-bg); color: var(--on-accent); }
 
 /* Home (components/Home.jsx) */
 .home { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; } /* minmax(0, …): one long line must never stretch the page */
@@ -929,7 +930,11 @@ details.section[open] .chev { transform: rotate(90deg); }
 .home-tap:active { transform: scale(.99); }
 .home-hd { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .home-hd h3 { margin: 0; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.home-ic { width: 32px; height: 32px; border-radius: 50%; background: var(--card-2); display: grid; place-items: center; font-size: 16px; flex: none; }
+.home-ic, .ic-sq { --t: var(--accent); width: 34px; height: 34px; border-radius: 11px; background: color-mix(in srgb, var(--t) 16%, var(--card)); color: var(--t); display: grid; place-items: center; font-size: 16px; font-weight: 700; flex: none; }
+.home-ic.sm, .ic-sq.sm { width: 28px; height: 28px; border-radius: 9px; font-size: 14px; }
+.t-accent { --t: var(--accent); } .t-pos { --t: var(--pos); } .t-neg { --t: var(--neg); } .t-warn { --t: var(--warn); } .t-xfer { --t: var(--transfer); }
+.home-smrow, .tile-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-width: 0; }
+.home-smrow > :first-child, .tile-hd > :first-child { min-width: 0; padding-top: 4px; }
 .home-r { color: var(--muted); font-size: 12.5px; flex: none; }
 .home-list { display: grid; grid-template-columns: minmax(0, 1fr); }
 .home-it { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
@@ -956,7 +961,7 @@ details.section[open] .chev { transform: rotate(90deg); }
 .home-hh { display: flex; align-items: center; gap: 12px; padding: 10px 6px; margin: 0 -6px; border: none; border-top: 1px solid var(--line); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; border-radius: 0; }
 .home-hh:first-child { border-top: none; }
 .home-hh.on { background: var(--accent-2); border-radius: 12px; }
-.home-av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff; flex: none; }
+.home-av { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff; flex: none; }
 .home-n { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-v { font-family: var(--font-mono); font-weight: 600; }
 .home-ch { color: var(--muted); }
@@ -1225,3 +1230,10 @@ button.hb-more { width: 100%; border: none; background: none; color: inherit; fo
 .rp-head { display: flex; align-items: baseline; gap: 8px; padding: 0 4px; }
 .rp-row { display: flex; align-items: center; gap: 8px; padding: 10px 6px 10px 14px; border-radius: 16px; border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
 .rp-name { font-weight: 600; overflow-wrap: anywhere; }
+
+/* Detail-sheet header (SheetHead): back square, small centred title, one action. */
+.sh { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; align-items: center; gap: 8px; margin: 0 0 12px; }
+.sh-btn { width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); cursor: pointer; }
+.sh-btn svg { width: 20px; height: 20px; }
+.sh-title { text-align: center; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-r { display: flex; justify-content: flex-end; }

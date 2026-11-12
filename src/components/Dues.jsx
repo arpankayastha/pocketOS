@@ -3,6 +3,7 @@ import { money, today } from '../lib/format'
 import { loadDues, addEntry, updateEntry, deleteEntry, saveDue, deleteDue, entryLabel, actionsFor } from '../lib/dues'
 import { useDialog } from '../lib/dialog'
 import { PencilIcon, TrashIcon, DuesIcon } from '../lib/icons'
+import SheetHead from './SheetHead'
 import { SkeletonRows } from './Skeleton'
 import AmountInput from './AmountInput'
 import SwipeRow from './SwipeRow'
@@ -43,11 +44,11 @@ export default function Dues({ households, activeHouseholdId, accounts, onChange
       {error && <div className="alert error">{error}</div>}
       <div className="tiles dues-tiles">
         <div className="card tile">
-          <div className="muted small">Owed to {household?.name || 'you'}</div>
+          <div className="tile-hd"><div className="muted small">Owed to {household?.name || 'you'}</div><span className="ic-sq sm t-pos">↗</span></div>
           {dues ? <div className="big-num pos">{money(totals.owedToYou)}</div> : <div className="skel" style={{ width: '70%', height: 22 }} />}
         </div>
         <div className="card tile">
-          <div className="muted small">{household?.name || 'You'} owe{household ? 's' : ''}</div>
+          <div className="tile-hd"><div className="muted small">{household?.name || 'You'} owe{household ? 's' : ''}</div><span className="ic-sq sm t-neg">↘</span></div>
           {dues ? <div className="big-num neg">{money(totals.youOwe)}</div> : <div className="skel" style={{ width: '70%', height: 22 }} />}
         </div>
       </div>
@@ -144,13 +145,13 @@ function DueSheet({ due, households, accounts, initialForm = null, onClose, onEd
     <>
     <div className="modal-bg" onMouseDown={onClose}>
       <div className="card modal due-sheet" onMouseDown={(e) => e.stopPropagation()}>
+        <SheetHead title="Due details" onBack={onClose} right={<button type="button" className="sh-btn" aria-label="Edit due" onClick={onEdit}><PencilIcon /></button>} />
         <div className="due-top">
           <span className="due-avatar big">{due.person.slice(0, 1).toUpperCase()}</span>
           <div className="grow">
             <h3 style={{ margin: 0 }}>{due.person}</h3>
             {due.note && <div className="muted small">{due.note}</div>}
           </div>
-          <button className="btn icon" aria-label="Edit due" onClick={onEdit}><PencilIcon /></button>
         </div>
         <Balance balance={due.balance} />
         {due.emi && (

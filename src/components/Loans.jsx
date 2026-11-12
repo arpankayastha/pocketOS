@@ -7,7 +7,8 @@ import {
 } from '../lib/loans'
 import { loadDues } from '../lib/dues'
 import { useDialog } from '../lib/dialog'
-import { LoansIcon, TrashIcon } from '../lib/icons'
+import { LoansIcon, TrashIcon, PencilIcon } from '../lib/icons'
+import SheetHead from './SheetHead'
 import { SkeletonRows } from './Skeleton'
 import AmountInput from './AmountInput'
 import { ShareChips } from './lists/ListParts'
@@ -76,11 +77,11 @@ export default function Loans({ activeHouseholdId, households = [], member = fal
         <>
       <div className="tiles dues-tiles">
         <div className="card tile">
-          <div className="muted small">Outstanding</div>
+          <div className="tile-hd"><div className="muted small">Outstanding</div><span className="ic-sq sm t-accent">🏦</span></div>
           {loans ? <div className="big-num neg">{money(totals.outstanding)}</div> : <div className="skel" style={{ width: '70%', height: 22 }} />}
         </div>
         <div className="card tile">
-          <div className="muted small">EMIs every month</div>
+          <div className="tile-hd"><div className="muted small">EMIs every month</div><span className="ic-sq sm t-warn">📅</span></div>
           {loans ? <div className="big-num">{money(totals.monthly)}</div> : <div className="skel" style={{ width: '70%', height: 22 }} />}
         </div>
       </div>
@@ -254,6 +255,7 @@ function LoanSheet({ loan, from, onClose, onEdit, onChanged }) {
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <div className="card modal due-sheet" onMouseDown={(e) => e.stopPropagation()}>
+        <SheetHead title="Loan details" onBack={onClose} right={!readOnly && <button type="button" className="sh-btn" aria-label="Edit loan" onClick={onEdit}><PencilIcon /></button>} />
         <h3>{loan.name}</h3>
         <div className="muted small">{[kindLabel(loan.kind), loan.lender, `${loan.rate}% a year`, `from ${fmtDate(loan.start_date)}`].filter(Boolean).join(' · ')}</div>
         <div className="due-bal neg"><b className="amt">{money(s.outstanding)}</b><span className="small">outstanding</span></div>
@@ -355,7 +357,6 @@ function LoanSheet({ loan, from, onClose, onEdit, onChanged }) {
         <div className="actions">
           {!readOnly && <button className="btn" onClick={toggleClosed}>{loan.closed_on ? 'Reopen' : 'Close loan'}</button>}
           <div className="spacer" />
-          {!readOnly && <button className="btn" onClick={onEdit}>Edit</button>}
           <button className="btn primary" onClick={onClose}>Done</button>
         </div>
       </div>

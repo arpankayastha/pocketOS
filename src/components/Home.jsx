@@ -106,13 +106,13 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
       {month && pc && month.left > 0 && (
         <div className={`home-two ${bill ? '' : 'one'}`}>
           <div className="home-card">
-            <div className="home-sm">Left today</div>
+            <div className="home-smrow"><div className="home-sm">Left today</div><span className="home-ic sm t-accent">☀️</span></div>
             <div className="home-mid">{R(pc.leftToday)}</div>
             <div className="home-sub">{month.todaySpent > 0 ? `${R(month.todaySpent)} spent so far` : 'A fresh day'}</div>
           </div>
           {bill && (
             <div className="home-card">
-              <div className="home-sm">Next bill</div>
+              <div className="home-smrow"><div className="home-sm">Next bill</div><span className="home-ic sm t-warn">🗓️</span></div>
               <div className="home-mid2">{bill.auto_loan ? '🏠 ' : bill.auto_card ? '💳 ' : ''}{bill.name}</div>
               <div className="home-sub">{R(bill.amount)} · {bill.days === 0 ? 'today' : bill.days === 1 ? 'tomorrow' : `in ${bill.days} days`}</div>
             </div>
@@ -122,7 +122,7 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
 
       {kept && (
         <div className="home-card home-kept">
-          <div className="home-hd"><span className="home-ic">✓</span><h3>Kept this month</h3><span className="home-r">so far</span></div>
+          <div className="home-hd"><span className="home-ic t-pos">✓</span><h3>Kept this month</h3><span className="home-r">so far</span></div>
           <div className="home-keptnum">{R(kept.kept)}</div>
           <div className="home-line">{Math.round(kept.share * 100)}% of this month&apos;s income</div>
           <div className="home-keptbar" role="img" aria-label={`${Math.round(kept.share * 100)} percent of the income kept`}>
@@ -136,7 +136,7 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
 
       {week.length > 0 && (
         <div className="home-card">
-          <div className="home-hd"><span className="home-ic">📅</span><h3>This week</h3><span className="home-r">{week.length} {week.length === 1 ? 'thing' : 'things'} coming up</span></div>
+          <div className="home-hd"><span className="home-ic t-accent">📅</span><h3>This week</h3><span className="home-r">{week.length} {week.length === 1 ? 'thing' : 'things'} coming up</span></div>
           <div className="home-list">
             {week.slice(0, 5).map((r) => {
               const d = new Date(`${r.date}T00:00:00`)
@@ -156,7 +156,7 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
 
       {dealCards.map(({ deal, p }) => (
         <button key={deal.id} type="button" className="home-card home-tap" onClick={() => go('deals')}>
-          <div className="home-hd"><span className="home-ic">🏠</span><h3>{deal.name}</h3><span className="home-r">{p.sell ? 'selling' : 'buying'}</span></div>
+          <div className="home-hd"><span className="home-ic t-warn">🏠</span><h3>{deal.name}</h3><span className="home-r">{p.sell ? 'selling' : 'buying'}</span></div>
           {p.paid > 0 || p.hasDue ? (
             <div className="home-big">{R(p.paid)} <small>{p.sell ? 'received from the buyer so far' : 'paid to the builder so far'}</small></div>
           ) : (
@@ -172,7 +172,7 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
 
       {journeys.map(({ loan, j }) => (
         <button key={loan.id} type="button" className="home-card home-tap" onClick={() => go('loans')}>
-          <div className="home-hd"><span className="home-ic">🏦</span><h3>{loan.name} journey</h3><span className="home-r">{[loan.lender, `${loan.rate}%`].filter(Boolean).join(' · ')}</span></div>
+          <div className="home-hd"><span className="home-ic t-accent">🏦</span><h3>{loan.name} journey</h3><span className="home-r">{[loan.lender, `${loan.rate}%`].filter(Boolean).join(' · ')}</span></div>
           {j.begins ? (
             <div className="home-big"><small>Begins {shortDate(j.beginsOn)}</small></div>
           ) : (
@@ -185,7 +185,7 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
 
       {spend && households.length > 1 && (
         <div className="home-card">
-          <div className="home-hd"><span className="home-ic">👪</span><h3>Households this month</h3><span className="home-r">spent</span></div>
+          <div className="home-hd"><span className="home-ic t-xfer">👪</span><h3>Households this month</h3><span className="home-r">spent</span></div>
           <div className="home-list">
             {households.map((h) => (
               <button key={h.id} type="button" className={`home-hh ${h.id === activeHouseholdId ? 'on' : ''}`} onClick={() => setActiveHouseholdId(h.id)}>
@@ -199,7 +199,7 @@ export default function Home({ categories, accounts, activeHouseholdId, househol
 
       {people && people.open > 0 && (
         <button type="button" className="home-card home-tap" onClick={() => go('dues')}>
-          <div className="home-hd"><span className="home-ic">🤝</span><h3>With family &amp; friends</h3><span className="home-r">{people.open} open</span></div>
+          <div className="home-hd"><span className="home-ic t-warn">🤝</span><h3>With family &amp; friends</h3><span className="home-r">{people.open} open</span></div>
           <div className="home-pair">
             <div><small>Lent, coming back</small><b>{people.lent > 0 ? R(people.lent) : '—'}</b></div>
             <div><small>Being settled</small><b>{people.settling > 0 ? R(people.settling) : '—'}</b></div>
