@@ -126,7 +126,7 @@ export default function Plan({ categories, accounts, activeHouseholdId }) {
                 {actual ? <span className="chip">{it.kind === 'income' ? 'Received' : 'Paid'}</span> : it.auto_loan ? null : (
                   <button type="button" className="btn small ghost" onClick={(e) => { e.stopPropagation(); setLogging(logging === it.id ? null : it.id) }}>Log</button>
                 )}
-                {!it.auto_card && !it.auto_loan && <button type="button" className="btn icon" title="Remove" onClick={(e) => { e.stopPropagation(); removeItem(it) }}><TrashIcon /></button>}
+                {!it.auto_card && !it.auto_loan && <button type="button" className="btn icon plan-trash" title="Remove" onClick={(e) => { e.stopPropagation(); removeItem(it) }}><TrashIcon /></button>}
               </div>
               </SwipeRow>
               {open === it.id && bill && (

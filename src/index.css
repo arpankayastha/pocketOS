@@ -1237,3 +1237,10 @@ button.hb-more { width: 100%; border: none; background: none; color: inherit; fo
 .sh-btn svg { width: 20px; height: 20px; }
 .sh-title { text-align: center; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-r { display: flex; justify-content: flex-end; }
+
+/* Plan lines on phones: the name gets the room (Remove is the swipe-left action there). */
+.txn > .grow { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .plan-trash { display: none; }
+  .txn { gap: 10px; padding: 12px; }
+}
