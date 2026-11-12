@@ -1,0 +1,36 @@
+# Builds and publishes the signed eChopdo Android APK (phones then update themselves).
+# Run it by hand: GitHub → Actions → "Android release" → Run workflow (branch echopdo).
+# Needs the repository secret ECHOPDO_KEYSTORE_PASSWORD (the keystore password from the eChopdo Vault).
+name: Android release
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/echopdo'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install SDK packages
+        run: yes | sdkmanager "platforms;android-36" "build-tools;36.0.0" > /dev/null
+      - name: Build, sign, write version.json
+        working-directory: android
+        env:
+          ECHOPDO_KEYSTORE_PASSWORD: ${{ secrets.ECHOPDO_KEYSTORE_PASSWORD }}
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          ./build-release.sh
+      - name: Publish the APK to the app branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/download
+          git commit -m "Android release $(grep '^echopdo.versionName=' android/gradle.properties | cut -d= -f2)"
+          git push origin HEAD:echopdo
