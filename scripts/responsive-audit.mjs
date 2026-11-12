@@ -20,8 +20,8 @@ const heightOf = (w) => (w <= 320 ? 568 : w <= 375 ? 700 : 800)
 
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'echopdo-audit-'))
 const dist = path.join(out, 'dist')
-const shots = path.join(out, 'shots')
-fs.mkdirSync(shots)
+const shots = process.env.AUDIT_SHOTS_DIR || path.join(out, 'shots') // AUDIT_SHOTS_DIR + AUDIT_THEME_CSS: render the screens in another colour theme (design mock-ups)
+fs.mkdirSync(shots, { recursive: true })
 console.log('building a test copy…')
 execFileSync('npx', ['vite', 'build', '--outDir', dist, '--emptyOutDir'], { cwd: root, stdio: 'ignore', env: { ...process.env, VITE_SUPABASE_URL: 'https://fake.supabase.co', VITE_SUPABASE_ANON_KEY: 'fakekey' } })
 
@@ -69,6 +69,7 @@ const dataFor = (status) => ({
 
 async function newContext(browser, w, { signedIn = true, status = 'approved' } = {}) {
   const ctx = await browser.newContext({ viewport: { width: w, height: heightOf(w) }, deviceScaleFactor: 2, hasTouch: true, serviceWorkers: 'block' })
+  if (process.env.AUDIT_THEME_CSS) await ctx.addInitScript((css) => { document.addEventListener('DOMContentLoaded', () => { const el = document.createElement('style'); el.textContent = css; document.head.appendChild(el) }) }, fs.readFileSync(process.env.AUDIT_THEME_CSS, 'utf8'))
   if (signedIn) await ctx.addInitScript((s) => { try { localStorage.setItem('sb-fake-auth-token', JSON.stringify(s)) } catch { /* ignore */ } }, session)
   const data = dataFor(status)
   await ctx.route('https://fake.supabase.co/**', async (route) => {
