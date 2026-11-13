@@ -199,4 +199,33 @@ class SmsParserTest {
         val t = p("JX-CENTBK-T", "A/c XX4444 credited by Rs. 5000.00 on 15092026 via UPI from DEMO PERSON via Ref No. 600000000003. -CBoI")
         assertEquals("in", t.direction); assertEquals(5000.0, t.amount, 0.0); assertEquals("4444", t.accountHint); assertEquals("DEMO PERSON", t.payee)
     }
+
+    // Public sample formats (the Ivy Wallet "Indian Bank SMS" list), with made-up numbers.
+    @Test fun publicSampleFormats() {
+        data class C(val sender: String, val body: String, val dir: String, val amount: Double, val acct: String? = null, val payee: String? = null)
+        val cases = listOf(
+            C("AX-ICICIT-S", "INR 450.50 spent on ICICI Bank Card XX1234 on 20-Oct-22 at SHOP ONE. Avl Lmt: INR 90000.00. To dispute,call 18002662/SMS BLOCK 1234 to 9215676766", "out", 450.5, "1234", "SHOP ONE"),
+            C("AX-ICICIT-S", "Dear Customer, refund of INR 300.00 from Shop One has been credited to your ICICI Bank Credit Card XX1234 on 29-SEP-22 and will be adjusted in the coming statement. For details, please call our Customer Care.", "in", 300.0, "1234"),
+            C("VM-PAYTMB-S", "Rs.120.00 sent to shop@bank from BANKNAME a/c 91XX1234. UPI Ref:600000000010. Balance:<https://m.paytm.me/pbCheckBal>. Query:<http://m.p-y.tm/care>", "out", 120.0, "1234", "shop@bank"),
+            C("VM-PAYTMB-S", "Paid Rs.75.00 via a/c 91XX1234 to Shop Name on 07-09-2022. Ref No: 6000000011 Check payment history at <https://m.paytm.me/msg> :PPBL", "out", 75.0, "1234", "Shop Name"),
+            C("VM-PAYTMB-S", "Rs.2000.00 withdrawn at ATM NAME on 04-09-2022 using Debit Card. Avl Bal:Rs.5000. RefNo. 600000000012. Queries? Call 0120-4456456 :PPBL", "out", 2000.0),
+            C("VM-PAYTMB-S", "Rs.900.00 received from Sender Name in your Paytm Payments Bank a/c 91XX01234. UPI Ref: 600000000013. Check your Avl Bal: <https://m.paytm.me/pbCheckBal>", "in", 900.0, "1234", "Sender Name"),
+            C("VM-SBIINB-S", "Dear Customer, Your a/c no. XXXXXXXX0000 is debited for Rs.150.00 on 14-10-22 and a/c XXXXXXX000 credited (IMPS Ref no 600000000014).If not done by you, call 1800111109 -SBI", "out", 150.0, "0000"),
+            C("VM-SBIINB-S", "Dear Customer, Thx for INB txn of Rs.2500.00 frm A/c x0000 to ICICI Bank. Ref XXXXXX1234xx on 09Sep22. If not done, fwd this SMS to 9223008333 to block INB or call 1800111109-SBI", "out", 2500.0, "0000", "ICICI Bank"),
+            C("VM-SBIINB-S", "Your AC XXXXX123456 Debited INR 118.00 on 13/07/22 -Service Charge for forex trans. Avl Bal INR 9000.00.-SBI", "out", 118.0, "3456"),
+            C("VM-SBIINB-S", "Dear Customer, Your A/C XXXXX123456 has a debit by transfer of Rs 60.00 on 11/03/22. Avl Bal Rs 9000.00.-SBI", "out", 60.0, "3456"),
+            C("VM-SBIINB-S", "Dear SBI User, your A/c X1234-debited by Rs250.5 on 29Sep22 transfer to Shop Ref No 600000000015. If not done by u, fwd this SMS to 9223008333/Call 1800111109 or 09449112211 to block UPI -SBI", "out", 250.5, "1234", "Shop"),
+            C("VM-SBIINB-S", "Rs95.5 debited@SBI UPI frm A/cX1234 on 27Sep22 RefNo 600000000016. If not done by u, fwd this SMS to 9223008333/Call 1800111109 or 09449112211 to block UPI", "out", 95.5, "1234"),
+            C("VM-SBIINB-S", "Dear Customer, Your a/c no. XXXXXXXX0000 is credited by Rs.5000.00 on 18-01-22 by a/c linked to mobile 9XXXXXX999-BANK NAME (IMPS Ref no 600000000017).If not done by you, call 1800111109. -SBI", "in", 5000.0, "0000"),
+            C("VM-SBIINB-S", "Dear Customer, Your A/C XXXXX123456 has a credit by Transfer of Rs 7000.00 on 13/07/22 by Bank. Avl Bal Rs 9000.00.-SBI", "in", 7000.0, "3456"),
+            C("VM-SBIINB-S", "Your A/C XXXXX983974 Credited INR 650.00 on 15/03/22 -Deposit by transfer from FIRSTNAME LASTNAME. Avl Bal INR 9000.00-SBI", "in", 650.0, "3974", "FIRSTNAME LASTNAME"),
+        )
+        for (c in cases) {
+            val t = SmsParser.parse(c.sender, c.body)
+            assertNotNull(c.body, t)
+            assertEquals(c.body, c.dir, t!!.direction); assertEquals(c.body, c.amount, t.amount, 0.0)
+            if (c.acct != null) assertEquals(c.body, c.acct, t.accountHint)
+            if (c.payee != null) assertEquals(c.body, c.payee, t.payee)
+        }
+    }
 }

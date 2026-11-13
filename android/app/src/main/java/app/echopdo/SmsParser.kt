@@ -46,7 +46,7 @@ object SmsParser {
         parse(sender, body)?.let { return Decision(it, "payment", if (it.direction == "in") "Money in" else "Money out") }
         val why = when {
             !AMOUNT.containsMatchIn(text) -> "No amount found"
-            !OUT_WORDS.containsMatchIn(text) && !IN_WORDS.containsMatchIn(text) -> "No debited / credited word"
+            !OUT_WORDS.containsMatchIn(text) && !IN_WORDS.containsMatchIn(text) && !TXN_FROM_ACCOUNT.containsMatchIn(text) -> "No debited / credited word"
             ACCT.none { it.containsMatchIn(text) } -> "No account or card number"
             else -> "Couldn't read it"
         }
@@ -194,13 +194,16 @@ object SmsParser {
     // account or card number, so shop / app messages ("your order of Rs 250 is paid") are skipped.
     private val ACCT = listOf(
         Regex("(?i)\\b(?:account|acct|card|a/?c)[^0-9\\n]{0,20}?[xX*]+\\s?(\\d{3,6})"),   // A/c XX1234, Card *1234, A/cX4321
+        Regex("(?i)\\b(?:a/?c|acct|account)\\s+(?:no\\.?\\s*)?\\d{1,3}[xX*]+(\\d{3,6})"),                          // a/c 91XX1234
         Regex("(?i)\\b(?:ending|ends)\\s*(?:with|in)?\\s*[xX*]*(\\d{3,6})"),                        // card ending 1234
         Regex("(?i)\\b(?:card|a/?c|acct|account)\\s+(?:no\\.?\\s*)?(\\d{4})\\b"),                // Card 1234, a/c 3333
     )
     private val OUT_WORDS = Regex("(?i)\\b(debited|debit|dr|spent|paid|sent|withdrawn|withdrawal|purchase|transferred|deducted|charged|used)\\b")
     private val TO_ACCOUNT = Regex("(?i)\\b(credited|transferred|deposited|added|paid)\\s+(?:in)?to\\s+(?:your\\s+)?(?:a/?c|acct|account|savings|sb)\\b")
     private val FROM_ACCOUNT = Regex("(?i)\\b(debited|withdrawn|transferred|deducted)\\s+from\\s+(?:your\\s+)?(?:a/?c|acct|account|savings|sb)\\b")
-    private val IN_WORDS = Regex("(?i)\\b(credited|cr|received|deposited|refunded|added)\\b")
+    // SBI internet banking: "Thx for INB txn of Rs.2500.00 frm A/c x0000 to ICICI Bank" (no debited word).
+    private val TXN_FROM_ACCOUNT = Regex("(?i)\\btxn of\\b.{0,40}?\\b(?:frm|from)\\s+(?:your\\s+)?a/?c")
+    private val IN_WORDS = Regex("(?i)\\b(credited|cr|received|deposited|refunded|added)\\b|\\bcredit(?= by\\b)")
     private val AMOUNT_WORD = Regex("(?i)(?:debited|credited|withdrawn|deposited)\\s+(?:by|with|for)\\s+(?:rs\\.?|inr|₹)?\\s*([0-9][0-9,]*(?:\\.\\d{1,2})?)")
     private val NOT_AMOUNT = Regex("(?i)(bal|balance|limit|lmt|avl|available|outstanding|due|total)[^0-9]{0,6}$")
     private val REF = listOf(
@@ -212,7 +215,7 @@ object SmsParser {
         Regex("(?i)UPI/(?:P2[AM]|[A-Z]{2,4})/\\d{6,}/([^/.]+?)(?:/|\\s+Not\\b|\\.|$)"),                    // UPI/P2M/4265…/NAME
         Regex("(?i);\\s*([A-Za-z][A-Za-z0-9 &.'-]{1,40}?)\\s+credited"),                                    // ; NAME credited
         Regex("(?i)\\bon\\s+(?:\\d{1,2}[-/. ][A-Za-z0-9]{2,3}[-/. ]\\d{2,4}|\\d{1,2}[A-Za-z]{3}\\d{2})\\s+(?:on|at)\\s+([A-Za-z0-9*][A-Za-z0-9 &.'*/_-]{1,40}?)(?=\\.\\s|\\s+Avl|\\s+Not\\b|,|\\.$|$)"), // … on 25-Sep-26 on SHOP
-        Regex("(?i)(?:\\b(?:trf to|towards|to|at|from|by)\\b|\\binfo[:-])\\s*(?!your\\b|a/?c\\b|ac\\b|acct\\b|account\\b|rs\\b|inr\\b|the\\b|\\d)([A-Za-z0-9][A-Za-z0-9 &.'/_-]{1,40}?)(?=\\s+on\\b|\\s+via\\b|\\.\\s|\\s+with\\b|\\s+Ref|\\s+UPI|\\s+Avl|\\s+Bal|\\s+Not\\b|\\s+from\\b|\\s*\\(|;|,|\\.$|$)"),
+        Regex("(?i)(?:\\b(?:trf to|towards|to|at|from|by)\\b|\\binfo[:-])\\s*(?!your\\b|a/?c\\b|ac\\b|acct\\b|account\\b|rs\\.?\\s?\\d|rs\\b|inr\\b|the\\b|transfer\\b|you\\b|mobile\\b|block\\b|\\d)([A-Za-z0-9][A-Za-z0-9 &.'/_-]{1,40}?)(?=\\s+on\\b|\\s+via\\b|\\.\\s|\\s+in\\s+your\\b|\\s+with\\b|\\s+Ref|\\s+UPI|\\s+Avl|\\s+Bal|\\s+Not\\b|\\s+from\\b|\\s*\\(|;|,|\\.$|$)"),
     )
 
     private fun generic(t: String, bank: String, bankish: Boolean): BankTxn? {
@@ -228,6 +231,7 @@ object SmsParser {
             // no. XXXX1614": the credit is the other side of a payment this account made).
             to != null && !FROM_ACCOUNT.containsMatchIn(plain) && (out == null || out.range.first >= to.range.first) -> "in"
             FROM_ACCOUNT.containsMatchIn(plain) && to == null -> "out"
+            TXN_FROM_ACCOUNT.containsMatchIn(plain) && inn == null -> "out"
             out != null && (inn == null || out.range.first < inn.range.first) -> "out"
             inn != null -> "in"
             else -> return null
@@ -237,7 +241,7 @@ object SmsParser {
             ?: return null
         val card = Regex("(?i)\\bcard\\b").containsMatchIn(t)
         val ref = REF.firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) }
-        val vpa = Regex("[A-Za-z0-9._-]{2,}@[A-Za-z]{2,}").find(t)?.value
+        val vpa = Regex("(?i)(?<![A-Za-z0-9])(?!debited@|credited@)[A-Za-z0-9._-]{2,}@[A-Za-z]{2,}").find(t)?.value
         val payee = (PAYEE.take(4).firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) } ?: vpa ?: PAYEE[4].find(t)?.groupValues?.get(1))
             ?.trim()?.trimEnd('.')?.trim()?.takeUnless { it.isEmpty() || Regex("^[Xx*\\d\\s]+$").matches(it) }
         return BankTxn(direction, money(amount), findDate(t), acct, card, payee, ref, bank)
