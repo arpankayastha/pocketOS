@@ -212,7 +212,7 @@ object SmsParser {
         Regex("(?i)UPI/(?:P2[AM]|[A-Z]{2,4})/\\d{6,}/([^/.]+?)(?:/|\\s+Not\\b|\\.|$)"),                    // UPI/P2M/4265…/NAME
         Regex("(?i);\\s*([A-Za-z][A-Za-z0-9 &.'-]{1,40}?)\\s+credited"),                                    // ; NAME credited
         Regex("(?i)\\bon\\s+(?:\\d{1,2}[-/. ][A-Za-z0-9]{2,3}[-/. ]\\d{2,4}|\\d{1,2}[A-Za-z]{3}\\d{2})\\s+(?:on|at)\\s+([A-Za-z0-9*][A-Za-z0-9 &.'*/_-]{1,40}?)(?=\\.\\s|\\s+Avl|\\s+Not\\b|,|\\.$|$)"), // … on 25-Sep-26 on SHOP
-        Regex("(?i)(?:\\b(?:trf to|towards|to|at|from|by)\\b|\\binfo[:-])\\s*(?!your\\b|a/?c\\b|ac\\b|acct\\b|account\\b|rs\\b|inr\\b|the\\b|\\d)([A-Za-z0-9][A-Za-z0-9 &.'/_-]{1,40}?)(?=\\s+on\\b|\\s+via\\b|\\.\\s|\\s+Ref|\\s+UPI|\\s+Avl|\\s+Bal|\\s+Not\\b|\\s+from\\b|\\s*\\(|;|,|\\.$|$)"),
+        Regex("(?i)(?:\\b(?:trf to|towards|to|at|from|by)\\b|\\binfo[:-])\\s*(?!your\\b|a/?c\\b|ac\\b|acct\\b|account\\b|rs\\b|inr\\b|the\\b|\\d)([A-Za-z0-9][A-Za-z0-9 &.'/_-]{1,40}?)(?=\\s+on\\b|\\s+via\\b|\\.\\s|\\s+with\\b|\\s+Ref|\\s+UPI|\\s+Avl|\\s+Bal|\\s+Not\\b|\\s+from\\b|\\s*\\(|;|,|\\.$|$)"),
     )
 
     private fun generic(t: String, bank: String, bankish: Boolean): BankTxn? {
@@ -221,10 +221,13 @@ object SmsParser {
         // "credit card" / "debit card" are not directions.
         val plain = t.replace(Regex("(?i)(credit|debit)\\s+card"), "card")
         val out = OUT_WORDS.find(plain); val inn = IN_WORDS.find(plain)
+        val to = TO_ACCOUNT.find(plain)
         val direction = when {
             // "… transferred / credited to your A/c XX1234" is money in; "… debited from your A/c" is out.
-            TO_ACCOUNT.containsMatchIn(plain) && !FROM_ACCOUNT.containsMatchIn(plain) -> "in"
-            FROM_ACCOUNT.containsMatchIn(plain) && !TO_ACCOUNT.containsMatchIn(plain) -> "out"
+            // … unless the SMS first says this account was debited ("is debited for Rs.200 … and credited to a/c
+            // no. XXXX1614": the credit is the other side of a payment this account made).
+            to != null && !FROM_ACCOUNT.containsMatchIn(plain) && (out == null || out.range.first >= to.range.first) -> "in"
+            FROM_ACCOUNT.containsMatchIn(plain) && to == null -> "out"
             out != null && (inn == null || out.range.first < inn.range.first) -> "out"
             inn != null -> "in"
             else -> return null

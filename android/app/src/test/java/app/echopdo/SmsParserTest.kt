@@ -183,4 +183,20 @@ class SmsParserTest {
         assertTrue(SmsParser.fromBank("JKBOBSMS")); assertTrue(SmsParser.fromBank("BOBSMS"))
         assertFalse(SmsParser.fromBank("+919000000001")); assertFalse(SmsParser.fromBank("90000 00001")); assertFalse(SmsParser.fromBank(null))
     }
+
+    @Test fun cooperativeBankDebitMentioningTheCreditedAccount() {
+        // "debited … and credited to a/c no." is a payment this account made, not money in.
+        val a = p("VM-DEMOCB-S", "Your a/c no. XXXXXXXX1111 is debited for Rs.210.00 on 10-11-26 and credited to a/c no. XXXXX2222 (UPI Ref no 600000000001). DEMOCB")
+        assertEquals("out", a.direction); assertEquals(210.0, a.amount, 0.0); assertEquals("1111", a.accountHint)
+        assertEquals("600000000001", a.ref); assertEquals(LocalDate.of(2026, 11, 10), a.date)
+        val b = p("VM-DEMOCB-S", "Acct ending **1111 is debited by Rs.210.00 through UPI to DEMO SHOP with Ref No 600000000001 on 10-11-2026. Avl Bal Rs. 900.99. DEMOCB")
+        assertEquals("out", b.direction); assertEquals(210.0, b.amount, 0.0); assertEquals("1111", b.accountHint); assertEquals("DEMO SHOP", b.payee)
+        val c = p("VM-DEMOCB-S", "Your a/c no. XXXXXXXX1111 is debited for Rs.400.00 on 06-11-26 and credited to a/c no. XXXXXXXX3333 (UPI Ref no 600000000002). DEMOCB")
+        assertEquals("out", c.direction); assertEquals(400.0, c.amount, 0.0)
+    }
+
+    @Test fun creditsInTheSameFamilyOfFormatsStayIncoming() {
+        val t = p("JX-CENTBK-T", "A/c XX4444 credited by Rs. 5000.00 on 15092026 via UPI from DEMO PERSON via Ref No. 600000000003. -CBoI")
+        assertEquals("in", t.direction); assertEquals(5000.0, t.amount, 0.0); assertEquals("4444", t.accountHint); assertEquals("DEMO PERSON", t.payee)
+    }
 }
