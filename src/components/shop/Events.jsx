@@ -239,10 +239,16 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
       <Chips options={[['online', 'Online / scanner'], ['cash', 'Cash'], ['none', 'Not paid yet']]} value={mode} onChange={setMode} />
       {mode === 'online' && <UpiQrButton settings={settings} amount={Number(ev.advance)} note={`${ev.name} advance · ${name.trim() || 'customer'}`} />}
       <div className="gx-box">
-        <SumRow label={`First ${durLabel(ev.slot_minutes)}${players > 1 ? ` × ${players}` : ''}`} value={rs(firstPrice(ev) * players)} />
-        {hours > 1 && <SumRow label={`${hours - 1} more × ${rs(nextPrice(ev))}${players > 1 ? ` × ${players}` : ''}`} value={rs((hours - 1) * nextPrice(ev) * players)} />}
+        {(() => {
+          const h = happyOn(ev, settings, slot), f = h ? Number(ev.happy_first_price) : firstPrice(ev), n = h ? Number(ev.happy_next_price ?? nextPrice(ev)) : nextPrice(ev)
+          return (<>
+            <SumRow label={`First ${durLabel(ev.slot_minutes)}${players > 1 ? ` × ${players}` : ''}${h ? ' · happy day' : ''}`} value={rs(f * players)} />
+            {hours > 1 && <SumRow label={`${hours - 1} more × ${rs(n)}${players > 1 ? ` × ${players}` : ''}`} value={rs((hours - 1) * n * players)} />}
+          </>)
+        })()}
+        <SumRow strong label="Total" value={rs(total)} />
         <SumRow label="Advance now" value={`−${rs(mode === 'none' ? 0 : ev.advance)}`} />
-        <SumRow strong label="At the counter" value={rs(total - (mode === 'none' ? 0 : Number(ev.advance)))} />
+        <SumRow strong label="Left to pay at the counter" value={rs(total - (mode === 'none' ? 0 : Number(ev.advance)))} />
       </div>
       <SheetActions onClose={onClose} busy={busy} disabled={!name.trim()} label={`Book ${durLabel(hours * ev.slot_minutes)}`} />
     </Sheet>
