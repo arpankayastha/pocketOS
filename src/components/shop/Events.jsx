@@ -179,7 +179,7 @@ export default function Events({ householdId, admin, settings, toast, onArrived 
           <ActionSheet title={b.customer_name} sub={`${timeLabel(b.slot_start)} – ${timeLabel(new Date(b.slot_start).getTime() + (b.hours || 1) * ev.slot_minutes * 60_000)}${b.players > 1 ? ` · ${b.players} players` : ''}`} onClose={() => setSheet(null)}
             primary={!b.payment_ok ? <button type="button" className="btn primary" onClick={() => received(b)}>Received</button> : b.status !== 'arrived' ? <button type="button" className="btn primary" onClick={() => arrive(b)}>Arrived</button> : null}>
             <div className="gx-details">
-              {[['Amount', rs(b.amount)], ['Advance', Number(b.advance_paid) ? `${rs(b.advance_paid)} · ${b.advance_mode}` : 'none'], ['Payment', b.payment_ok ? 'checked' : 'to check'],
+              {[['Amount', rs(b.amount)], [Number(b.advance_paid) >= Number(b.amount) ? 'Paid in full' : 'Advance', Number(b.advance_paid) ? `${rs(b.advance_paid)} · ${b.advance_mode}` : 'none'], ['Payment', b.payment_ok ? 'checked' : 'to check'],
                 ['UPI ref', b.upi_ref], ['Mobile', b.customer_phone], ['Booked', b.source === 'online' ? 'online' : `by ${b.entered_by || '—'}`], ['Checked by', b.handled_by]]
                 .filter(([, v]) => v).map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}
             </div>
@@ -214,6 +214,9 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
   const total = eventPrice(ev, hours, players, settings, slot)
   const end = slot.getTime() + hours * ev.slot_minutes * 60_000
   const [mode, setMode] = useState(Number(ev.advance) ? 'online' : 'none')
+  // Owner, 14 Nov: some pay the whole amount when booking — "Advance ₹100" or "Full ₹300".
+  const [full, setFull] = useState(false)
+  const paid = mode === 'none' ? 0 : full ? total : Math.min(Number(ev.advance) || 0, total)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   async function save() {
@@ -221,7 +224,7 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
     const { error } = await supabase.from('shop_event_bookings').insert({
       household_id: householdId, event_id: ev.id, slot_start: slot.toISOString(),
       customer_name: name.trim(), customer_phone: phone.trim() || null, players, hours, amount: total,
-      advance_paid: mode === 'none' ? 0 : ev.advance, advance_mode: mode === 'none' ? null : mode,
+      advance_paid: paid, advance_mode: mode === 'none' ? null : mode,
     })
     setBusy(false)
     if (error) { setError(/full/i.test(error.message) ? 'Someone just took this slot.' : error.message); return }
@@ -235,9 +238,10 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
       <Chips options={Array.from({ length: freeHours }, (_, i) => [i + 1, durLabel((i + 1) * ev.slot_minutes)])} value={hours} onChange={setHours} />
       <div className="caps muted">Players · charged per head</div>
       <Chips options={Array.from({ length: ev.system_kind === 'PS' ? 3 : 1 }, (_, i) => [i + 1, String(i + 1)])} value={players} onChange={setPlayers} />
-      <div className="caps muted">Advance {rs(ev.advance)} · non-refundable once paid</div>
+      <div className="caps muted">Paying now · non-refundable once paid</div>
       <Chips options={[['online', 'Online / scanner'], ['cash', 'Cash'], ['none', 'Not paid yet']]} value={mode} onChange={setMode} />
-      {mode === 'online' && <UpiQrButton settings={settings} amount={Number(ev.advance)} note={`${ev.name} advance · ${name.trim() || 'customer'}`} />}
+      {mode !== 'none' && <Chips options={[[false, `Advance ${rs(Math.min(Number(ev.advance) || 0, total))}`], [true, `Full ${rs(total)}`]]} value={full} onChange={setFull} />}
+      {mode === 'online' && <UpiQrButton settings={settings} amount={paid} note={`${ev.name} ${full ? 'payment' : 'advance'} · ${name.trim() || 'customer'}`} />}
       <div className="gx-box">
         {(() => {
           const h = happyOn(ev, settings, slot), f = h ? Number(ev.happy_first_price) : firstPrice(ev), n = h ? Number(ev.happy_next_price ?? nextPrice(ev)) : nextPrice(ev)
@@ -247,8 +251,8 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
           </>)
         })()}
         <SumRow strong label="Total" value={rs(total)} />
-        <SumRow label="Advance now" value={`−${rs(mode === 'none' ? 0 : ev.advance)}`} />
-        <SumRow strong label="Left to pay at the counter" value={rs(total - (mode === 'none' ? 0 : Number(ev.advance)))} />
+        <SumRow label={full && mode !== 'none' ? 'Paid now (full)' : 'Advance now'} value={`−${rs(paid)}`} />
+        <SumRow strong label="Left to pay at the counter" value={rs(total - paid)} />
       </div>
       <SheetActions onClose={onClose} busy={busy} disabled={!name.trim()} label={`Book ${durLabel(hours * ev.slot_minutes)}`} />
     </Sheet>
