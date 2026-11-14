@@ -215,7 +215,7 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
   const end = slot.getTime() + hours * ev.slot_minutes * 60_000
   const [mode, setMode] = useState(Number(ev.advance) ? 'online' : 'none')
   // Owner, 14 Nov: some pay the whole amount when booking — "Advance ₹100" or "Full ₹300".
-  const [full, setFull] = useState(true) // owner, 14 Nov: most pay the whole amount — Full is the default
+  const full = true // owner, 14 Nov: "advance wala option hata de — hum full payment hi le rahe" (counter takes the full amount)
   const paid = mode === 'none' ? 0 : full ? total : Math.min(Number(ev.advance) || 0, total)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -238,9 +238,8 @@ function BookSheet({ ev, slot, freeHours, settings, householdId, onClose, onDone
       <Chips options={Array.from({ length: freeHours }, (_, i) => [i + 1, durLabel((i + 1) * ev.slot_minutes)])} value={hours} onChange={setHours} />
       <div className="caps muted">Players · charged per head</div>
       <Chips options={Array.from({ length: ev.system_kind === 'PS' ? 3 : 1 }, (_, i) => [i + 1, String(i + 1)])} value={players} onChange={setPlayers} />
-      <div className="caps muted">Paying now · non-refundable once paid</div>
+      <div className="caps muted">Full payment {rs(total)} · non-refundable once paid</div>
       <Chips options={[['online', 'Online / scanner'], ['cash', 'Cash'], ['none', 'Not paid yet']]} value={mode} onChange={setMode} />
-      {mode !== 'none' && <Chips options={[[true, `Full ${rs(total)}`], [false, `Advance ${rs(Math.min(Number(ev.advance) || 0, total))}`]]} value={full} onChange={setFull} />}
       {mode === 'online' && <UpiQrButton settings={settings} amount={paid} note={`${ev.name} ${full ? 'payment' : 'advance'} · ${name.trim() || 'customer'}`} />}
       <div className="gx-box">
         {(() => {
