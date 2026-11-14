@@ -6,7 +6,7 @@ import { isCustomer, readMine, rememberMine } from '../lib/mine'
 import PublicNav from './PublicNav'
 import ContactFields from './ContactFields'
 
-// One event from the home page (/#event/<id>): book GTA VI-style hours (advance by UPI) or enter a
+// One event from the home page (/#event/<id>): book GTA VI-style hours (full amount by UPI, owner 14 Nov) or enter a
 // tournament (Valorant: name, mobile, rank, entry fee by UPI). Checked again on the server
 // (public_event_book / public_tournament_entry); staff confirm the payment on the Floor.
 export default function EventPage({ id, session }) {
@@ -74,7 +74,7 @@ function Slots({ ev, info, me }) {
   const happy = day && ev.happy_first_price != null && (info?.happy_days || [3, 4, 5]).includes(new Date(`${day}T00:00`).getDay())
   const first = happy ? Number(ev.happy_first_price) : Number(ev.first_price), next = happy ? Number(ev.happy_next_price ?? ev.next_price) : Number(ev.next_price)
   const amount = (first + (hours - 1) * next) * players
-  const advance = Math.min(Number(ev.advance) || 0, amount)
+  const advance = amount // owner, 14 Nov: the full amount is paid online when booking (was a ₹100 advance)
   const fits = (t) => {
     const i = slots.findIndex((s) => s.t === t)
     for (let k = 0; k < hours; k++) { const s = slots[i + k]; if (!s || s.free < 1) return false }
@@ -97,14 +97,14 @@ function Slots({ ev, info, me }) {
       <h2>Booking sent</h2>
       <div className="book-code mono">{done.code}</div>
       <p>{ev.name} · {when}{players > 1 ? ` · ${players} players` : ''} · {rs(done.amount)}</p>
-      <p className="muted small">{done.advance ? `The shop confirms it once your ${rs(done.advance)} advance shows up. Pay the rest (${rs(done.amount - done.advance)}) at the counter.` : 'Pay at the counter.'} Your booking shows on the home page.</p>
+      <p className="muted small">{done.advance ? `The shop confirms it once your ${rs(done.advance)} payment shows up. Nothing more to pay at the counter.` : 'Pay at the counter.'} Your booking shows on the home page.</p>
       <a className="btn block" href="#">Home</a>
     </div>
   )
   if (step === 'pay') return (
-    <PayCard amount={advance} info={info} note={`${ev.name} advance ${name.trim()}`} what={`${ev.name} · ${when}`} refValue={ref} setRef={setRef}
+    <PayCard amount={advance} info={info} note={`${ev.name} ${name.trim()}`} what={`${ev.name} · ${when}`} refValue={ref} setRef={setRef}
       onBack={() => setStep('form')} busy={busy} error={error} onSend={send}
-      footer={`Advance ${rs(advance)} now, ${rs(amount - advance)} at the counter. The advance is non-refundable.`} />
+      footer={`Full payment ${rs(advance)} now · non-refundable.`} />
   )
   const ready = start && name.trim().length >= 2 && phone.replace(/\D/g, '').length >= 10
   return (
@@ -123,9 +123,9 @@ function Slots({ ev, info, me }) {
         </div>
       )}
       <ContactFields name={name} setName={setName} phone={phone} setPhone={setPhone} />
-      <div className="book-total"><span className="muted">{durLabel(hours * ev.slot_minutes)}{players > 1 ? ` × ${players}` : ''}{advance ? ` · advance ${rs(advance)}` : ''}{happy ? ' · happy day price' : ''}</span><b>{rs(amount)}</b></div>
+      <div className="book-total"><span className="muted">{durLabel(hours * ev.slot_minutes)}{players > 1 ? ` × ${players}` : ''}{happy ? ' · happy day price' : ''}</span><b>{rs(amount)}</b></div>
       {error && <div className="alert error" style={{ margin: 0 }}>{error}</div>}
-      <button className="btn primary block" disabled={!ready || busy} onClick={() => { setError(null); if (advance) setStep('pay'); else send() }}>{start ? (advance ? `Book · pay ${rs(advance)} advance` : 'Book') : 'Pick a start time'}</button>
+      <button className="btn primary block" disabled={!ready || busy} onClick={() => { setError(null); if (advance) setStep('pay'); else send() }}>{start ? (advance ? `Book · pay ${rs(advance)}` : 'Book') : 'Pick a start time'}</button>
     </div>
   )
 }

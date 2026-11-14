@@ -163,7 +163,7 @@ function Mine({ status }) {
           ))}
           {status.event_bookings.map((b) => (
             <div key={b.id} className="line"><div className="grow"><div>{b.event} · {new Date(b.slot_start).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} {timeLabel(b.slot_start)}</div>
-              <div className="muted small">Code {b.code} · {durLabel(b.hours * b.slot_minutes)} · {rs(b.amount)}{Number(b.advance) ? ` · advance ${rs(b.advance)}` : ''}</div></div>
+              <div className="muted small">Code {b.code} · {durLabel(b.hours * b.slot_minutes)} · {rs(b.amount)}{Number(b.advance) >= Number(b.amount) ? ' · paid' : Number(b.advance) ? ` · advance ${rs(b.advance)}` : ''}</div></div>
               <span className={`pill gx-pill ${b.status === 'cancelled' ? '' : b.payment_ok ? 'free' : 'ending'}`}>{b.status === 'cancelled' ? 'Cancelled' : b.payment_ok ? 'Confirmed' : 'Payment being checked'}</span></div>
           ))}
           {status.entries.map((x) => (

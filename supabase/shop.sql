@@ -1607,3 +1607,7 @@ returns numeric language sql stable security definer set search_path = '' as $$
 $$;
 revoke execute on function private.event_amount(public.shop_events, date, int, int) from public, anon, authenticated;
 -- public_event_book: amt := private.event_amount(e, d, p_hours, p_players); public_home: + 'happy_first_price', 'happy_next_price'.
+
+-- Owner, 14 Nov ("website pe bhi full payment online le"): public_event_book saves advance_paid = the full amount
+-- (online, payment_ok false until staff press Received / the bank SMS matches it); the counter's Book sheet also
+-- takes only the full amount (no advance option). Migration event_book_full_payment.
